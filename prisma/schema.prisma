@@ -1,0 +1,16 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Event {
+  id       String   @id @default(uuid())
+  number   Int      @unique @default(autoincrement())
+  name     String
+  Begin    DateTime
+  End      DateTime
+  maxSeats Int
+}
