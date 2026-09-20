@@ -1,29 +1,15 @@
-﻿import { defineConfig } from "prisma/config";
-import { loadEnvFile } from "node:process";
+import { config } from "dotenv";
+import { defineConfig } from "prisma/config";
 
-try {
-  loadEnvFile(".env");
-} catch {
-  // .env.local not present — fall back to process.env
-}
-
-// DigitalOcean (and other managed DBs) may include sslrootcert/sslcert params
-// pointing to local cert files that don't exist on dev machines.
-// Strip those and ensure sslmode=require so Prisma CLI can connect.
-function buildMigrateUrl(raw: string | undefined): string | undefined {
-  if (!raw) return raw;
-  const url = new URL(raw);
-  url.searchParams.delete("sslrootcert");
-  url.searchParams.delete("sslcert");
-  url.searchParams.delete("sslkey");
-  if (!url.searchParams.has("sslmode")) {
-    url.searchParams.set("sslmode", "require");
-  }
-  return url.toString();
-}
+// Preserve shell variables; otherwise prefer .env.local over .env.
+config({ path: [".env.local", ".env"], quiet: true });
 
 export default defineConfig({
+  schema: "prisma/schema.prisma",
+  migrations: { path: "prisma/migrations" },
   datasource: {
-    url: buildMigrateUrl(process.env.DATABASE_URL),
+    // Use the configured URL unchanged, including its TLS settings.
+    // Generation works without a URL; database commands require one.
+    url: process.env.DATABASE_URL,
   },
 });

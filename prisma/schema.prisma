@@ -6,11 +6,69 @@ datasource db {
   provider = "postgresql"
 }
 
+enum Platform {
+  EVENTBRITE
+  RAUSGEGANGEN
+  EVERSPORTS
+  URBAN_SPORTS_CLUB
+  WELLPASS
+  MYCLUBS
+  EVENTIM
+}
+
+enum BookingStatus {
+  CONFIRMED
+  CANCELLED
+}
+
+enum SyncStatus {
+  ACTIVE
+  DISABLED
+  ERROR
+}
+
 model Event {
-  id       String   @id @default(uuid())
-  number   Int      @unique @default(autoincrement())
-  name     String
-  Begin    DateTime
-  End      DateTime
-  maxSeats Int
+  id             String          @id @default(uuid())
+  number         Int             @unique @default(autoincrement())
+  name           String
+  beginsAt       DateTime        @map("Begin")
+  endsAt         DateTime        @map("End")
+  maxSeats       Int
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @default(now()) @updatedAt
+  platformEvents PlatformEvent[]
+  bookings       Booking[]
+}
+
+model PlatformEvent {
+  id              String     @id @default(uuid()) @db.Uuid
+  eventId         String
+  event           Event      @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  platform        Platform
+  externalEventId String
+  syncStatus      SyncStatus @default(ACTIVE)
+  lastSyncedAt    DateTime?
+  lastError       String?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  // An external event has exactly one central owner; duplicate mappings are forbidden.
+  @@unique([platform, externalEventId])
+  @@index([eventId, syncStatus])
+}
+
+model Booking {
+  id                String        @id @default(uuid()) @db.Uuid
+  eventId           String
+  event             Event         @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  platform          Platform
+  externalBookingId String
+  quantity          Int
+  status            BookingStatus
+  bookedAt          DateTime
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  @@unique([platform, externalBookingId])
+  @@index([eventId, status])
 }
