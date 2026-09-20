@@ -72,6 +72,36 @@ Seitenaufruf mit einem konsistenten DB-Snapshot und zeigt einen Empty State bei
 leerer Datenbank. Die Seite benötigt das migrierte Schema; der Build benötigt keine
 erreichbare Datenbank. Zeiten werden in `Europe/Berlin` angezeigt.
 
+## Event-Verwaltung (CRUD)
+
+Unter `/events` führt **+ Neues Event** zu `/events/new`. **Bearbeiten** öffnet
+`/events/[id]/edit`; ein unbekanntes Event liefert die Next.js-404-Seite.
+Beide Seiten nutzen dasselbe Formular mit Server Actions. Name, Beginn, Ende und
+maximale Plätze werden serverseitig validiert. Die Event-Nummer bleibt automatisch
+vergeben. Fehler erscheinen am Formular, Eingaben bleiben erhalten. Erfolgreiches
+Anlegen und Bearbeiten revalidieren `/events` und leiten dorthin zurück.
+
+**Löschen** verlangt zunächst eine ausdrückliche Bestätigung in der Tabellenzeile.
+Der DELETE prüft atomar, dass weder Buchungen (auch keine stornierten) noch
+Plattformzuordnungen bestehen. Die vorhandenen Restrict-Fremdschlüssel sichern
+zusätzlich konkurrierende Änderungen ab. Fehlende Event-IDs werden abgelehnt,
+damit kein ungefilterter DELETE möglich ist. Abhängige Daten werden nicht gelöscht.
+
+Die `datetime-local`-Eingaben werden stets als **Europe/Berlin** interpretiert.
+`lib/events/berlin-date-time.ts` ermittelt mit `Intl.DateTimeFormat` die gültigen
+Zeitzonen-Offsets und konvertiert explizit zwischen Berliner Ortszeit und einem
+UTC-Zeitpunkt. Die Browser- bzw. Server-Zeitzone spielt dabei keine Rolle.
+Nicht existierende Uhrzeiten bei der Frühjahrsumstellung werden abgelehnt. Bei
+neuen doppeldeutigen Herbstzeiten gilt das erste Auftreten (Sommerzeit). Beim
+Bearbeiten einer unveränderten Uhrzeit bleibt der ursprüngliche Zeitpunkt erhalten,
+auch wenn er zum zweiten Auftreten gehört. Sekunden und Millisekunden bleiben
+ebenfalls erhalten. Diese Regeln sind durch Tests abgedeckt.
+
+CRUD benötigt keine weitere Schemaänderung oder Migration. Die Datenbank muss
+allerdings das zuvor beschriebene Phase-1-Schema enthalten. Änderungen lösen keine
+externe Synchronisierung aus. Ein Ende-zu-Ende-Test der DB-Schreibvorgänge gegen
+eine lokale Entwicklungsdatenbank steht noch aus; die Action-Tests nutzen DB-Doubles.
+
 ## Integrationen und Synchronisierung
 
 `lib/integrations/types.ts` enthält plattformunabhängige Domain-Typen ohne
