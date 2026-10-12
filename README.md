@@ -5,6 +5,9 @@ Datenhaltung und Integrationsverträge bereit. Externe APIs sind noch nicht ange
 
 ## Lokal starten
 
+Login, Registrierung und OAuth: siehe [Authentifizierung](docs/authentication.md)
+für Konfiguration, Session-Verhalten und die separat vorzubereitende Schema-Migration.
+
 ```bash
 npm install
 npm run dev

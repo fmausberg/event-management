@@ -27,48 +27,308 @@ enum SyncStatus {
   ERROR
 }
 
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum CompanyRole {
+  COMPANY_ADMIN
+  COMPANY_USER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum EventStatus {
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+model User {
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  email String   @unique
+  name  String?
+  role  UserRole @default(USER)
+
+  // Auth: null passwordHash supports existing users and OAuth-only accounts.
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+
+  // 1:n Relationen
+  memberships   CompanyMembership[]
+  createdEvents Event[]             @relation("EventCreator")
+  createdSeries EventSeries[]       @relation("EventSeriesCreator")
+  bookings      Booking[]           @relation("UserBookings")
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Shared across instances; keys contain a digest, never a plain email address.
+model AuthRateLimit {
+  key       String   @id
+  attempts  Int
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+model Company {
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  name String
+  slug String @unique
+
+  // 1:n Relationen
+  venues      Venue[]
+  memberships CompanyMembership[]
+  eventSeries EventSeries[]
+  events      Event[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model CompanyMembership {
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  role   CompanyRole      @default(COMPANY_USER)
+  status MembershipStatus @default(ACTIVE)
+
+  // n:1 Relationen
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@unique([companyId, userId])
+  @@index([userId, status])
+}
+
+model Venue {
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  name         String
+  addressLine1 String?
+  addressLine2 String?
+  postalCode   String?
+  city         String?
+  countryCode  String? @db.Char(2)
+
+  // n:1 Relation
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  // 1:n Relationen
+  events             Event[]
+  suggestedForSeries EventSeries[] @relation("SeriesSuggestedVenue")
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@index([companyId, name])
+}
+
+model EventSeries {
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  name                 String
+  shortdescription     String?
+  description          String?
+  imageUrl             String?
+  suggestedMaxSeats    Int?
+  suggestedTicketPrice Decimal? @db.Decimal(10, 2)
+  suggestedCurrency    String   @default("EUR") @db.Char(3)
+  suggestedTrainerName String?
+
+  // n:1 Relationen
+  companyId        String
+  company          Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdById      String
+  createdBy        User    @relation("EventSeriesCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  suggestedVenueId String?
+  suggestedVenue   Venue?  @relation("SeriesSuggestedVenue", fields: [suggestedVenueId], references: [id], onDelete: Restrict)
+
+  // 1:n Relationen
+  events Event[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@index([companyId, name])
+}
+
 model Event {
-  id             String          @id @default(uuid())
-  number         Int             @unique @default(autoincrement())
-  name           String
-  beginsAt       DateTime        @map("Begin")
-  endsAt         DateTime        @map("End")
-  maxSeats       Int
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @default(now()) @updatedAt
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  name             String
+  shortdescription String?
+  description      String?
+  beginsAt         DateTime    @map("Begin")
+  endsAt           DateTime    @map("End")
+  maxSeats         Int
+  status           EventStatus @default(DRAFT)
+  ticketPrice      Decimal     @db.Decimal(10, 2)
+  currency         String      @default("EUR") @db.Char(3)
+  trainerName      String?
+
+  // n:1 Relationen
+  eventSeriesId String?
+  eventSeries   EventSeries? @relation(fields: [eventSeriesId], references: [id], onDelete: Restrict)
+
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  createdById String?
+  createdBy   User?   @relation("EventCreator", fields: [createdById], references: [id], onDelete: Restrict)
+
+  venueId String?
+  venue   Venue?  @relation(fields: [venueId], references: [id], onDelete: Restrict)
+
+  // 1:n Relationen
   platformEvents PlatformEvent[]
   bookings       Booking[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@index([eventSeriesId, beginsAt])
+  @@index([companyId, beginsAt])
+  @@index([status, beginsAt])
+}
+
+model Booking {
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  // null bedeutet interne Buchung; gesetzt bedeutet Buchung über eine Plattform.
+  platform          Platform?
+  externalBookingId String?
+  quantity          Int
+  status            BookingStatus @default(CONFIRMED)
+  bookedAt          DateTime      @default(now())
+  customerName      String?
+  customerEmail     String?
+
+  // n:1 Relationen
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  // Bei Gastbuchungen ohne Login bleibt userId leer.
+  userId String?
+  user   User?   @relation("UserBookings", fields: [userId], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@unique([platform, externalBookingId])
+  @@index([eventId, status])
+  @@index([userId, bookedAt])
 }
 
 model PlatformEvent {
-  id              String     @id @default(uuid()) @db.Uuid
-  eventId         String
-  event           Event      @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
   platform        Platform
   externalEventId String
   syncStatus      SyncStatus @default(ACTIVE)
   lastSyncedAt    DateTime?
   lastError       String?
-  createdAt       DateTime   @default(now())
-  updatedAt       DateTime   @updatedAt
 
-  // An external event has exactly one central owner; duplicate mappings are forbidden.
+  // n:1 Relation
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
   @@unique([platform, externalEventId])
   @@index([eventId, syncStatus])
-}
-
-model Booking {
-  id                String        @id @default(uuid()) @db.Uuid
-  eventId           String
-  event             Event         @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  platform          Platform
-  externalBookingId String
-  quantity          Int
-  status            BookingStatus
-  bookedAt          DateTime
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-
-  @@unique([platform, externalBookingId])
-  @@index([eventId, status])
 }
