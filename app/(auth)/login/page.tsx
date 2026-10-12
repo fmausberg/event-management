@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { AuthPage } from "@/app/_components/auth-page";
+import { AuthPage } from "@/components/auth-page";
 
 export const metadata: Metadata = { title: "Anmelden | Eventverwaltung" };
 export default async function LoginPage({ searchParams }: {

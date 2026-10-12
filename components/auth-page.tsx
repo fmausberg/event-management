@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { oauthLogin } from "@/app/auth-actions";
+import { oauthLogin } from "@/app/(auth)/actions";
 import { getOAuthProviders } from "@/lib/auth/providers";
 import { AuthForm } from "./auth-form";
 

@@ -5,6 +5,8 @@ Datenhaltung und Integrationsverträge bereit. Externe APIs sind noch nicht ange
 
 ## Lokal starten
 
+Die Aufteilung der Seiten und ihre URLs sind in der [Projektstruktur](docs/project-structure.md) dokumentiert.
+
 Login, Registrierung und OAuth: siehe [Authentifizierung](docs/authentication.md)
 für Konfiguration, Session-Verhalten und die separat vorzubereitende Schema-Migration.
 
@@ -70,19 +72,19 @@ Buchung. Stornierung und erneute Bestätigung verändern deren Kapazitätsbeitra
 Die nachträgliche Zuordnung einer bestehenden Buchung zu einem anderen Event wird
 abgelehnt und die Transaktion zurückgerollt. Der Import führt keinen externen Sync aus.
 
-`/events` ist eine Server Component. Sie lädt Events und aggregierte Buchungen beim
+`/admin/events` ist eine Server Component. Sie lädt Events und aggregierte Buchungen beim
 Seitenaufruf mit einem konsistenten DB-Snapshot und zeigt einen Empty State bei
 leerer Datenbank. Die Seite benötigt das migrierte Schema; der Build benötigt keine
 erreichbare Datenbank. Zeiten werden in `Europe/Berlin` angezeigt.
 
 ## Event-Verwaltung (CRUD)
 
-Unter `/events` führt **+ Neues Event** zu `/events/new`. **Bearbeiten** öffnet
-`/events/[id]/edit`; ein unbekanntes Event liefert die Next.js-404-Seite.
+Unter `/admin/events` führt **+ Neues Event** zu `/admin/events/new`. **Bearbeiten** öffnet
+`/admin/events/[id]/edit`; ein unbekanntes Event liefert die Next.js-404-Seite.
 Beide Seiten nutzen dasselbe Formular mit Server Actions. Name, Beginn, Ende und
 maximale Plätze werden serverseitig validiert. Die Event-Nummer bleibt automatisch
 vergeben. Fehler erscheinen am Formular, Eingaben bleiben erhalten. Erfolgreiches
-Anlegen und Bearbeiten revalidieren `/events` und leiten dorthin zurück.
+Anlegen und Bearbeiten revalidieren `/admin/events` und leiten dorthin zurück.
 
 **Löschen** verlangt zunächst eine ausdrückliche Bestätigung in der Tabellenzeile.
 Der DELETE prüft atomar, dass weder Buchungen (auch keine stornierten) noch

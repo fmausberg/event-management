@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 import { CredentialsSignin } from "next-auth";
 import { verifyPassword } from "@/lib/auth/password";
-import { login, register, oauthLogin, logout } from "@/app/auth-actions";
+import { login, register, oauthLogin, logout } from "@/app/(auth)/actions";
 
 const { db, signIn, signOut, redirect } = vi.hoisted(() => ({
   db: { user: { findMany: vi.fn(), create: vi.fn() }, authRateLimit: { deleteMany: vi.fn(), upsert: vi.fn() } },

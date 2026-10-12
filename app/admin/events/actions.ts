@@ -12,8 +12,8 @@ export async function createEvent(_previous: EventFormState, formData: FormData)
   if (!result.success) return { values, errors: result.errors, message: "Bitte korrigiere die markierten Felder." };
   try { await insertEvent(result.data); }
   catch (error) { return { values, message: eventMutationErrorMessage(error) }; }
-  revalidatePath("/events");
-  redirect("/events");
+  revalidatePath("/admin/events");
+  redirect("/admin/events");
 }
 
 export async function updateEvent(id: string, _previous: EventFormState, formData: FormData): Promise<EventFormState> {
@@ -27,16 +27,16 @@ export async function updateEvent(id: string, _previous: EventFormState, formDat
   } catch (error) {
     return { values, message: eventMutationErrorMessage(error) };
   }
-  revalidatePath("/events");
-  revalidatePath("/events/[id]/edit", "page");
-  redirect("/events");
+  revalidatePath("/admin/events");
+  revalidatePath("/admin/events/[id]/edit", "page");
+  redirect("/admin/events");
 }
 
 export async function deleteEvent(id: string, _previous: { message?: string }, formData: FormData): Promise<{ message?: string }> {
   if (formData.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen." };
   try { await removeEvent(id); }
   catch (error) { return { message: eventMutationErrorMessage(error) }; }
-  revalidatePath("/events");
-  revalidatePath("/events/[id]/edit", "page");
+  revalidatePath("/admin/events");
+  revalidatePath("/admin/events/[id]/edit", "page");
   return {};
 }

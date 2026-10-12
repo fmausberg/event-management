@@ -50,7 +50,7 @@ export function EventForm({ action, initialValues = emptyValues }: Props) {
       </fieldset>
       <p role="status" aria-live="polite" className="text-sm text-red-700 dark:text-red-400">{state.message}</p>
       <div className="flex items-center justify-end gap-4">
-        <Link href="/events" className="rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700">Abbrechen</Link>
+        <Link href="/admin/events" className="rounded-lg border border-zinc-300 px-4 py-2 dark:border-zinc-700">Abbrechen</Link>
         <button type="submit" disabled={pending} className="rounded-lg bg-zinc-900 px-4 py-2 text-white disabled:opacity-50 dark:bg-zinc-100 dark:text-zinc-900">
           {pending ? "Wird gespeichert …" : "Event speichern"}
         </button>

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
-import { logout } from "@/app/auth-actions";
+import { logout } from "@/app/(auth)/actions";
 
 export const metadata = { title: "Dein Konto | Eventverwaltung" };
 

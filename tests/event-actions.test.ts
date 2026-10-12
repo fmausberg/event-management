@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
-import { createEvent, updateEvent, deleteEvent } from "@/app/events/actions";
+import { createEvent, updateEvent, deleteEvent } from "@/app/admin/events/actions";
 import { removeEvent } from "@/lib/events/event-mutations";
 import type { EventFormState } from "@/lib/events/validate-event";
 
@@ -29,11 +29,11 @@ beforeEach(() => {
 
 describe("create and update actions", () => {
   it("creates only editable fields then revalidates and redirects", async () => {
-    await expect(createEvent(initial, form())).rejects.toThrow("REDIRECT:/events");
+    await expect(createEvent(initial, form())).rejects.toThrow("REDIRECT:/admin/events");
     expect(db.event.create).toHaveBeenCalledWith({ data: {
       name: "Event", beginsAt: new Date("2026-07-10T16:00Z"), endsAt: new Date("2026-07-10T18:00Z"), maxSeats: 30,
     } });
-    expect(revalidatePath).toHaveBeenCalledWith("/events");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/events");
   });
 
   it("returns readable validation errors and retains submitted values", async () => {
@@ -46,9 +46,9 @@ describe("create and update actions", () => {
   });
 
   it("updates only the requested event", async () => {
-    await expect(updateEvent("event-1", initial, form())).rejects.toThrow("REDIRECT:/events");
+    await expect(updateEvent("event-1", initial, form())).rejects.toThrow("REDIRECT:/admin/events");
     expect(db.event.update).toHaveBeenCalledWith({ where: { id: "event-1" }, data: expect.objectContaining({ name: "Event", maxSeats: 30 }) });
-    expect(revalidatePath).toHaveBeenCalledWith("/events");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/events");
   });
 
   it("preserves the second autumn occurrence when editing the name", async () => {
@@ -56,7 +56,7 @@ describe("create and update actions", () => {
     const endsAt = new Date("2026-10-25T02:30:00Z");
     db.event.findUnique.mockResolvedValueOnce({ id: "event-1", beginsAt, endsAt });
     const data = form(); data.set("beginsAt", "2026-10-25T02:30"); data.set("endsAt", "2026-10-25T03:30");
-    await expect(updateEvent("event-1", initial, data)).rejects.toThrow("REDIRECT:/events");
+    await expect(updateEvent("event-1", initial, data)).rejects.toThrow("REDIRECT:/admin/events");
     expect(db.event.update).toHaveBeenCalledWith({ where: { id: "event-1" }, data: expect.objectContaining({ beginsAt, endsAt }) });
   });
 
@@ -98,7 +98,7 @@ describe("deletion safeguards", () => {
     const data = new FormData(); data.set("confirmed", "yes");
     expect(await deleteEvent("event-1", {}, data)).toEqual({});
     expect(db.event.deleteMany).toHaveBeenCalledWith({ where: { id: "event-1", bookings: { none: {} }, platformEvents: { none: {} } } });
-    expect(revalidatePath).toHaveBeenCalledWith("/events");
+    expect(revalidatePath).toHaveBeenCalledWith("/admin/events");
   });
 
   it("reports dependent records instead of deleting them", async () => {

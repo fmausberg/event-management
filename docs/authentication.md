@@ -93,8 +93,8 @@ Prüfstand der ursprünglichen Auth-Integration: 90 Tests erfolgreich; ESLint un
 ohne Session. Der Produktionscode kompiliert, der vollständige Build/Typecheck
 scheitert jedoch an bereits vorhandenen Baustellen:
 
-- Die leeren `app/company/[id]/eventseries/page.tsx` und
-  `app/company/[id]/venues/page.tsx` sind keine gültigen Seitenmodule.
+- Die ursprünglich leeren Company-Seiten wurden inzwischen durch gültige
+  Platzhalter in der [neuen Projektstruktur](project-structure.md) ersetzt.
 - `lib/events/event-mutations.ts` liefert die inzwischen im vorhandenen Schema
   benötigten Felder `company`/`companyId` und `ticketPrice` nicht.
 - Ein Booking-Testdatensatz in `tests/event-management.test.ts` entspricht noch

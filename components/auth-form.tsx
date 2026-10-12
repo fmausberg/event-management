@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import { login, register } from "@/app/auth-actions";
+import { login, register } from "@/app/(auth)/actions";
 import type { AuthFormState } from "@/lib/auth/validation";
 
 export function AuthForm({ mode }: { mode: "login" | "register" }) {
