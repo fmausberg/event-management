@@ -1,6 +1,6 @@
 import type { CompanyRole, MembershipStatus, UserRole } from "@prisma/client";
 
-export type NavigationIcon = "calendar" | "venue" | "series" | "users" | "settings";
+export type NavigationIcon = "calendar" | "venue" | "series" | "users" | "settings" | "company";
 export type NavigationItem = { label: string; href: string; icon: NavigationIcon };
 export type NavigationGroup = { id: string; label: string; items: NavigationItem[] };
 export type NavigationData = {
@@ -14,7 +14,7 @@ export type NavigationUser = {
   memberships: {
     role: CompanyRole;
     status: MembershipStatus;
-    company: { id: string; name: string };
+    company: { id: string; name: string; slug: string };
   }[];
 };
 
@@ -27,7 +27,7 @@ export function buildNavigation(user: NavigationUser): NavigationData {
   for (const membership of user.memberships) {
     if (membership.status !== "ACTIVE") continue;
     const company = membership.company;
-    const base = `/company/${encodeURIComponent(company.id)}`;
+    const base = `/company/${encodeURIComponent(company.slug)}`;
     const items: NavigationItem[] = [
       { label: "Venues", href: `${base}/venues`, icon: "venue" },
       { label: "Event-Series", href: `${base}/event-series`, icon: "series" },
@@ -42,6 +42,7 @@ export function buildNavigation(user: NavigationUser): NavigationData {
   if (user.role === "ADMIN") groups.push({
     id: "admin", label: "Administration",
     items: [
+      { label: "Companies", href: "/admin/companies", icon: "company" },
       { label: "Venues", href: "/admin/venues", icon: "venue" },
       { label: "Event-Series", href: "/admin/event-series", icon: "series" },
       { label: "Events", href: "/admin/events", icon: "calendar" },

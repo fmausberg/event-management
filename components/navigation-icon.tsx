@@ -1,6 +1,7 @@
 import type { NavigationIcon as IconName } from "@/lib/navigation/model";
 
 const paths: Record<IconName | "panel" | "logout", React.ReactNode> = {
+  company: <><path d="M3 21h18M5 21V5l8-2v18M13 9h6v12M8 7h2M8 11h2M8 15h2M16 12v2M16 17v1" /></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2" /></>,
   venue: <><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></>,
   series: <><rect x="6" y="6" width="15" height="15" rx="2" /><path d="M17 6V3H3v14h3M10 11h7M10 16h7" /></>,

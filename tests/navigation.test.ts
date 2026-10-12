@@ -9,10 +9,10 @@ vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ user: { findUnique } }) 
 
 const user: NavigationUser = {
   name: "Ada", email: "ada@example.com", role: "USER", memberships: [
-    { role: "COMPANY_USER", status: "ACTIVE", company: { id: "company-a", name: "Company A" } },
-    { role: "COMPANY_ADMIN", status: "ACTIVE", company: { id: "company-b", name: "Company B" } },
-    { role: "COMPANY_ADMIN", status: "INVITED", company: { id: "invited", name: "Invited" } },
-    { role: "COMPANY_ADMIN", status: "SUSPENDED", company: { id: "suspended", name: "Suspended" } },
+    { role: "COMPANY_USER", status: "ACTIVE", company: { id: "company-a", slug: "slug-company-a", name: "Company A" } },
+    { role: "COMPANY_ADMIN", status: "ACTIVE", company: { id: "company-b", slug: "slug-company-b", name: "Company B" } },
+    { role: "COMPANY_ADMIN", status: "INVITED", company: { id: "invited", slug: "slug-invited", name: "Invited" } },
+    { role: "COMPANY_ADMIN", status: "SUSPENDED", company: { id: "suspended", slug: "slug-suspended", name: "Suspended" } },
   ],
 };
 beforeEach(() => {
@@ -21,24 +21,24 @@ beforeEach(() => {
 });
 
 describe("navigation visibility", () => {
-  it("always links public events and uses company IDs for active memberships", () => {
+  it("always links public events and uses company slugs for active memberships", () => {
     const result = buildNavigation(user);
     expect(result.groups.map((group) => group.label)).toEqual(["Allgemein", "Company A", "Company B"]);
     expect(result.groups[0].items.map((item) => item.href)).toEqual(["/events"]);
     expect(result.groups[1].items.map((item) => item.href)).toEqual([
-      "/company/company-a/venues", "/company/company-a/event-series",
+      "/company/slug-company-a/venues", "/company/slug-company-a/event-series",
     ]);
     expect(result.groups[2].items.map((item) => item.href)).toEqual([
-      "/company/company-b/venues", "/company/company-b/event-series",
-      "/company/company-b/settings", "/company/company-b/members",
+      "/company/slug-company-b/venues", "/company/slug-company-b/event-series",
+      "/company/slug-company-b/settings", "/company/slug-company-b/members",
     ]);
   });
 
-  it("shows the four global admin links only to ADMIN without elevating company roles", () => {
+  it("shows the global admin links only to ADMIN without elevating company roles", () => {
     expect(buildNavigation(user).groups.some((group) => group.id === "admin")).toBe(false);
     const result = buildNavigation({ ...user, role: "ADMIN" });
     expect(result.groups.find((group) => group.id === "admin")?.items.map((item) => item.href)).toEqual([
-      "/admin/venues", "/admin/event-series", "/admin/events", "/admin/users",
+      "/admin/companies", "/admin/venues", "/admin/event-series", "/admin/events", "/admin/users",
     ]);
     expect(result.groups[1].items).toHaveLength(2);
   });
@@ -75,7 +75,7 @@ describe("server-side identity", () => {
         memberships: {
           where: { status: "ACTIVE" },
           orderBy: [{ company: { name: "asc" } }, { companyId: "asc" }],
-          select: { role: true, status: true, company: { select: { id: true, name: true } } },
+          select: { role: true, status: true, company: { select: { id: true, name: true, slug: true } } },
         },
       },
     });

@@ -10,6 +10,7 @@ import { verifyPassword } from "@/lib/auth/password";
 import { findUserByEmail } from "@/lib/auth/users";
 import { consumeAuthAttempt } from "@/lib/auth/rate-limit";
 import { getOAuthProviders } from "@/lib/auth/providers";
+import { claimMemberships } from "@/lib/companies/claim-memberships";
 
 class RateLimited extends CredentialsSignin { code = "rate_limited"; }
 
@@ -58,8 +59,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
         if (user) token.sub = user.id;
         if (!token.sub) return null;
         const existing = await getPrisma().user.findUnique({
-          where: { id: token.sub }, select: { id: true },
+          where: { id: token.sub }, select: { id: true, email: true, emailVerified: true },
         });
+        if (existing?.emailVerified) await claimMemberships(existing);
         return existing ? token : null;
       },
       session({ session, token }) {

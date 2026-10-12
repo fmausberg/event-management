@@ -17,7 +17,7 @@ export async function getNavigation() {
         orderBy: [{ company: { name: "asc" } }, { companyId: "asc" }],
         select: {
           role: true, status: true,
-          company: { select: { id: true, name: true } },
+          company: { select: { id: true, name: true, slug: true } },
         },
       },
     },

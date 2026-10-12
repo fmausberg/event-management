@@ -152,12 +152,14 @@ model CompanyMembership {
   // Attribute
   role   CompanyRole      @default(COMPANY_USER)
   status MembershipStatus @default(ACTIVE)
+  // Normalized address for members added before an account exists.
+  email  String?
 
   // n:1 Relationen
   companyId String
   company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  userId    String
-  user      User    @relation(fields: [userId], references: [id], onDelete: Restrict)
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: Restrict)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -165,6 +167,7 @@ model CompanyMembership {
 
   // Indizes
   @@unique([companyId, userId])
+  @@unique([companyId, email])
   @@index([userId, status])
 }
 

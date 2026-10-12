@@ -9,7 +9,7 @@ vi.mock("@/app/(auth)/actions", () => ({ logout: async () => {} }));
 
 it("renders company headings, active links and accessible account/menu controls", () => {
   const data = buildNavigation({ name: "Ada", email: "ada@example.com", role: "USER", memberships: [
-    { role: "COMPANY_ADMIN", status: "ACTIVE", company: { id: "demo", name: "Demo Company" } },
+    { role: "COMPANY_ADMIN", status: "ACTIVE", company: { id: "database-id", slug: "demo", name: "Demo Company" } },
   ] });
   const html = renderToStaticMarkup(createElement(NavigationShell, { data }, "Page content"));
   expect(html).toContain('aria-label="Hauptnavigation"');
