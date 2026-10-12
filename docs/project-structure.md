@@ -30,7 +30,9 @@ app/
 components/                   # Gemeinsame UI neben app
 ├── auth-form.tsx
 ├── auth-page.tsx
-└── placeholder-page.tsx
+├── placeholder-page.tsx
+├── navigation-shell.tsx       # Sidebar, mobile Navigation und Kontobereich
+└── navigation-icon.tsx
 
 lib/                          # Auth-Logik, Datenbank und Fachlogik
 ```
@@ -43,6 +45,35 @@ Platzhalter ohne Datenbankzugriff, Buchungs- oder Verifizierungsfunktion.
 Gemeinsame Komponenten werden über `@/components/...` importiert.
 Die ausschließlich von der Eventverwaltung genutzten Komponenten bleiben
 bei ihren Seiten in `app/admin/events/_components`.
+
+## Navigation für eingeloggte Nutzer
+
+Das Root-Layout lädt über `lib/navigation/get-navigation.ts` die aktuelle
+Session und anschließend nur die benötigten Profildaten, die globale Rolle und
+aktiven Company-Mitgliedschaften aus der Datenbank. Gäste erhalten keine Sidebar.
+`lib/navigation/model.ts` bildet daraus die sichtbaren Gruppen und Links:
+
+- Allgemein: Events unter `/events`.
+- Je aktiver Company-Mitgliedschaft: Companyname, Venues und Event-Series.
+- Bei `COMPANY_ADMIN` zusätzlich Settings und Members der jeweiligen Company.
+- Bei globaler Rolle `ADMIN`: Venues, Event-Series, Events und User unter `/admin`.
+
+Company-Gruppen sind nach Namen sortiert und verwenden Company-IDs in den Links.
+Eingeladene und gesperrte Mitgliedschaften erscheinen nicht. Eine globale
+Admin-Rolle verändert die Company-Rolle nicht automatisch. An den Client gehen
+nur die vorbereiteten Links, Anzeigename und E-Mail-Adresse.
+
+Die Navigation markiert auch auf Unterseiten den passenden Eintrag, lässt sich
+am Desktop einklappen und bietet mobil ein aufklappbares Menü. Der Kontobereich
+verlinkt `/account` und bietet Logout. Die Navigation wird bei einer neuen
+serverseitigen Layout-Auswertung aktualisiert (z. B. Neuladen); sie ist keine
+Live-Anzeige von Rollenänderungen in anderen Sitzungen.
+
+Die Sichtbarkeit der Links ist keine Zugriffsprüfung für die Zielseiten oder
+Server Actions. Die separat beschriebenen Berechtigungsprüfungen bleiben für
+die spätere fachliche Umsetzung notwendig.
+
+## Company-Routen
 
 Next.js verlangt für dasselbe dynamische URL-Segment einen einheitlichen Namen,
 auch über Route Groups hinweg. Daher verwenden beide Company-Bereiche
