@@ -17,8 +17,8 @@ export function CompanyForm({ company, onSaved, onCancel }: {
     if (result.success) onSaved(result.message!);
     return result;
   }, {});
-  const inputClass = "mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 outline-none focus:ring-2 focus:ring-violet-500 dark:border-zinc-700 dark:bg-zinc-950";
-  return <section aria-labelledby="company-form-title" className="rounded-xl border border-violet-200 bg-white p-5 dark:border-violet-900 dark:bg-zinc-900">
+  const inputClass = "mt-2 w-full rounded-lg border border-zinc-300 bg-white px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700 dark:bg-zinc-950";
+  return <section aria-labelledby="company-form-title" className="rounded-xl border border-primary-200 bg-white p-5 dark:border-primary-900 dark:bg-zinc-900">
     <h2 id="company-form-title" className="text-lg font-semibold">{company ? "Company bearbeiten" : "Company erstellen"}</h2>
     <form action={action} className="mt-4 space-y-4">
       <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2 disabled:opacity-60">
@@ -36,7 +36,7 @@ export function CompanyForm({ company, onSaved, onCancel }: {
       {company && <p className="text-sm text-zinc-500">Wenn du das URL-Kürzel änderst, ändert sich auch der Link zur öffentlichen Eventseite.</p>}
       {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-400">{state.message}</p>}
       <div className="flex gap-3">
-        <button disabled={pending} className="rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50">{pending ? "Wird gespeichert …" : company ? "Änderungen speichern" : "Company erstellen"}</button>
+        <button disabled={pending} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{pending ? "Wird gespeichert …" : company ? "Änderungen speichern" : "Company erstellen"}</button>
         <button type="button" disabled={pending} onClick={onCancel} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm dark:border-zinc-700">Abbrechen</button>
       </div>
     </form>

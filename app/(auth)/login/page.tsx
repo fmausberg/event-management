@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { AuthPage } from "@/components/auth-page";
 import { SiteFrame } from "@/components/site-frame";
 
-export const metadata: Metadata = { title: "Anmelden | Eventverwaltung" };
+export const metadata: Metadata = { title: "Eventverwaltung" };
 export default async function LoginPage({ searchParams }: {
   searchParams: Promise<{ error?: string | string[]; registered?: string | string[] }>;
 }) {

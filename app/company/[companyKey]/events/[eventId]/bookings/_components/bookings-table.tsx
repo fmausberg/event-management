@@ -3,8 +3,8 @@ import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { saveBooking, deleteBooking } from "../actions";
 import type { BookingRow, BookingState } from "@/lib/bookings/validation";
-const input = "mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-violet-500 dark:border-zinc-700";
-const primary = "rounded-lg bg-violet-600 px-4 py-2 text-sm text-white hover:bg-violet-700 disabled:opacity-50";
+const input = "mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700";
+const primary = "rounded-lg bg-primary-600 px-4 py-2 text-sm text-white hover:bg-primary-700 disabled:opacity-50";
 function BookingForm({ slug, eventId, row, onSaved, onCancel }: { slug: string; eventId: string; row?: BookingRow; onSaved: (message: string) => void; onCancel: () => void }) {
     const panel = useRef<HTMLDialogElement>(null);
     useEffect(() => {
@@ -41,7 +41,7 @@ export function BookingsTable({ company, event, bookings }: { company: { name: s
     const visible = bookings.filter((b) => [b.number, b.customerName, b.customerEmail, b.externalBookingId, b.platform].join(" ").toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
     const seats = bookings.filter((b) => b.status === "CONFIRMED").reduce((sum, b) => sum + b.quantity, 0);
     return <main className={`flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black ${editor ? "xl:mr-96" : ""}`}>
-        <Link href={`/company/${encodeURIComponent(company.slug)}/events`} className="text-sm text-violet-700 underline dark:text-violet-300">Zur Eventübersicht</Link>
+        <Link href={`/company/${encodeURIComponent(company.slug)}/events`} className="text-sm text-primary-700 underline dark:text-primary-300">Zur Eventübersicht</Link>
         <header className="flex flex-wrap items-center justify-between gap-4">
             <div>
                 <h1 className="text-2xl font-semibold">Buchungen - {event.name} ({new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(event.beginsAt))} Uhr)</h1>
@@ -70,7 +70,7 @@ export function BookingsTable({ company, event, bookings }: { company: { name: s
                         <td className="whitespace-nowrap px-4 py-4">{new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(row.bookedAt))}</td><td className="px-4 py-4">{row.platform ?? "Intern"}{row.externalBookingId && <p className="text-xs text-zinc-500">{row.externalBookingId}</p>}</td>
                         <td className="px-4 py-4">
                             <div className="flex flex-wrap gap-3">
-                                <button disabled={!!editor} type="button" onClick={() => { setEditor({ row }); setMessage(""); }} className="text-violet-700 underline disabled:opacity-40 dark:text-violet-300">Bearbeiten</button>
+                                <button disabled={!!editor} type="button" onClick={() => { setEditor({ row }); setMessage(""); }} className="text-primary-700 underline disabled:opacity-40 dark:text-primary-300">Bearbeiten</button>
                                 {!editor && <RemoveBooking slug={company.slug} eventId={event.id} row={row} onDeleted={setMessage} />}
                             </div>
                         </td>

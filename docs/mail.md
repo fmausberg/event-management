@@ -93,7 +93,24 @@ Ticket-, Buchungs- und Eventstornierungen sowie bereits erfolgter Check-in werde
 berücksichtigt. Der Abruf verändert weder Ticket noch Booking.
 Die Ticketseite erzeugt lokal im Browser einen QR-Code mit dem reinen Ticket-Token
 (keine URL) über `qrcode.react`. Es wird kein externer QR-Dienst kontaktiert.
-Ein geschützter Check-in ist weiterhin nicht implementiert.
+## Check-in
+
+Unter `/account/scan` können angemeldete Nutzer Tickets per Kamera oder durch
+manuelle Token-Eingabe prüfen. Der Profil-Link „Tickets scannen“ öffnet die Seite.
+Kamerazugriff benötigt HTTPS (oder localhost), Browserfreigabe und eine verfügbare
+Kamera. Die QR-Auswertung erfolgt lokal; nur der Token wird zur Prüfung gesendet.
+Nach einem Scan und beim Verlassen der Seite wird die Kamera freigegeben.
+
+Alle angemeldeten Nutzer mit Token sehen dieselben minimalen Ticketdaten wie auf
+der öffentlichen Ticketseite. Einlösen dürfen ausschließlich zugeordnete EventStaff
+oder VenueStaff der aktuellen Event-Venue. Eine Adminrolle allein reicht nicht.
+Die Berechtigung wird bei jedem Aufruf aus der Datenbank gelesen.
+
+Nur der Button „Einlösen“ setzt `Ticket.checkedInAt`. Stornierte Tickets,
+stornierte Buchungen/Events und bereits eingelöste Tickets werden abgelehnt.
+Eine serialisierbare Transaktion und ein bedingtes Update verhindern doppelten
+Check-in. Bei unklarem Netzwerkfehler erneut scannen, um den aktuellen Status
+zu prüfen. Pro angemeldetem User gelten 120 Prüf-/Einlöseanfragen pro Minute.
 
 Ein atomarer DB-Zähler begrenzt alle Ticketabrufe zusammen auf 300 pro Minute,
 auch über mehrere App-Instanzen hinweg. Es werden keine unzuverlässigen

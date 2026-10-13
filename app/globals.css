@@ -1,5 +1,31 @@
 @import "tailwindcss";
 
+/* Brand colors: turquoise primary, orange accent. Status colors stay semantic. */
+@theme {
+  --color-primary-50: #effafa;
+  --color-primary-100: #d5f2f1;
+  --color-primary-200: #a9e4e3;
+  --color-primary-300: #71d0d0;
+  --color-primary-400: #32b9bc;
+  --color-primary-500: #009b9e;
+  --color-primary-600: #007c80;
+  --color-primary-700: #006367;
+  --color-primary-800: #075054;
+  --color-primary-900: #0a4246;
+  --color-primary-950: #03272b;
+  --color-accent-50: #fff7ed;
+  --color-accent-100: #ffedd5;
+  --color-accent-200: #fed7aa;
+  --color-accent-300: #fdba74;
+  --color-accent-400: #fb9b38;
+  --color-accent-500: #ff8500;
+  --color-accent-600: #c45d00;
+  --color-accent-700: #9a4600;
+  --color-accent-800: #7c3906;
+  --color-accent-900: #652f09;
+  --color-accent-950: #391703;
+}
+
 :root {
   --background: #ffffff;
   --foreground: #171717;

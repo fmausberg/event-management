@@ -33,7 +33,7 @@ Wir freuen uns auf dich!
 Dein Event-Management-Team`;
   const links = data.ticketLinks ?? [];
   const ticketText = links.length ? "\n\nDeine Tickets (ein Link pro Platz):\n" + links.map((url, index) => `Ticket ${index + 1}: ${url}`).join("\n") + "\nBitte behandle diese Links vertraulich." : "";
-  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#18181b;max-width:600px;margin:auto"><h1 style="color:#0d9488">Buchungsbestätigung</h1>${text.split("\n\n").map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`).join("")}</div>`;
-  const ticketHtml = links.length ? `<h2>Deine Tickets</h2>${links.map((url, index) => `<p><a href="${escapeHtml(url)}" style="display:inline-block;background:#0d9488;color:white;padding:12px 20px;border-radius:6px;text-decoration:none">Ticket ${index + 1} öffnen</a></p>`).join("")}<p>Bitte behandle diese Links vertraulich.</p>` : "";
+  const html = `<div style="font-family:Arial,sans-serif;line-height:1.6;color:#18181b;max-width:600px;margin:auto"><h1 style="color:#007c80">Buchungsbestätigung</h1>${text.split("\n\n").map((paragraph) => `<p>${escapeHtml(paragraph).replace(/\n/g, "<br>")}</p>`).join("")}</div>`;
+  const ticketHtml = links.length ? `<h2>Deine Tickets</h2>${links.map((url, index) => `<p><a href="${escapeHtml(url)}" style="display:inline-block;background:#ff8500;color:#18181b;padding:12px 20px;border-radius:6px;text-decoration:none">Ticket ${index + 1} öffnen</a></p>`).join("")}<p>Bitte behandle diese Links vertraulich.</p>` : "";
   return { subject, text: text + ticketText, html: html.replace("</div>", ticketHtml + "</div>") };
 }

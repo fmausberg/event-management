@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     if (!ticket) return reply({ message: "Ticket nicht verfügbar." }, 404);
     const event = ticket.booking.event;
     const status = ticket.status === "CANCELLED" || ticket.booking.status === "CANCELLED" || event.status === "CANCELLED" ? "Storniert" : ticket.checkedInAt ? "Bereits eingelöst" : "Gültig";
-    return reply({ number: ticket.number, status, eventName: event.name, beginsAt: event.beginsAt.toISOString(), venue: event.venue ? [event.venue.name, event.venue.city].filter(Boolean).join(", ") : null });
+    return reply({ number: ticket.number, status, checkedInAt: ticket.checkedInAt?.toISOString() ?? null, eventName: event.name, beginsAt: event.beginsAt.toISOString(), venue: event.venue ? [event.venue.name, event.venue.city].filter(Boolean).join(", ") : null });
   } catch {
     return reply({ message: "Ticket aktuell nicht verfügbar. Bitte später erneut versuchen." }, 503);
   }

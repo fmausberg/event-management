@@ -13,7 +13,7 @@ beforeEach(() => { vi.resetAllMocks(); upsert.mockResolvedValue({ attempts: 1 })
 
 it("looks up only the hash and returns minimal uncached ticket details without writes", async () => {
  const response = await POST(request());
- expect(await response.json()).toEqual({ number: 7, status: "Gültig", eventName: "Yoga", beginsAt: event.beginsAt.toISOString(), venue: "Studio, Neuss" });
+ expect(await response.json()).toEqual({ number: 7, status: "Gültig", checkedInAt: null, eventName: "Yoga", beginsAt: event.beginsAt.toISOString(), venue: "Studio, Neuss" });
  expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { publicTokenHash: createHash("sha256").update(token).digest("hex") } }));
  expect(response.headers.get("cache-control")).toContain("no-store");
  expect(response.headers.get("referrer-policy")).toBe("no-referrer");
@@ -31,6 +31,11 @@ it("enforces the shared rate limit before looking up tickets", async () => {
  upsert.mockResolvedValue({ attempts: 301 });
  expect((await POST(request())).status).toBe(429);
  expect(findUnique).not.toHaveBeenCalled();
+});
+it("returns the persisted redemption timestamp for the public status tag", async () => {
+ const checkedInAt = new Date("2026-10-13T14:30:15Z");
+ findUnique.mockResolvedValue({ ...ticket, checkedInAt });
+ expect(await (await POST(request())).json()).toMatchObject({ status: "Bereits eingelöst", checkedInAt: "2026-10-13T14:30:15.000Z" });
 });
 it("fails closed when rate limiting is unavailable", async () => {
  upsert.mockRejectedValue(new Error("db"));

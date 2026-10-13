@@ -51,6 +51,7 @@ enum EventStatus {
 }
 
 model User {
+  checkedInTickets Ticket[] @relation("TicketCheckedInBy")
   // ID & number
   id     String @id @default(cuid())
   number Int    @unique @default(autoincrement())
@@ -354,6 +355,8 @@ model Ticket {
   publicTokenHash String       @unique
   status          TicketStatus @default(VALID)
   checkedInAt     DateTime?
+  checkedInById   String?
+  checkedInBy     User? @relation("TicketCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
 
   // n:1 Relation
   bookingId String

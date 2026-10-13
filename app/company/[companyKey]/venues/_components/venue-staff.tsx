@@ -34,7 +34,7 @@ export function VenueStaff({ slug, venueId }: { slug: string; venueId: string })
   <form className="my-4 space-y-3" onSubmit={(event) => { event.preventDefault(); change(() => addVenueStaff(slug, venueId, email), true); }}>
    <label className="block text-sm" htmlFor="venue-staff-email">E-Mail-Adresse</label>
    <input id="venue-staff-email" type="email" required maxLength={254} value={email} disabled={pending} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2" />
-   <button disabled={pending} className="rounded-lg bg-violet-600 px-4 py-2 text-sm text-white disabled:opacity-50">Hinzufügen</button>
+   <button disabled={pending} className="rounded-lg bg-primary-600 px-4 py-2 text-sm text-white disabled:opacity-50">Hinzufügen</button>
   </form>
   {message && <p role="status" className="mb-3 text-sm">{message}</p>}
   {!loaded ? <p>Wird geladen …</p> : <table className="w-full text-left text-xs"><caption className="sr-only">VenueStaff und Kontostatus</caption><thead><tr><th className="py-2">E-Mail</th><th>Status</th><th><span className="sr-only">Entfernen</span></th></tr></thead><tbody>
