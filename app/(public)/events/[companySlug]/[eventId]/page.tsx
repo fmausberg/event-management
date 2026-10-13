@@ -1,3 +1,4 @@
+import { auth } from "@/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicHeader } from "@/components/public-events";
@@ -8,6 +9,7 @@ import { createBookingToken } from "@/lib/bookings/public-token";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Eventdetails & Buchung" };
 export default async function EventDetailsPage({ params }: { params: Promise<{ companySlug: string; eventId: string }> }) {
+ const signedIn = !!(await auth())?.user?.id;
  const { companySlug, eventId } = await params;
  let event;
  let token = "";
@@ -15,12 +17,12 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ c
   event = await getBookableEvent(companySlug, eventId);
   if (event && event.available > 0 && event.beginsAt > new Date()) token = createBookingToken(event.id, event.ticketPrice, event.currency);
  } catch {
-  return <div className="min-h-dvh border-t-[3px] border-teal-600 bg-white text-zinc-900"><PublicHeader /><main className="mx-auto max-w-6xl p-8"><h1 className="text-2xl font-semibold">Eventdetails</h1><p role="alert" className="mt-4">Das Event konnte gerade nicht geladen werden. Bitte lade die Seite erneut.</p></main></div>;
+  return <div className="min-h-dvh border-t-[3px] border-teal-600 bg-white text-zinc-900"><PublicHeader signedIn={signedIn} /><main className="mx-auto max-w-6xl p-8"><h1 className="text-2xl font-semibold">Eventdetails</h1><p role="alert" className="mt-4">Das Event konnte gerade nicht geladen werden. Bitte lade die Seite erneut.</p></main></div>;
  }
  if (!event) notFound();
  const date = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
  const image = event.eventSeries?.imageUrl;
- return <div className="min-h-dvh border-t-[3px] border-teal-600 bg-white text-zinc-900"><PublicHeader />
+ return <div className="min-h-dvh border-t-[3px] border-teal-600 bg-white text-zinc-900"><PublicHeader signedIn={signedIn} />
   <main className="mx-auto max-w-6xl px-5 pb-16 pt-4 sm:px-8"><Link href="/events" className="text-sm text-teal-700 hover:underline">← Alle Events</Link>
    <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
     <article>

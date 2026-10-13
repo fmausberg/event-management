@@ -55,7 +55,7 @@ export function NavigationShell({ data, children }: { data: NavigationData; chil
   const title = pathname === "/account" ? "Mein Konto" : current?.label || "Eventverwaltung";
   const context = current && current.group !== "Allgemein" ? current.group : null;
 
-  if (pathname === "/events" || pathname.startsWith("/events/")) return <>{children}</>;
+  if (["/", "/login", "/register", "/impressum", "/events"].includes(pathname) || pathname.startsWith("/events/")) return <>{children}</>;
 
   return (
     <div className="flex min-h-dvh flex-1 font-sans">

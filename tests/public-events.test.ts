@@ -1,3 +1,4 @@
+import { PublicHeader } from "@/components/public-events";
 import { beforeEach, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -5,6 +6,7 @@ import { getPublicEvents } from "@/lib/events/public-events";
 import Page from "@/app/(public)/events/page";
 import { NavigationShell } from "@/components/navigation-shell";
 const { findMany, pathname } = vi.hoisted(() => ({ findMany: vi.fn(), pathname: vi.fn() }));
+vi.mock("@/auth", () => ({ auth: async () => null }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ event: { findMany } }) }));
 vi.mock("next/navigation", () => ({ usePathname: pathname }));
@@ -21,7 +23,7 @@ it("renders cards, prices, dates, links and the requested menu", async () => {
  const html = renderToStaticMarkup(await Page());
  expect(html).toContain("Yoga"); expect(html).toContain("19,50"); expect(html).toContain("Fr., 16.10.2026, 10:00");
  expect(html).toContain('href="/events/studio/event-1"');
- for (const label of ["Einloggen", "Registrieren", "Home"]) expect(html).toContain(label);
+ for (const label of ["Einloggen", "Registrieren", "Event-Management"]) expect(html).toContain(label);
 });
 it("shows distinct empty and error states", async () => {
  expect(renderToStaticMarkup(await Page())).toContain("Noch keine veröffentlichten Events");
@@ -31,4 +33,11 @@ it("shows distinct empty and error states", async () => {
 it("hides the management sidebar for signed-in visitors", () => {
  const html = renderToStaticMarkup(createElement(NavigationShell, { data: { user: { name: "Ada", email: "ada@example.com" }, groups: [] } }, "Public content"));
  expect(html).toBe("Public content");
+});
+
+it("shows profile and management links only when signed in", () => {
+ const html = renderToStaticMarkup(createElement(PublicHeader, { signedIn: true }));
+ expect(html).toContain("Mein Profil"); expect(html).toContain('href="/account"');
+ expect(html).toContain("Event-Management"); expect(html).toContain('href="/"');
+ expect(html).not.toContain("Einloggen"); expect(html).not.toContain("Registrieren");
 });

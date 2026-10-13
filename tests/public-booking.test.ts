@@ -5,6 +5,7 @@ import { bookPublicEvent } from "@/app/(public)/events/[companySlug]/[eventId]/a
 import Page from "@/app/(public)/events/[companySlug]/[eventId]/page";
 import { createBookingToken, readBookingToken } from "@/lib/bookings/public-token";
 const { db, rate } = vi.hoisted(() => ({ rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn() }, $transaction: vi.fn() } }));
+vi.mock("@/auth", () => ({ auth: async () => null }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
 vi.mock("@/lib/auth/rate-limit", () => ({ consumeAuthAttempt: rate }));
