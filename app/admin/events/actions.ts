@@ -3,17 +3,14 @@
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getEvent } from "@/lib/events/get-event";
-import { insertEvent, saveEventChanges, removeEvent, eventMutationErrorMessage } from "@/lib/events/event-mutations";
+import { saveEventChanges, removeEvent, eventMutationErrorMessage } from "@/lib/events/event-mutations";
 import { readEventFormData, validateEvent, type EventFormState } from "@/lib/events/validate-event";
 
 export async function createEvent(_previous: EventFormState, formData: FormData): Promise<EventFormState> {
   const values = readEventFormData(formData);
   const result = validateEvent(values);
   if (!result.success) return { values, errors: result.errors, message: "Bitte korrigiere die markierten Felder." };
-  try { await insertEvent(result.data); }
-  catch (error) { return { values, message: eventMutationErrorMessage(error) }; }
-  revalidatePath("/admin/events");
-  redirect("/admin/events");
+  return { values, message: "Bitte erstelle Events in der Eventverwaltung der jeweiligen Company. Dort kannst du Company, Preis und Eventreihe korrekt zuordnen." };
 }
 
 export async function updateEvent(id: string, _previous: EventFormState, formData: FormData): Promise<EventFormState> {

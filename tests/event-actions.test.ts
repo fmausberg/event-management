@@ -28,12 +28,9 @@ beforeEach(() => {
 });
 
 describe("create and update actions", () => {
-  it("creates only editable fields then revalidates and redirects", async () => {
-    await expect(createEvent(initial, form())).rejects.toThrow("REDIRECT:/admin/events");
-    expect(db.event.create).toHaveBeenCalledWith({ data: {
-      name: "Event", beginsAt: new Date("2026-07-10T16:00Z"), endsAt: new Date("2026-07-10T18:00Z"), maxSeats: 30,
-    } });
-    expect(revalidatePath).toHaveBeenCalledWith("/admin/events");
+  it("directs legacy creation to the complete company event form", async () => {
+    expect((await createEvent(initial, form())).message).toContain("Eventverwaltung");
+    expect(db.event.create).not.toHaveBeenCalled();
   });
 
   it("returns readable validation errors and retains submitted values", async () => {
@@ -76,7 +73,7 @@ describe("create and update actions", () => {
   it("does not expose database errors to the user", async () => {
     db.event.create.mockRejectedValueOnce(new Error("postgresql://secret-credentials"));
     const result = await createEvent(initial, form());
-    expect(result.message).toContain("Bitte versuche es erneut");
+    expect(result.message).toContain("Eventverwaltung");
     expect(JSON.stringify(result)).not.toContain("secret-credentials");
     expect(revalidatePath).not.toHaveBeenCalled();
   });

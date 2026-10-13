@@ -51,7 +51,7 @@ beforeEach(() => {
     const key = args.where.platform_externalBookingId;
     const existing = state.bookings.find((booking) => booking.platform === key.platform && booking.externalBookingId === key.externalBookingId);
     if (existing) { Object.assign(existing, args.update); return existing; }
-    const booking = { ...args.create, id: String(state.bookings.length + 1), createdAt: new Date(), updatedAt: new Date() };
+    const booking = { ...args.create, id: String(state.bookings.length + 1), number: state.bookings.length + 1, userId: null, customerName: null, customerEmail: null, createdAt: new Date(), updatedAt: new Date() };
     state.bookings.push(booking);
     return booking;
   });

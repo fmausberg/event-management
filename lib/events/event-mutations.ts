@@ -10,11 +10,6 @@ function assertEventId(id: string) {
   }
 }
 
-export function insertEvent(data: EventInput) {
-  // number and timestamps are assigned by PostgreSQL/Prisma.
-  return getPrisma().event.create({ data });
-}
-
 export function saveEventChanges(id: string, data: EventInput) {
   assertEventId(id);
   return getPrisma().event.update({ where: { id }, data });
