@@ -1,0 +1,31 @@
+services:
+  app:
+    environment:
+      AUTH_TRUST_HOST: "true"
+    networks:
+      - default
+      - web
+    labels:
+      traefik.enable: "true"
+      traefik.docker.network: "web"
+
+      traefik.http.routers.event-management.rule: "Host(`events.mausberg.net`)"
+      traefik.http.routers.event-management.entrypoints: "websecure"
+      traefik.http.routers.event-management.tls: "true"
+      traefik.http.routers.event-management.tls.certresolver: "myresolver"
+      traefik.http.routers.event-management.service: "event-management"
+
+      traefik.http.services.event-management.loadbalancer.server.port: "3000"
+
+      traefik.http.routers.event-management-http.rule: "Host(`events.mausberg.net`)"
+      traefik.http.routers.event-management-http.entrypoints: "web"
+      traefik.http.routers.event-management-http.middlewares: "event-management-https"
+      traefik.http.routers.event-management-http.service: "event-management"
+      traefik.http.middlewares.event-management-https.redirectscheme.scheme: "https"
+
+networks:
+  default:
+    name: event-management_default
+  web:
+    external: true
+    name: web
