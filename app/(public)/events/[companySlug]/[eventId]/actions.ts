@@ -7,6 +7,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import { emailSchema } from "@/lib/auth/validation";
 import { consumeAuthAttempt } from "@/lib/auth/rate-limit";
 import { readBookingToken } from "@/lib/bookings/public-token";
+import { createTicketToken } from "@/lib/tickets/public-token";
 export type PublicBookingState = { success?: boolean; message?: string; number?: number };
 const schema = z.object({
  name: z.string().trim().min(1, "Bitte gib deinen Namen ein.").max(160), email: emailSchema,
@@ -32,6 +33,14 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
    const reserved = await tx.booking.aggregate({ where: { eventId, status: "CONFIRMED" }, _sum: { quantity: true } });
    if ((reserved._sum.quantity ?? 0) + parsed.data.quantity > event.maxSeats) return { message: "Es sind nicht mehr genügend Plätze frei. Bitte wähle weniger Plätze oder lade die Seite neu." };
    const booking = await tx.booking.create({ data: { id: token.id, eventId, userId, customerName: parsed.data.name, customerEmail: parsed.data.email, quantity: parsed.data.quantity, status: "CONFIRMED", platform: null, externalBookingId: null }, select: { number: true } });
+   await tx.ticket.createMany({
+    data: Array.from({ length: parsed.data.quantity }, () => ({
+     bookingId: token.id,
+     status: "VALID" as const,
+     // Plaintext tokens remain transient until ticket delivery is implemented.
+     publicTokenHash: createTicketToken().publicTokenHash,
+    })),
+   });
    return { success: true, number: booking.number, message: "Deine Buchung wurde bestätigt." };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
  } catch (error) {

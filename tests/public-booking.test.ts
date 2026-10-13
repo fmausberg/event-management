@@ -4,7 +4,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { bookPublicEvent } from "@/app/(public)/events/[companySlug]/[eventId]/actions";
 import Page from "@/app/(public)/events/[companySlug]/[eventId]/page";
 import { createBookingToken, readBookingToken } from "@/lib/bookings/public-token";
-const { auth, db, rate } = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn() }, $transaction: vi.fn() } }));
+import * as ticketTokens from "@/lib/tickets/public-token";
+import { revalidatePath } from "next/cache";
+const { auth, db, rate } = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn() }, ticket: { createMany: vi.fn() }, $transaction: vi.fn() } }));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
@@ -21,7 +23,7 @@ beforeEach(() => {
  db.booking.aggregate.mockResolvedValue({ _sum: { quantity: 3 } }); db.booking.create.mockResolvedValue({ number: 42 });
  db.$transaction.mockImplementation(async (callback) => callback(db));
 });
-afterEach(() => vi.unstubAllEnvs());
+afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 it("creates a guest booking with normalized contact details, trusted status and event", async () => {
  const token = createBookingToken("event-1", "12.50", "EUR");
  expect(await bookPublicEvent("yoga", "event-1", {}, form(token, { userId: "foreign", status: "CANCELLED", ticketPrice: "0" }))).toMatchObject({ success: true, number: 42 });
@@ -39,6 +41,67 @@ it("reuses an existing booking for repeated submission without inserting again",
  db.booking.findUnique.mockResolvedValue({ eventId: "event-1", number: 42 });
  expect((await bookPublicEvent("yoga", "event-1", {}, form())).number).toBe(42);
  expect(db.booking.create).not.toHaveBeenCalled();
+ expect(db.ticket.createMany).not.toHaveBeenCalled();
+});
+it.each([1, 2, 7])("creates exactly %i valid tickets and persists only their hashes", async (quantity) => {
+ const generated = vi.spyOn(ticketTokens, "createTicketToken");
+ const token = createBookingToken("event-1", "12.50", "EUR");
+ const result = await bookPublicEvent("yoga", "event-1", {}, form(token, { quantity: String(quantity) }));
+ expect(result.success).toBe(true);
+ expect(generated).toHaveBeenCalledTimes(quantity);
+ expect(db.ticket.createMany).toHaveBeenCalledExactlyOnceWith({ data: generated.mock.results.map(({ value }) => ({
+  bookingId: readBookingToken(token)!.id, status: "VALID", publicTokenHash: value.publicTokenHash,
+ })) });
+ expect(new Set(generated.mock.results.map(({ value }) => value.publicTokenHash)).size).toBe(quantity);
+ const persisted = JSON.stringify([db.booking.create.mock.calls, db.ticket.createMany.mock.calls, result]);
+ for (const { value } of generated.mock.results) expect(persisted).not.toContain(value.token);
+});
+it("does not add tickets when the same successful form is submitted again", async () => {
+ const data = form();
+ const first = await bookPublicEvent("yoga", "event-1", {}, data);
+ db.booking.findUnique.mockResolvedValue({ eventId: "event-1", number: first.number });
+ expect(await bookPublicEvent("yoga", "event-1", {}, data)).toEqual(first);
+ expect(db.booking.create).toHaveBeenCalledTimes(1);
+ expect(db.ticket.createMany).toHaveBeenCalledTimes(1);
+});
+it("propagates ticket failures out of the transaction and permits a clean retry", async () => {
+ // This transaction double commits staged writes only if the callback resolves.
+ // Separate clients also ensure both writes use the transaction, not the root client.
+ let committed: { booking: boolean; tickets: number } = { booking: false, tickets: 0 };
+ const failure = new Error("ticket insert failed");
+ const tx = {
+  event: db.event,
+  booking: { findUnique: db.booking.findUnique, aggregate: db.booking.aggregate, create: vi.fn() },
+  ticket: { createMany: vi.fn() },
+ };
+ let rolledBack: unknown;
+ let fail = true;
+ db.$transaction.mockImplementation(async (callback) => {
+  const staged = { ...committed };
+  tx.booking.create.mockImplementation(async () => { staged.booking = true; return { number: 42 }; });
+  tx.ticket.createMany.mockImplementation(async ({ data }) => {
+   staged.tickets += data.length;
+   if (fail) throw failure;
+   return { count: data.length };
+  });
+  try {
+   const result = await callback(tx);
+   committed = staged;
+   return result;
+  } catch (error) { rolledBack = error; throw error; }
+ });
+ const data = form();
+ const result = await bookPublicEvent("yoga", "event-1", {}, data);
+ expect(result.success).toBeUndefined();
+ expect(result.message).toContain("nicht abgeschlossen");
+ expect(rolledBack).toBe(failure);
+ expect(committed).toEqual({ booking: false, tickets: 0 });
+ expect(revalidatePath).not.toHaveBeenCalled();
+ expect(db.booking.create).not.toHaveBeenCalled();
+ expect(db.ticket.createMany).not.toHaveBeenCalled();
+ fail = false;
+ expect((await bookPublicEvent("yoga", "event-1", {}, data)).success).toBe(true);
+ expect(committed).toEqual({ booking: true, tickets: 2 });
 });
 it.each(["DRAFT", "CANCELLED", "COMPLETED"])("rejects status %s", async (status) => {
  db.event.findFirst.mockResolvedValue({ ...event, status });
