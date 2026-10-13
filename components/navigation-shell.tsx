@@ -61,7 +61,7 @@ export function NavigationShell({ data, children }: { data: NavigationData; chil
     <div className="flex min-h-dvh flex-1 font-sans">
       <a href="#page-content" className="sr-only z-50 rounded bg-violet-600 p-3 text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Zum Inhalt springen</a>
       <aside id="desktop-navigation" aria-label="Seitenleiste" className={`sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-zinc-200 bg-[#faf9ff] ${expanded ? "md:flex" : "md:hidden"} dark:border-zinc-800 dark:bg-zinc-950`}>
-        <Link href="/events" className="flex h-14 shrink-0 items-center gap-3 border-b border-zinc-200 px-5 font-semibold dark:border-zinc-800">
+        <Link href="/" className="flex h-14 shrink-0 items-center gap-3 border-b border-zinc-200 px-5 font-semibold dark:border-zinc-800">
           <span className="rounded-lg bg-violet-600 p-2 text-white"><NavigationIcon name="calendar" /></span>Eventverwaltung
         </Link>
         <NavigationLinks data={data} pathname={pathname} />
