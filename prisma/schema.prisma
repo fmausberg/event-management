@@ -64,14 +64,18 @@ model User {
   passwordHash  String?
   emailVerified DateTime?
   image         String?
-  accounts      Account[]
-  sessions      Session[]
 
   // 1:n Relationen
-  memberships   CompanyMembership[]
-  createdEvents Event[]             @relation("EventCreator")
-  createdSeries EventSeries[]       @relation("EventSeriesCreator")
-  bookings      Booking[]           @relation("UserBookings")
+  memberships             CompanyMembership[]
+  createdEvents           Event[]             @relation("EventCreator")
+  createdSeries           EventSeries[]       @relation("EventSeriesCreator")
+  bookings                Booking[]           @relation("UserBookings")
+  venueAssignments        VenueStaff[]
+  eventAssignments        EventStaff[]
+  accounts                Account[]
+  sessions                Session[]
+  createdVenueAssignments VenueStaff[]        @relation("VenueStaffAssignedBy")
+  createdEventAssignments EventStaff[]        @relation("EventStaffAssignedBy")
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -191,6 +195,7 @@ model Venue {
   // 1:n Relationen
   events             Event[]
   suggestedForSeries EventSeries[] @relation("SeriesSuggestedVenue")
+  staff              VenueStaff[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -254,19 +259,17 @@ model Event {
   // n:1 Relationen
   eventSeriesId String?
   eventSeries   EventSeries? @relation(fields: [eventSeriesId], references: [id], onDelete: Restrict)
-
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-
-  createdById String?
-  createdBy   User?   @relation("EventCreator", fields: [createdById], references: [id], onDelete: Restrict)
-
-  venueId String?
-  venue   Venue?  @relation(fields: [venueId], references: [id], onDelete: Restrict)
+  companyId     String
+  company       Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdById   String?
+  createdBy     User?        @relation("EventCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  venueId       String?
+  venue         Venue?       @relation(fields: [venueId], references: [id], onDelete: Restrict)
 
   // 1:n Relationen
   platformEvents PlatformEvent[]
   bookings       Booking[]
+  staff          EventStaff[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -362,4 +365,50 @@ model Ticket {
 
   // Indizes
   @@index([bookingId, status])
+}
+
+model VenueStaff {
+  // ID & number
+  id     String  @id @default(cuid())
+  number Int     @unique @default(autoincrement())
+  email  String?
+
+  // n:1 Relation
+  venueId      String
+  venue        Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedById String
+  assignedBy   User   @relation("VenueStaffAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([venueId, userId])
+  @@unique([venueId, email])
+  @@index([userId])
+}
+
+model EventStaff {
+  // ID & number
+  id     String  @id @default(cuid())
+  number Int     @unique @default(autoincrement())
+  email  String?
+
+  // n:1 Relation
+  eventId      String
+  event        Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedById String
+  assignedBy   User   @relation("EventStaffAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, userId])
+  @@unique([eventId, email])
+  @@index([userId])
 }

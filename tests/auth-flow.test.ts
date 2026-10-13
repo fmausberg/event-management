@@ -5,7 +5,7 @@ import { handlers } from "@/auth";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { loginSchema, registerSchema } from "@/lib/auth/validation";
 
-const { db } = vi.hoisted(() => ({ db: {
+const { db } = vi.hoisted(() => ({ db: { venueStaff: { updateMany: vi.fn() }, eventStaff: { updateMany: vi.fn() },
   user: { findMany: vi.fn(), findUnique: vi.fn() },
   companyMembership: { updateMany: vi.fn() },
   authRateLimit: { deleteMany: vi.fn(), upsert: vi.fn() },

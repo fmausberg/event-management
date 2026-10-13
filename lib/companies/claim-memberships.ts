@@ -18,4 +18,21 @@ export async function claimMemberships(user: { id: string; email: string; emailV
     // memberships on the next session read; never overwrite existing roles.
     if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
   }
+  // Never take assignments away from another account or create a duplicate
+  // assignment for the same user and venue/event. Verification is informational.
+  for (const claim of [
+    () => db.venueStaff.updateMany({
+      where: { email: { equals: email, mode: "insensitive" }, userId: null, venue: { staff: { none: { userId: user.id } } } },
+      data: { userId: user.id },
+    }),
+    () => db.eventStaff.updateMany({
+      where: { email: { equals: email, mode: "insensitive" }, userId: null, event: { staff: { none: { userId: user.id } } } },
+      data: { userId: user.id },
+    }),
+  ]) {
+    try { await claim(); }
+    catch (error) {
+      if (!(error instanceof Prisma.PrismaClientKnownRequestError) || error.code !== "P2002") throw error;
+    }
+  }
 }

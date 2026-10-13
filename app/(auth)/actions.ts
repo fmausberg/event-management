@@ -9,6 +9,7 @@ import { hashPassword } from "@/lib/auth/password";
 import { findUserByEmail } from "@/lib/auth/users";
 import { consumeAuthAttempt } from "@/lib/auth/rate-limit";
 import { getOAuthProviders } from "@/lib/auth/providers";
+import { claimMemberships } from "@/lib/companies/claim-memberships";
 import { loginSchema, registerSchema, type AuthFormState } from "@/lib/auth/validation";
 
 export async function login(_previous: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -40,10 +41,14 @@ export async function register(_previous: AuthFormState, formData: FormData): Pr
     }
     const passwordHash = await hashPassword(result.data.password);
     if (await findUserByEmail(result.data.email)) return { message: unavailable };
-    await getPrisma().user.create({
+    const user = await getPrisma().user.create({
       data: { name: result.data.name, email: result.data.email, passwordHash },
       select: { id: true },
     });
+    // A failed claim must not report an already-created account as a failed
+    // registration. The JWT callback retries pending assignments on login.
+    try { await claimMemberships({ id: user.id, email: result.data.email, emailVerified: null }); }
+    catch { console.error("Pending account assignments could not be linked; retry on login."); }
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { message: unavailable };

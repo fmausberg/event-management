@@ -9,7 +9,7 @@ import CompanyMembersPage from "@/app/company/[companyKey]/members/page";
 
 const { auth, db, revalidatePath } = vi.hoisted(() => ({
   auth: vi.fn(), revalidatePath: vi.fn(),
-  db: {
+  db: { venueStaff: { updateMany: vi.fn() }, eventStaff: { updateMany: vi.fn() },
     user: { findUnique: vi.fn(), findMany: vi.fn() },
     company: { findUnique: vi.fn() },
     companyMembership: { findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
@@ -137,6 +137,24 @@ describe("adding and listing company members", () => {
 });
 
 describe("claiming pending memberships", () => {
+  it("links both staff types by normalized email, without overwriting existing assignments", async () => {
+    db.user.findMany.mockResolvedValue([{ id: "new-user" }]);
+    await claimMemberships({ id: "new-user", email: " ADA@example.com ", emailVerified: null });
+    expect(db.venueStaff.updateMany).toHaveBeenCalledWith({ where: { email: { equals: "ada@example.com", mode: "insensitive" }, userId: null, venue: { staff: { none: { userId: "new-user" } } } }, data: { userId: "new-user" } });
+    expect(db.eventStaff.updateMany).toHaveBeenCalledWith({ where: { email: { equals: "ada@example.com", mode: "insensitive" }, userId: null, event: { staff: { none: { userId: "new-user" } } } }, data: { userId: "new-user" } });
+  });
+  it("does not link staff for ambiguous email identities", async () => {
+    db.user.findMany.mockResolvedValue([{ id: "new-user" }, { id: "other" }]);
+    await claimMemberships({ id: "new-user", email: "ada@example.com", emailVerified: null });
+    expect(db.venueStaff.updateMany).not.toHaveBeenCalled();
+    expect(db.eventStaff.updateMany).not.toHaveBeenCalled();
+  });
+  it("continues claiming event staff after a concurrent venue assignment", async () => {
+    db.user.findMany.mockResolvedValue([{ id: "new-user" }]);
+    db.venueStaff.updateMany.mockRejectedValue(new Prisma.PrismaClientKnownRequestError("duplicate", { code: "P2002", clientVersion: "test" }));
+    await expect(claimMemberships({ id: "new-user", email: "ada@example.com", emailVerified: null })).resolves.toBeUndefined();
+    expect(db.eventStaff.updateMany).toHaveBeenCalled();
+  });
   it("links active membership even before email verification", async () => {
     db.user.findMany.mockResolvedValue([{ id: "new-user" }]);
     await claimMemberships({ id: "new-user", email: "ada@example.com", emailVerified: null });

@@ -22,7 +22,12 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
     adapter: {
       ...adapter,
       getUserByEmail: findUserByEmail,
-      createUser: (data) => adapter.createUser!({ ...data, email: emailSchema.parse(data.email) }),
+      createUser: async (data) => {
+        const user = await adapter.createUser!({ ...data, email: emailSchema.parse(data.email) });
+        try { await claimMemberships(user); }
+        catch { console.error("Pending account assignments could not be linked; retry on login."); }
+        return user;
+      },
       updateUser: (data) => adapter.updateUser!({
         ...data, ...(data.email ? { email: emailSchema.parse(data.email) } : {}),
       }),

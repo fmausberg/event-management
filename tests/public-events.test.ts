@@ -49,7 +49,7 @@ it("hides the management sidebar for signed-in visitors", () => {
 
 it("shows profile and management links only when signed in", () => {
  const html = renderToStaticMarkup(createElement(PublicHeader, { signedIn: true }));
- expect(html).toContain("Mein Profil"); expect(html).toContain('href="/account"');
+ expect(html).toMatch(/href="\/account"[^>]*>Zur Plattform<\/a>/); expect(html).toContain("Mein Profil"); expect(html).toContain('href="/account"');
  expect(html).toContain("Event-Management"); expect(html).toContain('href="/"');
  expect(html).not.toContain("Einloggen"); expect(html).not.toContain("Registrieren");
 });

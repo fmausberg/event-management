@@ -1,6 +1,7 @@
 "use client";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { deleteVenue, saveVenue } from "../actions";
+import { VenueStaff } from "./venue-staff";
 import type { VenueRow, VenueState, VenueValues } from "@/lib/venues/validation";
 const primary = "rounded-lg bg-violet-600 px-4 py-2 text-sm font-medium text-white hover:bg-violet-700 disabled:opacity-50";
 const fields: { name: keyof VenueValues; label: string; max: number }[] = [
@@ -38,7 +39,7 @@ function VenueForm({ slug, row, onSaved, onCancel }: { slug: string; row?: Venue
   </div>)}</fieldset>
   {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
   <div className="flex gap-3"><button disabled={pending} className={primary}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
- </form></dialog>;
+ </form>{row && <VenueStaff slug={slug} venueId={row.id} />}</dialog>;
 }
 function DeleteVenue({ slug, row, onDeleted }: { slug: string; row: VenueRow; onDeleted: (message: string) => void }) {
  const [confirming, setConfirming] = useState(false);

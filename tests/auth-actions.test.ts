@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 import { CredentialsSignin } from "next-auth";
+import { claimMemberships } from "@/lib/companies/claim-memberships";
+vi.mock("@/lib/companies/claim-memberships", () => ({ claimMemberships: vi.fn() }));
 import { verifyPassword } from "@/lib/auth/password";
 import { login, register, oauthLogin, logout } from "@/app/(auth)/actions";
 
@@ -33,6 +35,7 @@ afterEach(() => vi.unstubAllEnvs());
 describe("registration", () => {
   it("persists normalized identity and a verifiable hash, ignores submitted roles, then redirects", async () => {
     await expect(register({}, form())).rejects.toThrow("REDIRECT:/login?registered=1");
+    expect(claimMemberships).toHaveBeenCalledWith({ id: "user-1", email: "ada@example.com", emailVerified: null });
     const saved = db.user.create.mock.calls[0][0].data;
     expect(Object.keys(saved).sort()).toEqual(["email", "name", "passwordHash"]);
     expect(saved.email).toBe("ada@example.com");

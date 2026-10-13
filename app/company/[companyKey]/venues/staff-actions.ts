@@ -1,0 +1,52 @@
+"use server";
+import { Prisma } from "@prisma/client";
+import { auth } from "@/auth";
+import { requireCompanyAccess, MemberAccessError } from "@/lib/companies/members";
+import { getPrisma } from "@/lib/db/prisma";
+import { emailSchema } from "@/lib/auth/validation";
+
+async function access(slug: string, venueId: string) {
+ const { company } = await requireCompanyAccess(slug);
+ const db = getPrisma();
+ if (!await db.venue.findFirst({ where: { id: venueId, companyId: company.id }, select: { id: true } })) throw new Error("VENUE_NOT_FOUND");
+ return db;
+}
+function failure(error: unknown) {
+ if (error instanceof MemberAccessError) return error.message;
+ if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return "Diese E-Mail-Adresse ist bereits zugeordnet.";
+ return "VenueStaff konnte nicht geladen oder gespeichert werden. Bitte versuche es erneut.";
+}
+export async function listVenueStaff(slug: string, venueId: string) {
+ try {
+  const db = await access(slug, venueId);
+  const rows = await db.venueStaff.findMany({ where: { venueId }, select: { id: true, email: true, user: { select: { email: true, emailVerified: true } } } });
+  const emails = rows.filter((row) => !row.user && row.email).map((row) => row.email!);
+  const accounts = emails.length ? await db.user.findMany({ where: { email: { in: emails, mode: "insensitive" } }, select: { email: true, emailVerified: true } }) : [];
+  const staff = rows.map((row) => {
+   const matches = accounts.filter((account) => account.email.toLowerCase() === row.email?.toLowerCase());
+   const account = row.user ?? (matches.length === 1 ? matches[0] : null);
+   return { id: row.id, email: row.user?.email ?? row.email ?? "—", status: account ? account.emailVerified ? "verified" : "not verified" : "no account" };
+  }).sort((a, b) => a.email.localeCompare(b.email, "de", { sensitivity: "base" }) || a.id.localeCompare(b.id));
+  return { staff };
+ } catch (error) { return { message: failure(error) }; }
+}
+export async function addVenueStaff(slug: string, venueId: string, email: string) {
+ try {
+  const db = await access(slug, venueId);
+  const parsed = emailSchema.safeParse(email);
+  if (!parsed.success) return { message: parsed.error.issues[0].message };
+  const actor = (await auth())?.user?.id;
+  if (!actor) throw new MemberAccessError("UNAUTHENTICATED");
+  const users = await db.user.findMany({ where: { email: { equals: parsed.data, mode: "insensitive" } }, select: { id: true } });
+  if (users.length > 1) return { message: "Die E-Mail-Adresse ist keinem eindeutigen Account zugeordnet." };
+  await db.venueStaff.create({ data: { venueId, email: parsed.data, userId: users[0]?.id ?? null, assignedById: actor } });
+  return { success: true };
+ } catch (error) { return { message: failure(error) }; }
+}
+export async function removeVenueStaff(slug: string, venueId: string, id: string) {
+ try {
+  const db = await access(slug, venueId);
+  await db.venueStaff.deleteMany({ where: { id, venueId } });
+  return { success: true };
+ } catch (error) { return { message: failure(error) }; }
+}
