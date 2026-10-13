@@ -29,12 +29,13 @@ export function buildNavigation(user: NavigationUser): NavigationData {
     const company = membership.company;
     const base = `/company/${encodeURIComponent(company.slug)}`;
     const items: NavigationItem[] = [
-      { label: "Venues", href: `${base}/venues`, icon: "venue" },
-      { label: "Event-Series", href: `${base}/event-series`, icon: "series" },
+      { label: "Orte", href: `${base}/venues`, icon: "venue" },
+      { label: "Veranstaltungsreihen", href: `${base}/event-series`, icon: "series" },
+      { label: "Veranstaltungen", href: `${base}/events`, icon: "calendar" },
     ];
     if (membership.role === "COMPANY_ADMIN") items.push(
-      { label: "Settings", href: `${base}/settings`, icon: "settings" },
-      { label: "Members", href: `${base}/members`, icon: "users" },
+      { label: "Einstellungen", href: `${base}/settings`, icon: "settings" },
+      { label: "Mitglieder", href: `${base}/members`, icon: "users" },
     );
     groups.push({ id: `company:${company.id}`, label: company.name, items });
   }
@@ -43,10 +44,10 @@ export function buildNavigation(user: NavigationUser): NavigationData {
     id: "admin", label: "Administration",
     items: [
       { label: "Companies", href: "/admin/companies", icon: "company" },
-      { label: "Venues", href: "/admin/venues", icon: "venue" },
-      { label: "Event-Series", href: "/admin/event-series", icon: "series" },
-      { label: "Events", href: "/admin/events", icon: "calendar" },
-      { label: "User", href: "/admin/users", icon: "users" },
+      { label: "Orte", href: "/admin/venues", icon: "venue" },
+      { label: "Veranstaltungsreihen", href: "/admin/event-series", icon: "series" },
+      { label: "Veranstaltungen", href: "/admin/events", icon: "calendar" },
+      { label: "Benutzer", href: "/admin/users", icon: "users" },
     ],
   });
   return { user: { name: user.name, email: user.email }, groups };

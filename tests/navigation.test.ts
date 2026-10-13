@@ -26,11 +26,11 @@ describe("navigation visibility", () => {
     expect(result.groups.map((group) => group.label)).toEqual(["Allgemein", "Company A", "Company B"]);
     expect(result.groups[0].items.map((item) => item.href)).toEqual(["/events"]);
     expect(result.groups[1].items.map((item) => item.href)).toEqual([
-      "/company/slug-company-a/venues", "/company/slug-company-a/event-series",
+      "/company/slug-company-a/venues", "/company/slug-company-a/event-series", "/company/slug-company-a/events",
     ]);
     expect(result.groups[2].items.map((item) => item.href)).toEqual([
       "/company/slug-company-b/venues", "/company/slug-company-b/event-series",
-      "/company/slug-company-b/settings", "/company/slug-company-b/members",
+      "/company/slug-company-b/events", "/company/slug-company-b/settings", "/company/slug-company-b/members",
     ]);
   });
 
@@ -40,7 +40,7 @@ describe("navigation visibility", () => {
     expect(result.groups.find((group) => group.id === "admin")?.items.map((item) => item.href)).toEqual([
       "/admin/companies", "/admin/venues", "/admin/event-series", "/admin/events", "/admin/users",
     ]);
-    expect(result.groups[1].items).toHaveLength(2);
+    expect(result.groups[1].items).toHaveLength(3);
   });
 
   it("supports users without companies and keeps identical company names separate", () => {

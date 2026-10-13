@@ -46,11 +46,15 @@ export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
       </div>
       <div className="overflow-x-auto"><table className="w-full text-left text-sm">
         <caption className="sr-only">Companies mit verknüpften Datensätzen und Verwaltungsaktionen</caption>
-        <thead className="bg-zinc-50 text-xs text-zinc-500 dark:bg-zinc-900"><tr>{["Nr.", "Company", "Mitglieder", "Venues", "Event-Series", "Events", "Aktionen"].map((label) => <th key={label} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{label}</th>)}</tr></thead>
+        <thead className="bg-zinc-50 text-xs text-zinc-500 dark:bg-zinc-900">
+          <tr>
+            {["Nr.", "Company", "Mitglieder", "Venues", "Event-Series", "Events", "Aktionen"].map((label) => <th key={label} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{label}</th>)}
+          </tr>
+        </thead>
         <tbody>{visible.map((company) => <tr key={company.id} className="border-t border-zinc-100 align-top dark:border-zinc-800">
           <td className="px-4 py-4 text-zinc-500">{company.number}</td>
           <th scope="row" className="min-w-48 px-4 py-4 font-medium"><span className="block">{company.name}</span><Link href={`/events/${encodeURIComponent(company.slug)}`} className="mt-1 block text-xs font-normal text-violet-700 hover:underline dark:text-violet-300">{company.slug}</Link></th>
-          <td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/members`} aria-label={`Mitglieder von ${company.name} verwalten`} className="text-violet-700 underline dark:text-violet-300">{company._count.memberships}</Link></td><td className="px-4 py-4">{company._count.venues}</td><td className="px-4 py-4">{company._count.eventSeries}</td><td className="px-4 py-4">{company._count.events}</td>
+          <td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/members`} aria-label={`Mitglieder von ${company.name} verwalten`} className="text-violet-700 underline dark:text-violet-300">{company._count.memberships}</Link></td><td className="px-4 py-4">{company._count.venues}</td><td className="px-4 py-4">{company._count.eventSeries}</td><td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/events`} className="text-violet-700 underline dark:text-violet-300" aria-label={`Events von ${company.name} verwalten`}>{company._count.events}</Link></td>
           <td className="px-4 py-4"><div className="flex flex-wrap gap-x-4 gap-y-2"><button type="button" disabled={editor !== null} aria-label={`${company.name} bearbeiten`} onClick={() => { setMessage(""); setEditor({ company }); }} className="text-violet-700 underline disabled:opacity-40 dark:text-violet-300">Bearbeiten</button><DeleteCompany company={company} onDeleted={setMessage} disabled={editor !== null} /></div></td>
         </tr>)}</tbody>
       </table></div>
