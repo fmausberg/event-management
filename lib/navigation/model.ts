@@ -21,7 +21,7 @@ export type NavigationUser = {
 export function buildNavigation(user: NavigationUser): NavigationData {
   const groups: NavigationGroup[] = [{
     id: "general", label: "Allgemein",
-    items: [{ label: "Events", href: "/events", icon: "calendar" }],
+    items: [{ label: "Zu den Veranstaltungen", href: "/events", icon: "calendar" }],
   }];
 
   for (const membership of user.memberships) {
@@ -33,7 +33,7 @@ export function buildNavigation(user: NavigationUser): NavigationData {
       { label: "Veranstaltungsreihen", href: `${base}/event-series`, icon: "series" },
       { label: "Veranstaltungen", href: `${base}/events`, icon: "calendar" },
     ];
-    if (membership.role === "COMPANY_ADMIN") items.push(
+    if (user.role === "ADMIN" || membership.role === "COMPANY_ADMIN") items.push(
       { label: "Einstellungen", href: `${base}/settings`, icon: "settings" },
       { label: "Mitglieder", href: `${base}/members`, icon: "users" },
     );

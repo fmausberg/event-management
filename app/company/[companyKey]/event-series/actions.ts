@@ -3,7 +3,7 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { MemberAccessError, requireCompanyAdmin } from "@/lib/companies/members";
+import { MemberAccessError, requireCompanyAccess } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 import { seriesSchema, type SeriesState } from "@/lib/event-series/validation";
 
@@ -20,7 +20,7 @@ function validId(id: unknown): id is string { return typeof id === "string" && !
 
 export async function saveSeries(slug: string, id: string | null, _previous: SeriesState, form: FormData): Promise<SeriesState> {
   try {
-    const company = await requireCompanyAdmin(slug);
+    const { company } = await requireCompanyAccess(slug);
     if (id !== null && !validId(id)) return { message: "Ungültige Eventserie." };
     const parsed = seriesSchema.safeParse(Object.fromEntries(Object.keys(seriesSchema.shape).map((key) => [key, form.get(key)])));
     if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
@@ -41,7 +41,7 @@ export async function saveSeries(slug: string, id: string | null, _previous: Ser
 
 export async function deleteSeries(slug: string, id: string, _previous: SeriesState, form: FormData): Promise<SeriesState> {
   try {
-    const company = await requireCompanyAdmin(slug);
+    const { company } = await requireCompanyAccess(slug);
     if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen einer gültigen Eventserie." };
     const result = await getPrisma().eventSeries.deleteMany({ where: { id, companyId: company.id, events: { none: {} } } });
     if (!result.count) return { message: "Die Eventserie hat noch Events oder existiert nicht in dieser Company." };

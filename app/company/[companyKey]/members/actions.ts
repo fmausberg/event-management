@@ -60,7 +60,7 @@ export async function addCompanyMember(companySlug: string, _previous: MemberFor
     });
     if (duplicate) return { message: "Diese E-Mail-Adresse ist dieser Company bereits zugeordnet." };
     await db.companyMembership.create({ data: {
-      companyId, email, userId: user?.id ?? null, role: "COMPANY_USER", status: user ? "ACTIVE" : "INVITED",
+      companyId, email, userId: user?.id ?? null, role: "COMPANY_USER", status: "ACTIVE",
     } });
   } catch (error) {
     if (error instanceof MemberAccessError) return { message: error.message };

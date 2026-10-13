@@ -7,6 +7,7 @@ import { loginSchema, registerSchema } from "@/lib/auth/validation";
 
 const { db } = vi.hoisted(() => ({ db: {
   user: { findMany: vi.fn(), findUnique: vi.fn() },
+  companyMembership: { updateMany: vi.fn() },
   authRateLimit: { deleteMany: vi.fn(), upsert: vi.fn() },
 } }));
 vi.mock("server-only", () => ({}));
@@ -20,7 +21,8 @@ beforeEach(() => {
   vi.stubEnv("AUTH_URL", "https://events.example.test");
   for (const key of ["AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "AUTH_GITHUB_ID", "AUTH_GITHUB_SECRET"]) vi.stubEnv(key, "");
   db.user.findMany.mockResolvedValue([{ id: "user-1", name: "Ada", email: "ada@example.com", image: null, passwordHash }]);
-  db.user.findUnique.mockResolvedValue({ id: "user-1" });
+  db.user.findUnique.mockResolvedValue({ id: "user-1", email: "ada@example.com", emailVerified: null });
+  db.companyMembership.updateMany.mockResolvedValue({ count: 0 });
   db.authRateLimit.deleteMany.mockResolvedValue({ count: 0 });
   db.authRateLimit.upsert.mockResolvedValue({ attempts: 1 });
 });

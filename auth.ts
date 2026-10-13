@@ -61,7 +61,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
         const existing = await getPrisma().user.findUnique({
           where: { id: token.sub }, select: { id: true, email: true, emailVerified: true },
         });
-        if (existing?.emailVerified) await claimMemberships(existing);
+        if (existing) await claimMemberships(existing);
         return existing ? token : null;
       },
       session({ session, token }) {

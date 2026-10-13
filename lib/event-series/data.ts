@@ -2,7 +2,7 @@ import "server-only";
 import { requireCompanyAccess } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 
-export async function getCompanySeries(slug: string, adminOnly = true) {
+export async function getCompanySeries(slug: string, adminOnly = false) {
   const { company, canManage } = await requireCompanyAccess(slug, adminOnly);
   const db = getPrisma();
   const [series, venues] = await Promise.all([

@@ -4,8 +4,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { bookPublicEvent } from "@/app/(public)/events/[companySlug]/[eventId]/actions";
 import Page from "@/app/(public)/events/[companySlug]/[eventId]/page";
 import { createBookingToken, readBookingToken } from "@/lib/bookings/public-token";
-const { db, rate } = vi.hoisted(() => ({ rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn() }, $transaction: vi.fn() } }));
-vi.mock("@/auth", () => ({ auth: async () => null }));
+const { auth, db, rate } = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn() }, $transaction: vi.fn() } }));
+vi.mock("@/auth", () => ({ auth }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
 vi.mock("@/lib/auth/rate-limit", () => ({ consumeAuthAttempt: rate }));
@@ -16,7 +16,7 @@ function form(token = createBookingToken("event-1", "12.50", "EUR"), overrides: 
  const data = new FormData(); Object.entries({ token, name: " Ada ", email: " ADA@example.com ", quantity: "2", ...overrides }).forEach(([k, v]) => data.set(k, v)); return data;
 }
 beforeEach(() => {
- vi.resetAllMocks(); vi.stubEnv("AUTH_SECRET", "test-only-booking-secret");
+ vi.resetAllMocks(); auth.mockResolvedValue(null); vi.stubEnv("AUTH_SECRET", "test-only-booking-secret");
  rate.mockResolvedValue(true); db.event.findFirst.mockResolvedValue(event); db.booking.findUnique.mockResolvedValue(null);
  db.booking.aggregate.mockResolvedValue({ _sum: { quantity: 3 } }); db.booking.create.mockResolvedValue({ number: 42 });
  db.$transaction.mockImplementation(async (callback) => callback(db));
@@ -25,9 +25,15 @@ afterEach(() => vi.unstubAllEnvs());
 it("creates a guest booking with normalized contact details, trusted status and event", async () => {
  const token = createBookingToken("event-1", "12.50", "EUR");
  expect(await bookPublicEvent("yoga", "event-1", {}, form(token, { userId: "foreign", status: "CANCELLED", ticketPrice: "0" }))).toMatchObject({ success: true, number: 42 });
- expect(db.booking.create).toHaveBeenCalledWith({ data: { id: readBookingToken(token)!.id, eventId: "event-1", customerName: "Ada", customerEmail: "ada@example.com", quantity: 2, status: "CONFIRMED", platform: null, externalBookingId: null }, select: { number: true } });
+ expect(db.booking.create).toHaveBeenCalledWith({ data: { id: readBookingToken(token)!.id, eventId: "event-1", userId: null, customerName: "Ada", customerEmail: "ada@example.com", quantity: 2, status: "CONFIRMED", platform: null, externalBookingId: null }, select: { number: true } });
  expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
  expect(db.event.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "event-1", company: { slug: "yoga" } } }));
+});
+it("associates public bookings with the authenticated user", async () => {
+ auth.mockResolvedValue({ user: { id: "user-1" } });
+ const token = createBookingToken("event-1", "12.50", "EUR");
+ await bookPublicEvent("yoga", "event-1", {}, form(token));
+ expect(db.booking.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: "user-1" }), select: { number: true } });
 });
 it("reuses an existing booking for repeated submission without inserting again", async () => {
  db.booking.findUnique.mockResolvedValue({ eventId: "event-1", number: 42 });

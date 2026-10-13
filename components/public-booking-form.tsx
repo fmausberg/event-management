@@ -1,7 +1,7 @@
 "use client";
 import { useActionState, useState } from "react";
 import { bookPublicEvent, type PublicBookingState } from "@/app/(public)/events/[companySlug]/[eventId]/actions";
-export function PublicBookingForm({ slug, eventId, token, price, currency, available, started }: { slug: string; eventId: string; token: string; price: string; currency: string; available: number; started: boolean }) {
+export function PublicBookingForm({ slug, eventId, token, price, currency, available, started, initialName = "", initialEmail = "" }: { slug: string; eventId: string; token: string; price: string; currency: string; available: number; started: boolean; initialName?: string; initialEmail?: string }) {
     const [quantity, setQuantity] = useState("1");
     const [state, action, pending] = useActionState<PublicBookingState, FormData>(bookPublicEvent.bind(null, slug, eventId), {});
     const total = (Number(price) * (Number(quantity) || 0)).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -14,8 +14,8 @@ export function PublicBookingForm({ slug, eventId, token, price, currency, avail
         <input type="hidden" name="token" value={token} />
         <div hidden aria-hidden="true"><label htmlFor="booking-website">Website</label><input id="booking-website" name="website" tabIndex={-1} autoComplete="off" /></div>
         <fieldset disabled={pending} className="space-y-4">
-            <div><label htmlFor="guest-name" className="text-sm font-medium">Dein Name</label><input id="guest-name" name="name" required maxLength={160} autoComplete="name" className={input} /></div>
-            <div><label htmlFor="guest-email" className="text-sm font-medium">E-Mail-Adresse</label><input id="guest-email" name="email" type="email" required maxLength={254} autoComplete="email" className={input} /></div>
+            <div><label htmlFor="guest-name" className="text-sm font-medium">Dein Name</label><input id="guest-name" name="name" defaultValue={initialName} required maxLength={160} autoComplete="name" className={input} /></div>
+            <div><label htmlFor="guest-email" className="text-sm font-medium">E-Mail-Adresse</label><input id="guest-email" name="email" defaultValue={initialEmail} type="email" required maxLength={254} autoComplete="email" className={input} /></div>
             <div><label htmlFor="guest-quantity" className="text-sm font-medium">Anzahl Plätze</label><input id="guest-quantity" name="quantity" type="number" min={1} max={available} step={1} required value={quantity} onChange={(e) => setQuantity(e.target.value)} className={input} /></div>
         </fieldset>
         <div className="flex justify-between border-t border-zinc-100 pt-4 font-semibold"><span>Gesamtpreis</span><span>{total} {currency}</span></div>

@@ -2,7 +2,7 @@
 
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
-import { MemberAccessError, requireCompanyAdmin } from "@/lib/companies/members";
+import { MemberAccessError, requireCompanyAccess } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 import { venueSchema, type VenueState } from "@/lib/venues/validation";
 
@@ -20,7 +20,7 @@ function validId(id: unknown): id is string { return typeof id === "string" && !
 
 export async function saveVenue(slug: string, id: string | null, _previous: VenueState, form: FormData): Promise<VenueState> {
   try {
-    const company = await requireCompanyAdmin(slug);
+    const { company } = await requireCompanyAccess(slug);
     if (id !== null && !validId(id)) return { message: "Ungültige Venue." };
     const parsed = venueSchema.safeParse(Object.fromEntries(Object.keys(venueSchema.shape).map((key) => [key, form.get(key)])));
     if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
@@ -38,7 +38,7 @@ export async function saveVenue(slug: string, id: string | null, _previous: Venu
 
 export async function deleteVenue(slug: string, id: string, _previous: VenueState, form: FormData): Promise<VenueState> {
   try {
-    const company = await requireCompanyAdmin(slug);
+    const { company } = await requireCompanyAccess(slug);
     if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen einer gültigen Venue." };
     const result = await getPrisma().venue.deleteMany({ where: { id, companyId: company.id, events: { none: {} }, suggestedForSeries: { none: {} } } });
     if (!result.count) return { message: "Die Venue hat noch Events oder Eventserien oder existiert nicht in dieser Company." };

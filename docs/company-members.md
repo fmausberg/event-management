@@ -9,7 +9,7 @@ Zugriff aus der Datenbank gelesen.
 Mitglieder werden über eine normalisierte E-Mail-Adresse hinzugefügt, stets mit
 der Rolle `COMPANY_USER`. Bestehende Accounts werden direkt zugeordnet. Ohne
 Account entsteht eine Mitgliedschaft mit `email`, ohne `userId` und mit Status
-`INVITED`; es wird kein künstlicher Benutzer angelegt und keine E-Mail versendet.
+`ACTIVE`; es wird kein künstlicher Benutzer angelegt und keine E-Mail versendet.
 Die Mitgliederanzahl enthält auch diese vorgemerkten Mitgliedschaften.
 
 Der angezeigte **Kontostatus** ist vom internen Mitgliedschaftsstatus unabhängig:
@@ -19,13 +19,22 @@ Der angezeigte **Kontostatus** ist vom internen Mitgliedschaftsstatus unabhängi
 - `verified`: Account mit gesetztem `User.emailVerified`.
 
 Auch nach einer späteren Registrierung wird der Kontostatus anhand der Adresse
-aktuell ermittelt. Erst nach bestätigter E-Mail übernimmt die nächste
-Session-Prüfung die vorgemerkte Mitgliedschaft für den Benutzer und setzt sie auf
-`ACTIVE`. Bestehende Rollen und gesperrte Mitgliedschaften werden dabei nicht
+aktuell ermittelt. Die nächste Session-Prüfung ordnet die Mitgliedschaft anhand
+der normalisierten E-Mail dem Account zu, unabhängig von `emailVerified`.
+Bestehende Rollen und gesperrte Mitgliedschaften werden dabei nicht
 überschrieben. Mehrdeutige alte Accounts mit gleicher Adresse in unterschiedlicher
 Schreibweise werden nicht automatisch zugeordnet. Der bisherige Platzhalter für
 die E-Mail-Verifizierung bleibt bestehen; dieses Feature ergänzt keinen Versand
 und keinen Verifizierungsprozess.
+
+Diese gewünschte Zuordnung vertraut der registrierten E-Mail-Adresse ohne
+Besitznachweis. Wer sich mit einer bereits zugeordneten fremden Adresse
+registriert, kann dadurch deren Company-Zugriff erhalten.
+
+Die Datenmigration `20261013120000_activate_company_memberships` setzt bisherige
+`INVITED`-Mitgliedschaften auf `ACTIVE`. `SUSPENDED` bleibt unverändert.
+Der alte Enum-Wert bleibt zur Kompatibilität erhalten, wird beim Hinzufügen aber
+nicht mehr verwendet. Der Kontostatus ist nur eine Anzeige, keine Zugriffshürde.
 
 ## Datenbankschema
 

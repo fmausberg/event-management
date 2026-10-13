@@ -40,7 +40,7 @@ describe("navigation visibility", () => {
     expect(result.groups.find((group) => group.id === "admin")?.items.map((item) => item.href)).toEqual([
       "/admin/companies", "/admin/venues", "/admin/event-series", "/admin/events", "/admin/users",
     ]);
-    expect(result.groups[1].items).toHaveLength(3);
+    expect(result.groups[1].items).toHaveLength(5);
   });
 
   it("supports users without companies and keeps identical company names separate", () => {

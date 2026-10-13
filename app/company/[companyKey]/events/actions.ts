@@ -2,7 +2,7 @@
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { requireCompanyAdmin, MemberAccessError } from "@/lib/companies/members";
+import { requireCompanyAccess, MemberAccessError } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 import { eventSchema, emptyEvent, type EventState } from "@/lib/company-events/model";
 function refresh(slug: string) {
@@ -16,7 +16,7 @@ function failure(error: unknown): EventState {
 function validId(id: unknown): id is string { return typeof id === "string" && !!id.trim() && id.length <= 191; }
 export async function saveEvent(slug: string, id: string | null, _previous: EventState, form: FormData): Promise<EventState> {
  try {
-  const company = await requireCompanyAdmin(slug);
+  const { company } = await requireCompanyAccess(slug);
   if (id !== null && !validId(id)) return { message: "Ungültiges Event." };
   const parsed = eventSchema.safeParse(Object.fromEntries(Object.keys(emptyEvent).map((key) => [key, form.get(key)])));
   if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
@@ -39,7 +39,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 }
 export async function deleteEvent(slug: string, id: string, _previous: EventState, form: FormData): Promise<EventState> {
  try {
-  const company = await requireCompanyAdmin(slug);
+  const { company } = await requireCompanyAccess(slug);
   if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen." };
   const result = await getPrisma().event.deleteMany({ where: { id, companyId: company.id, bookings: { none: {} }, platformEvents: { none: {} } } });
   if (!result.count) return { message: "Das Event hat noch Buchungen oder Plattformzuordnungen oder existiert nicht in dieser Company." };

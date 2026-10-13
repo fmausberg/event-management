@@ -9,7 +9,8 @@ import { createBookingToken } from "@/lib/bookings/public-token";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Eventdetails & Buchung" };
 export default async function EventDetailsPage({ params }: { params: Promise<{ companySlug: string; eventId: string }> }) {
- const signedIn = !!(await auth())?.user?.id;
+ const session = await auth();
+ const signedIn = !!session?.user?.id;
  const { companySlug, eventId } = await params;
  let event;
  let token = "";
@@ -36,7 +37,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ c
      <p className="mb-6 text-xs text-zinc-400">Alle Eventzeiten in Europe/Berlin.</p>
      {event.description && <section><h2 className="text-xl font-semibold">Über das Event</h2><p className="mt-4 whitespace-pre-wrap leading-relaxed text-zinc-600">{event.description}</p></section>}
     </article>
-    <aside className="lg:sticky lg:top-6"><PublicBookingForm slug={companySlug} eventId={event.id} token={token} price={event.ticketPrice} currency={event.currency} available={event.available} started={event.beginsAt <= new Date()} /></aside>
+    <aside className="lg:sticky lg:top-6"><PublicBookingForm initialName={signedIn ? session?.user?.name ?? "" : ""} initialEmail={signedIn ? session?.user?.email ?? "" : ""} slug={companySlug} eventId={event.id} token={token} price={event.ticketPrice} currency={event.currency} available={event.available} started={event.beginsAt <= new Date()} /></aside>
    </div>
   </main>
  </div>;

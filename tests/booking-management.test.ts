@@ -83,10 +83,10 @@ it("requires deletion confirmation and authentication", async () => {
  expect(db.booking.deleteMany).not.toHaveBeenCalled();
  await expect(Page({ params: Promise.resolve({ companyKey: "yoga", eventId: "event-1" }) })).rejects.toThrow("LOGIN");
 });
-it("renders empty bookings and exposes read-only event overview to company users", async () => {
+it("renders empty bookings and exposes event management to company users", async () => {
  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companyKey: "yoga", eventId: "event-1" }) }));
  expect(html).toContain("Noch keine Buchungen vorhanden"); expect(html).toContain("+ Buchung erstellen");
  const events = renderToStaticMarkup(await EventsPage({ params: Promise.resolve({ companyKey: "yoga" }) }));
- expect(events).not.toContain("+ Event erstellen");
+ expect(events).toContain("+ Event erstellen");
  expect((await saveEvent("yoga", null, {}, form())).success).toBeUndefined();
 });

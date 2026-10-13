@@ -32,8 +32,8 @@ it("scopes updates and protected deletes to the company", async () => {
  await deleteEvent("yoga", "event-1", {}, form({ confirmed: "yes" }));
  expect(db.event.deleteMany).toHaveBeenCalledWith({ where: { id: "event-1", companyId: "company-id", bookings: { none: {} }, platformEvents: { none: {} } } });
 });
-it("allows active company admins", async () => {
- db.user.findUnique.mockResolvedValue({ role: "USER" }); db.companyMembership.findUnique.mockResolvedValue({ role: "COMPANY_ADMIN", status: "ACTIVE" });
+it.each(["COMPANY_USER", "COMPANY_ADMIN"])("allows active %s", async (role) => {
+ db.user.findUnique.mockResolvedValue({ role: "USER" }); db.companyMembership.findUnique.mockResolvedValue({ role, status: "ACTIVE" });
  expect((await saveEvent("yoga", null, {}, form())).success).toBe(true);
 });
 it.each([null, { role: "COMPANY_ADMIN", status: "SUSPENDED" }, { role: "COMPANY_ADMIN", status: "INVITED" }])("denies insufficient membership %j", async (membership) => {

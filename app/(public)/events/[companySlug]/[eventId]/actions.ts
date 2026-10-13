@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
+import { auth } from "@/auth";
 import { getPrisma } from "@/lib/db/prisma";
 import { emailSchema } from "@/lib/auth/validation";
 import { consumeAuthAttempt } from "@/lib/auth/rate-limit";
@@ -20,6 +21,7 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
  let result: PublicBookingState;
  try {
   if (!await consumeAuthAttempt(parsed.data.email, "public-booking")) return { message: "Zu viele Buchungsversuche. Bitte versuche es in 15 Minuten erneut." };
+  const userId = (await auth())?.user?.id ?? null;
   result = await getPrisma().$transaction(async (tx): Promise<PublicBookingState> => {
    const event = await tx.event.findFirst({ where: { id: eventId, company: { slug } }, select: { id: true, status: true, beginsAt: true, maxSeats: true, ticketPrice: true, currency: true } });
    if (!event) return { message: "Dieses Event ist nicht buchbar." };
@@ -29,7 +31,7 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
    if (event.ticketPrice.toFixed(2) !== token.price || event.currency !== token.currency) return { message: "Der Preis wurde geändert. Bitte lade die Seite neu und prüfe den aktuellen Preis." };
    const reserved = await tx.booking.aggregate({ where: { eventId, status: "CONFIRMED" }, _sum: { quantity: true } });
    if ((reserved._sum.quantity ?? 0) + parsed.data.quantity > event.maxSeats) return { message: "Es sind nicht mehr genügend Plätze frei. Bitte wähle weniger Plätze oder lade die Seite neu." };
-   const booking = await tx.booking.create({ data: { id: token.id, eventId, customerName: parsed.data.name, customerEmail: parsed.data.email, quantity: parsed.data.quantity, status: "CONFIRMED", platform: null, externalBookingId: null }, select: { number: true } });
+   const booking = await tx.booking.create({ data: { id: token.id, eventId, userId, customerName: parsed.data.name, customerEmail: parsed.data.email, quantity: parsed.data.quantity, status: "CONFIRMED", platform: null, externalBookingId: null }, select: { number: true } });
    return { success: true, number: booking.number, message: "Deine Buchung wurde bestätigt." };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
  } catch (error) {

@@ -29,7 +29,7 @@ export async function requireCompanyAccess(companySlug: string, adminOnly = fals
       select: { role: true, status: true },
     });
     if (!membership || membership.status !== "ACTIVE" || (adminOnly && membership.role !== "COMPANY_ADMIN")) throw new MemberAccessError("FORBIDDEN");
-    canManage = membership.role === "COMPANY_ADMIN";
+    canManage = true;
   }
   return { company, canManage };
 }

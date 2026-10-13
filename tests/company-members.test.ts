@@ -1,3 +1,4 @@
+import CompanySettingsPage from "@/app/company/[companyKey]/settings/page";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -98,7 +99,7 @@ describe("adding and listing company members", () => {
   });
   it("stores a normalized pending address without creating a fake user or accepting role injection", async () => {
     expect(await addCompanyMember("studio-berlin", {}, form())).toMatchObject({ success: true });
-    expect(db.companyMembership.create).toHaveBeenCalledWith({ data: { companyId: "company-a", email: "ada@example.com", userId: null, role: "COMPANY_USER", status: "INVITED" } });
+    expect(db.companyMembership.create).toHaveBeenCalledWith({ data: { companyId: "company-a", email: "ada@example.com", userId: null, role: "COMPANY_USER", status: "ACTIVE" } });
     expect(revalidatePath).toHaveBeenCalledWith("/admin/companies");
     expect(revalidatePath).toHaveBeenCalledWith("/company/studio-berlin/members");
   });
@@ -136,14 +137,15 @@ describe("adding and listing company members", () => {
 });
 
 describe("claiming pending memberships", () => {
-  it("never grants access through an unverified email", async () => {
+  it("links active membership even before email verification", async () => {
+    db.user.findMany.mockResolvedValue([{ id: "new-user" }]);
     await claimMemberships({ id: "new-user", email: "ada@example.com", emailVerified: null });
-    expect(db.companyMembership.updateMany).not.toHaveBeenCalled();
+    expect(db.companyMembership.updateMany).toHaveBeenCalled();
   });
   it("claims only matching pending memberships without replacing existing roles or suspensions", async () => {
     db.user.findMany.mockResolvedValue([{ id: "new-user" }]);
     await claimMemberships({ id: "new-user", email: "ADA@example.com", emailVerified: new Date() });
-    expect(db.companyMembership.updateMany).toHaveBeenCalledWith({ where: { email: "ada@example.com", userId: null, status: "INVITED", company: { memberships: { none: { userId: "new-user" } } } }, data: { userId: "new-user", status: "ACTIVE" } });
+    expect(db.companyMembership.updateMany).toHaveBeenCalledWith({ where: { email: { equals: "ada@example.com", mode: "insensitive" }, userId: null, status: { in: ["ACTIVE", "INVITED"] }, company: { memberships: { none: { userId: "new-user" } } } }, data: { userId: "new-user", status: "ACTIVE" } });
   });
   it("does not claim ambiguous legacy email addresses", async () => {
     db.user.findMany.mockResolvedValue([{ id: "new-user" }, { id: "other" }]);
@@ -257,4 +259,17 @@ describe("removing company memberships", () => {
     expect(html).toContain('aria-label="Mitgliedschaft von ada@example.com entfernen"');
     expect(html).toContain('title="Mitgliedschaft entfernen"');
   });
+});
+
+it("protects company settings from direct access by ordinary members", async () => {
+ const props = { params: Promise.resolve({ companyKey: "studio-berlin" }) };
+ db.user.findUnique.mockResolvedValue({ role: "USER" });
+ db.companyMembership.findUnique.mockResolvedValue({ role: "COMPANY_USER", status: "ACTIVE" });
+ await expect(CompanySettingsPage(props)).rejects.toThrow("NOT_FOUND");
+ db.companyMembership.findUnique.mockResolvedValue({ role: "COMPANY_ADMIN", status: "ACTIVE" });
+ await expect(CompanySettingsPage(props)).resolves.toBeDefined();
+ db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
+ await expect(CompanySettingsPage(props)).resolves.toBeDefined();
+ auth.mockResolvedValue(null);
+ await expect(CompanySettingsPage(props)).rejects.toThrow("REDIRECT:/login");
 });
