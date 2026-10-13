@@ -42,6 +42,14 @@ services:
       AUTH_GOOGLE_SECRET: ${AUTH_GOOGLE_SECRET:-}
       AUTH_GITHUB_ID: ${AUTH_GITHUB_ID:-}
       AUTH_GITHUB_SECRET: ${AUTH_GITHUB_SECRET:-}
+      SMTP_HOST: ${SMTP_HOST:-smtp.strato.de}
+      SMTP_PORT: ${SMTP_PORT:-465}
+      SMTP_SECURE: ${SMTP_SECURE:-true}
+      SMTP_USER: ${SMTP_USER:-}
+      SMTP_PASSWORD: ${SMTP_PASSWORD:-}
+      MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-ticket@mausberg.net}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Event-Management}
+      MAIL_TEST_RECIPIENT: ${MAIL_TEST_RECIPIENT:-}
     depends_on:
       db:
         condition: service_healthy

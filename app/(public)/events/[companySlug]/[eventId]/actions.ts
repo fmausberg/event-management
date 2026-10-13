@@ -8,6 +8,9 @@ import { emailSchema } from "@/lib/auth/validation";
 import { consumeAuthAttempt } from "@/lib/auth/rate-limit";
 import { readBookingToken } from "@/lib/bookings/public-token";
 import { createTicketToken } from "@/lib/tickets/public-token";
+import { ticketLink } from "@/lib/tickets/public-link";
+import { sendMail, type MailMessage } from "@/lib/mail";
+import { bookingConfirmation } from "@/lib/mail/templates/booking-confirmation";
 export type PublicBookingState = { success?: boolean; message?: string; number?: number };
 const schema = z.object({
  name: z.string().trim().min(1, "Bitte gib deinen Namen ein.").max(160), email: emailSchema,
@@ -20,11 +23,12 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
  if (!token || token.eventId !== eventId) return { message: "Das Buchungsformular ist abgelaufen. Bitte lade die Seite neu." };
  if (form.get("website")) return { message: "Die Buchung konnte nicht verarbeitet werden." };
  let result: PublicBookingState;
+ let confirmation: MailMessage | undefined;
  try {
   if (!await consumeAuthAttempt(parsed.data.email, "public-booking")) return { message: "Zu viele Buchungsversuche. Bitte versuche es in 15 Minuten erneut." };
   const userId = (await auth())?.user?.id ?? null;
   result = await getPrisma().$transaction(async (tx): Promise<PublicBookingState> => {
-   const event = await tx.event.findFirst({ where: { id: eventId, company: { slug } }, select: { id: true, status: true, beginsAt: true, maxSeats: true, ticketPrice: true, currency: true } });
+   const event = await tx.event.findFirst({ where: { id: eventId, company: { slug } }, select: { id: true, name: true, status: true, beginsAt: true, maxSeats: true, ticketPrice: true, currency: true } });
    if (!event) return { message: "Dieses Event ist nicht buchbar." };
    const existing = await tx.booking.findUnique({ where: { id: token.id }, select: { eventId: true, number: true } });
    if (existing?.eventId === eventId) return { success: true, number: existing.number, message: "Deine Buchung wurde bestätigt." };
@@ -33,14 +37,19 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
    const reserved = await tx.booking.aggregate({ where: { eventId, status: "CONFIRMED" }, _sum: { quantity: true } });
    if ((reserved._sum.quantity ?? 0) + parsed.data.quantity > event.maxSeats) return { message: "Es sind nicht mehr genügend Plätze frei. Bitte wähle weniger Plätze oder lade die Seite neu." };
    const booking = await tx.booking.create({ data: { id: token.id, eventId, userId, customerName: parsed.data.name, customerEmail: parsed.data.email, quantity: parsed.data.quantity, status: "CONFIRMED", platform: null, externalBookingId: null }, select: { number: true } });
+   const ticketTokens = Array.from({ length: parsed.data.quantity }, () => createTicketToken());
    await tx.ticket.createMany({
-    data: Array.from({ length: parsed.data.quantity }, () => ({
+    data: ticketTokens.map(({ publicTokenHash }) => ({
      bookingId: token.id,
      status: "VALID" as const,
-     // Plaintext tokens remain transient until ticket delivery is implemented.
-     publicTokenHash: createTicketToken().publicTokenHash,
+     publicTokenHash,
     })),
    });
+   confirmation = { to: parsed.data.email, ...bookingConfirmation({
+    customerName: parsed.data.name, bookingNumber: booking.number,
+    eventName: event.name, beginsAt: event.beginsAt, quantity: parsed.data.quantity,
+    ticketLinks: ticketTokens.map(({ token }) => ticketLink(token)),
+   }) };
    return { success: true, number: booking.number, message: "Deine Buchung wurde bestätigt." };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
  } catch (error) {
@@ -48,6 +57,14 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
   return { message: "Die Buchung konnte gerade nicht abgeschlossen werden. Bitte versuche es erneut." };
  }
  if (result.success) {
+  // Send only for newly created bookings, after the transaction has committed.
+  if (confirmation) {
+   try {
+    await sendMail(confirmation);
+   } catch {
+    result.message = "Deine Buchung wurde bestätigt. Die Bestätigungs-E-Mail konnte nicht versendet werden. Bitte notiere deine Buchungsnummer; eine erneute Buchung ist nicht nötig.";
+   }
+  }
   revalidatePath(`/events/${encodeURIComponent(slug)}/${encodeURIComponent(eventId)}`);
   revalidatePath(`/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}/bookings`);
   revalidatePath(`/company/${encodeURIComponent(slug)}/events`);

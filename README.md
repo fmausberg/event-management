@@ -5,6 +5,8 @@ Datenhaltung und Integrationsverträge bereit. Externe APIs sind noch nicht ange
 
 ## Lokal starten
 
+SMTP-Mailversand und STRATO-Konfiguration: siehe [Mailversand](docs/mail.md).
+
 Die Aufteilung der Seiten und ihre URLs sind in der [Projektstruktur](docs/project-structure.md) dokumentiert.
 
 Login, Registrierung und OAuth: siehe [Authentifizierung](docs/authentication.md)

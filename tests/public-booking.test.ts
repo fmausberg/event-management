@@ -6,6 +6,8 @@ import Page from "@/app/(public)/events/[companySlug]/[eventId]/page";
 import { createBookingToken, readBookingToken } from "@/lib/bookings/public-token";
 import * as ticketTokens from "@/lib/tickets/public-token";
 import { revalidatePath } from "next/cache";
+import { sendMail } from "@/lib/mail";
+vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
 const { auth, db, rate } = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn() }, ticket: { createMany: vi.fn() }, $transaction: vi.fn() } }));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("server-only", () => ({}));
@@ -18,6 +20,7 @@ function form(token = createBookingToken("event-1", "12.50", "EUR"), overrides: 
  const data = new FormData(); Object.entries({ token, name: " Ada ", email: " ADA@example.com ", quantity: "2", ...overrides }).forEach(([k, v]) => data.set(k, v)); return data;
 }
 beforeEach(() => {
+ vi.stubEnv("AUTH_URL", "https://events.example.com");
  vi.resetAllMocks(); auth.mockResolvedValue(null); vi.stubEnv("AUTH_SECRET", "test-only-booking-secret");
  rate.mockResolvedValue(true); db.event.findFirst.mockResolvedValue(event); db.booking.findUnique.mockResolvedValue(null);
  db.booking.aggregate.mockResolvedValue({ _sum: { quantity: 3 } }); db.booking.create.mockResolvedValue({ number: 42 });
@@ -42,6 +45,42 @@ it("reuses an existing booking for repeated submission without inserting again",
  expect((await bookPublicEvent("yoga", "event-1", {}, form())).number).toBe(42);
  expect(db.booking.create).not.toHaveBeenCalled();
  expect(db.ticket.createMany).not.toHaveBeenCalled();
+ expect(sendMail).not.toHaveBeenCalled();
+});
+it("sends confirmation to the normalized booking email only after commit", async () => {
+ let committed = false;
+ db.$transaction.mockImplementation(async (callback) => {
+  const result = await callback(db);
+  expect(sendMail).not.toHaveBeenCalled();
+  committed = true;
+  return result;
+ });
+ vi.mocked(sendMail).mockImplementation(async () => {
+  expect(committed).toBe(true);
+  return { messageId: "test" };
+ });
+ const data = form();
+ await bookPublicEvent("yoga", "event-1", {}, data);
+ expect(sendMail).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ to: "ada@example.com", subject: "Deine Buchungsbestätigung #42", text: expect.stringContaining("Event: Yoga"), html: expect.stringContaining("Anzahl Plätze: 2") }));
+ db.booking.findUnique.mockResolvedValue({ eventId: "event-1", number: 42 });
+ db.$transaction.mockImplementation(async (callback) => callback(db));
+ await bookPublicEvent("yoga", "event-1", {}, data);
+ expect(sendMail).toHaveBeenCalledTimes(1);
+});
+it("keeps the booking successful and shows a warning if SMTP fails", async () => {
+ vi.mocked(sendMail).mockRejectedValue(new Error("SMTP failed"));
+ const result = await bookPublicEvent("yoga", "event-1", {}, form());
+ expect(result).toMatchObject({ success: true, number: 42 });
+ expect(result.message).toContain("E-Mail konnte nicht versendet");
+ expect(revalidatePath).toHaveBeenCalled();
+});
+it("sends no confirmation when committing the transaction fails", async () => {
+ db.$transaction.mockImplementation(async (callback) => {
+  await callback(db);
+  throw new Error("commit failed");
+ });
+ expect((await bookPublicEvent("yoga", "event-1", {}, form())).success).toBeUndefined();
+ expect(sendMail).not.toHaveBeenCalled();
 });
 it.each([1, 2, 7])("creates exactly %i valid tickets and persists only their hashes", async (quantity) => {
  const generated = vi.spyOn(ticketTokens, "createTicketToken");
@@ -55,6 +94,11 @@ it.each([1, 2, 7])("creates exactly %i valid tickets and persists only their has
  expect(new Set(generated.mock.results.map(({ value }) => value.publicTokenHash)).size).toBe(quantity);
  const persisted = JSON.stringify([db.booking.create.mock.calls, db.ticket.createMany.mock.calls, result]);
  for (const { value } of generated.mock.results) expect(persisted).not.toContain(value.token);
+ const mail = vi.mocked(sendMail).mock.calls[0][0];
+ for (const { value } of generated.mock.results) {
+  expect(mail.text).toContain(`https://events.example.com/tickets#${value.token}`);
+  expect(mail.html).toContain(`href="https://events.example.com/tickets#${value.token}"`);
+ }
 });
 it("does not add tickets when the same successful form is submitted again", async () => {
  const data = form();
