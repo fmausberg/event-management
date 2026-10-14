@@ -33,7 +33,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       }),
     },
     // Auth.js Credentials requires JWT sessions, even when using an adapter.
-    session: { strategy: "jwt", maxAge: 8 * 60 * 60 },
+    session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60 },
     useSecureCookies: process.env.NODE_ENV === "production" || process.env.AUTH_URL?.startsWith("https://"),
     pages: { signIn: "/login", error: "/login" },
     providers: [

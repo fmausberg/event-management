@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { getNavigation } from "@/lib/navigation/get-navigation";
 import { NavigationShell } from "@/components/navigation-shell";
+import { SessionActivity } from "@/components/session-activity";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -27,6 +28,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
+        {navigation && <SessionActivity />}
         {navigation ? <NavigationShell data={navigation}>{children}</NavigationShell> : children}
       </body>
     </html>

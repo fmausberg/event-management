@@ -45,6 +45,27 @@ async function login(input: Record<string, string> = {}) {
 }
 
 describe("credentials HTTP flow with real Auth.js and password hashing (database double)", () => {
+  it("renews an active session for seven days but cannot renew an expired session", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    try {
+      const started = Date.now();
+      const originalCookie = cookieHeader(await login());
+      vi.setSystemTime(started + 6 * 24 * 60 * 60 * 1000);
+      const refreshed = await handlers.GET(request("session", { headers: { cookie: originalCookie } }));
+      expect((await refreshed.json()).user.id).toBe("user-1");
+      const renewedCookie = cookieHeader(refreshed);
+      expect(renewedCookie).toContain("session-token=");
+
+      vi.setSystemTime(started + 8 * 24 * 60 * 60 * 1000);
+      const expired = await handlers.GET(request("session", { headers: { cookie: originalCookie } }));
+      expect(await expired.json()).toBeNull();
+      const active = await handlers.GET(request("session", { headers: { cookie: renewedCookie } }));
+      expect((await active.json()).user.id).toBe("user-1");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("creates a secure session, exposes only public user fields, and signs out", async () => {
     const response = await login();
     expect(response.headers.get("location")).toBe("https://events.example.test/account");
@@ -61,7 +82,9 @@ describe("credentials HTTP flow with real Auth.js and password hashing (database
     const session = await sessionResponse.json();
     expect(session.user).toEqual({ id: "user-1", name: "Ada", email: "ada@example.com", image: null });
     expect(JSON.stringify(session)).not.toContain("password");
-    expect(new Date(session.expires).getTime() - Date.now()).toBeLessThanOrEqual(8 * 60 * 60 * 1000);
+    const remaining = new Date(session.expires).getTime() - Date.now();
+    expect(remaining).toBeLessThanOrEqual(7 * 24 * 60 * 60 * 1000);
+    expect(remaining).toBeGreaterThan(7 * 24 * 60 * 60 * 1000 - 10_000);
     const csrf = await handlers.GET(request("csrf", { headers: { cookie } }));
     const { csrfToken } = await csrf.json();
     const logout = await handlers.POST(request("signout", {

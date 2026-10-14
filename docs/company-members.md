@@ -54,6 +54,6 @@ Normalisierung, doppelte Zuordnungen, Kontostatus und die sichere Übernahme
 vorgemerkter Mitgliedschaften.
 
 Der Routenparameter `companyKey` bezeichnet den eindeutigen `Company.slug`.
-Datenzugriffe und Berechtigungspr?fungen verwenden nach dessen Aufl?sung die
-interne Company-ID. ?nderungen am Slug ?ndern auch die Verwaltungs-URLs; alte
+Datenzugriffe und Berechtigungsprüfungen verwenden nach dessen Auflösung die
+interne Company-ID. Änderungen am Slug ändern auch die Verwaltungs-URLs; alte
 URLs werden nicht automatisch weitergeleitet.
