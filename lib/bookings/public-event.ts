@@ -8,6 +8,6 @@ export async function getBookableEvent(slug: string, id: string) {
  venue: { select: { name: true, addressLine1: true, addressLine2: true, postalCode: true, city: true, countryCode: true } },
  } });
  if (!event) return null;
- const count = await db.booking.aggregate({ where: { eventId: id, status: "CONFIRMED" }, _sum: { quantity: true } });
+ const count = await db.booking.aggregate({ where: { eventId: id, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } }, _sum: { quantity: true } });
  return { ...event, ticketPrice: event.ticketPrice.toFixed(2), available: Math.max(0, event.maxSeats - (count._sum.quantity ?? 0)) };
 }

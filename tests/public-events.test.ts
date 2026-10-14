@@ -36,7 +36,7 @@ it.each([10, 12])("disables the card button when %i seats are booked out of 10",
  const html = renderToStaticMarkup(await Page());
  expect(html).toMatch(/<button[^>]*disabled=""[^>]*>ausgebucht<\/button>/);
  expect(html).not.toContain('aria-label="Details zu Yoga"');
- expect(groupBy).toHaveBeenCalledWith({ by: ["eventId"], where: { eventId: { in: ["event-1"] }, status: "CONFIRMED" }, _sum: { quantity: true } });
+ expect(groupBy).toHaveBeenCalledWith({ by: ["eventId"], where: { eventId: { in: ["event-1"] }, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } }, _sum: { quantity: true } });
  groupBy.mockResolvedValue([{ eventId: "event-1", _sum: { quantity: 9 } }]);
  const available = renderToStaticMarkup(await Page());
  expect(available).not.toContain("ausgebucht");

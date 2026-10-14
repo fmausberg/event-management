@@ -17,6 +17,8 @@ enum Platform {
 }
 
 enum BookingStatus {
+  PENDING_PAYMENT
+  EXPIRED
   CONFIRMED
   CANCELLED
 }
@@ -137,6 +139,9 @@ model Company {
   // Attribute
   name String
   slug String @unique
+  stripeAccountId String? @unique
+  stripeChargesEnabled Boolean @default(false)
+  stripePayoutsEnabled Boolean @default(false)
 
   // 1:n Relationen
   venues      Venue[]
@@ -296,6 +301,8 @@ model Booking {
   bookedAt          DateTime      @default(now())
   customerName      String?
   customerEmail     String?
+  reservedUntil     DateTime?
+  payment           Payment?
 
   // n:1 Relationen
   eventId String
@@ -314,6 +321,47 @@ model Booking {
   @@unique([platform, externalBookingId])
   @@index([eventId, status])
   @@index([userId, bookedAt])
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  EXPIRED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+model Payment {
+  id String @id @default(cuid())
+  bookingId String @unique
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  stripeAccountId String
+  checkoutSessionId String? @unique
+  paymentIntentId String? @unique
+  publicToken String @unique
+  amount Int
+  currency String @db.Char(3)
+  status PaymentStatus @default(PENDING)
+  checkoutRequest Json
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  mail PaymentMail?
+  @@index([status, createdAt])
+}
+
+model StripeWebhookEvent {
+  id String @id
+  processedAt DateTime @default(now())
+}
+
+// Ticket bearer links are encrypted while awaiting SMTP delivery, then erased.
+model PaymentMail {
+  paymentId String @id
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  encryptedMessage String?
+  sentAt DateTime?
+  lockedUntil DateTime?
+  createdAt DateTime @default(now())
 }
 
 model PlatformEvent {

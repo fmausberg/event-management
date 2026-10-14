@@ -12,7 +12,7 @@ export async function getEventsWithCapacity() {
     // Aggregate in PostgreSQL, without loading every booking or an N+1 query.
     const totals = await tx.booking.groupBy({
       by: ["eventId"],
-      where: { eventId: { in: events.map((event) => event.id) }, status: "CONFIRMED" },
+      where: { eventId: { in: events.map((event) => event.id) }, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } },
       _sum: { quantity: true },
     });
     const seatsByEvent = new Map(totals.map((total) => [total.eventId, total._sum.quantity ?? 0]));

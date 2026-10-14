@@ -36,6 +36,11 @@ it("allows global admins without membership", async () => {
  db.user.findUnique.mockResolvedValue({ role: "ADMIN" }); db.companyMembership.findUnique.mockResolvedValue(null);
  expect((await saveBooking("yoga", "event-1", null, {}, form())).success).toBe(true);
 });
+it("prevents manual confirmation, changes and cancellation of Stripe bookings", async () => {
+ db.booking.findFirst.mockResolvedValue({ id: "booking-1", quantity: 2, status: "PENDING_PAYMENT", payment: { id: "payment-1" } });
+ expect((await saveBooking("yoga", "event-1", "booking-1", {}, form())).message).toContain("Stripe");
+ expect(db.booking.updateMany).not.toHaveBeenCalled();
+});
 it.each([null, { role: "COMPANY_ADMIN", status: "INVITED" }, { role: "COMPANY_USER", status: "SUSPENDED" }])("denies insufficient membership %j", async (membership) => {
  db.companyMembership.findUnique.mockResolvedValue(membership);
  expect((await saveBooking("yoga", "event-1", null, {}, form())).success).toBeUndefined();
@@ -55,7 +60,7 @@ it("scopes booking updates and deletes to event and rejects foreign booking IDs"
  db.booking.findFirst.mockResolvedValue(null);
  expect((await saveBooking("yoga", "event-1", "foreign", {}, form())).success).toBeUndefined();
  await deleteBooking("yoga", "event-1", "booking-1", {}, form());
- expect(db.booking.deleteMany).toHaveBeenCalledWith({ where: { id: "booking-1", eventId: "event-1" } });
+ expect(db.booking.deleteMany).toHaveBeenCalledWith({ where: { id: "booking-1", eventId: "event-1", payment: { is: null } } });
  db.booking.deleteMany.mockResolvedValue({ count: 0 });
  expect((await deleteBooking("yoga", "event-1", "foreign", {}, form())).success).toBeUndefined();
 });

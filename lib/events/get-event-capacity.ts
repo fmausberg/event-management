@@ -9,7 +9,7 @@ export async function getEventCapacity(eventId: string) {
       select: { maxSeats: true },
     });
     const bookings = await tx.booking.aggregate({
-      where: { eventId, status: "CONFIRMED" },
+      where: { eventId, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } },
       _sum: { quantity: true },
     });
     return calculateEventCapacity(event.maxSeats, bookings._sum.quantity ?? 0);

@@ -69,7 +69,7 @@ export default async function AccountPage() {
                     <th scope="row" className="px-4 py-3 font-medium">{booking.event.name}</th>
                     <td className="whitespace-nowrap px-4 py-3">{date.format(booking.event.beginsAt)}</td>
                     <td className="px-4 py-3">{booking.quantity}</td>
-                    <td className="px-4 py-3">{booking.status === "CONFIRMED" ? "Bestätigt" : "Storniert"}</td>
+                    <td className="px-4 py-3">{({ CONFIRMED: "Bestätigt", CANCELLED: "Storniert", PENDING_PAYMENT: "Zahlung ausstehend", EXPIRED: "Abgelaufen" })[booking.status]}</td>
                   </tr>
                 ))}
               </tbody>

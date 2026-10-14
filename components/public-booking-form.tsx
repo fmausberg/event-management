@@ -16,11 +16,11 @@ export function PublicBookingForm({ slug, eventId, token, price, currency, avail
         <fieldset disabled={pending} className="space-y-4">
             <div><label htmlFor="guest-name" className="text-sm font-medium">Dein Name</label><input id="guest-name" name="name" defaultValue={initialName} required maxLength={160} autoComplete="name" className={input} /></div>
             <div><label htmlFor="guest-email" className="text-sm font-medium">E-Mail-Adresse</label><input id="guest-email" name="email" defaultValue={initialEmail} type="email" required maxLength={254} autoComplete="email" className={input} /></div>
-            <div><label htmlFor="guest-quantity" className="text-sm font-medium">Anzahl Plätze</label><input id="guest-quantity" name="quantity" type="number" min={1} max={available} step={1} required value={quantity} onChange={(e) => setQuantity(e.target.value)} className={input} /></div>
+            <div><label htmlFor="guest-quantity" className="text-sm font-medium">Anzahl Plätze</label><input id="guest-quantity" name="quantity" type="number" min={1} max={Math.min(available, 100)} step={1} required value={quantity} onChange={(e) => setQuantity(e.target.value)} className={input} /></div>
         </fieldset>
         <div className="flex justify-between border-t border-zinc-100 pt-4 font-semibold"><span>Gesamtpreis</span><span>{total} {currency}</span></div>
-        <p className="text-xs leading-relaxed text-zinc-500">Hier buchst du deine Plätze direkt beim Veranstalter. Du erhältst eine Buchungsbestätigung per E-Mail. Eine Online-Zahlung ist derzeit nicht eingerichtet.</p>
+        <p className="text-xs leading-relaxed text-zinc-500">Hier buchst du deine Plätze direkt beim Veranstalter. Kostenpflichtige Tickets bezahlst du im nächsten Schritt sicher über Stripe. Deine Tickets erhältst du nach bestätigter Zahlung per E-Mail.</p>
         {state.message && <p role="alert" className="text-sm text-red-700">{state.message}</p>}
-        <button disabled={pending} className="w-full rounded-md bg-accent-500 px-5 py-3 font-semibold text-zinc-950 hover:bg-accent-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-50">{pending ? "Wird gebucht …" : "Jetzt buchen"}</button>
+        <button disabled={pending} className="w-full rounded-md bg-accent-500 px-5 py-3 font-semibold text-zinc-950 hover:bg-accent-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-50">{pending ? "Wird gebucht …" : Number(price) > 0 ? "Zahlungspflichtig buchen" : "Jetzt buchen"}</button>
     </form >;
 }

@@ -163,5 +163,10 @@ Offen für spätere Phasen:
 - Verteilte Buchungen können gleichzeitig eintreffen und überbuchen. Die aktuelle
   Kapazitätsberechnung ist keine plattformübergreifende Reservierungsgarantie.
 
-Es gibt keine Cronjobs, Queue, automatische Drittanbieter-Event-Erstellung oder
-Kunden-, Zahlungs- und Ticket-PDF-Verarbeitung.
+Für die externen Eventplattformen gibt es keine Cronjobs, Queue oder automatische
+Drittanbieter-Event-Erstellung. Ticket-PDFs werden nicht erzeugt.
+
+Stripe Connect mit Direct Charges, Company-Onboarding, Checkout, Zahlungs-Webhooks
+und einer Versandwarteschlange für bezahlte Tickets ist implementiert.
+Einrichtung, regelmäßiger Zahlungsabgleich und Grenzen des ersten Stands:
+[Stripe-Dokumentation](docs/stripe.md).

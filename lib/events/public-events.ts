@@ -11,7 +11,7 @@ export async function getPublicEvents() {
  if (!events.length) return [];
  const totals = await getPrisma().booking.groupBy({
   by: ["eventId"],
-  where: { eventId: { in: events.map((event) => event.id) }, status: "CONFIRMED" },
+  where: { eventId: { in: events.map((event) => event.id) }, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } },
   _sum: { quantity: true },
  });
  const seatsByEvent = new Map(totals.map((total) => [total.eventId, total._sum.quantity ?? 0]));

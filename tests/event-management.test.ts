@@ -37,9 +37,9 @@ beforeEach(() => {
   });
   db.event.findUniqueOrThrow.mockResolvedValue({ maxSeats: 30 });
   db.event.findMany.mockResolvedValue([]);
-  db.booking.aggregate.mockImplementation(async ({ where }: { where: { eventId: string; status: BookingStatus } }) => ({
+  db.booking.aggregate.mockImplementation(async ({ where }: { where: { eventId: string; status: { in: BookingStatus[] } } }) => ({
     _sum: {
-      quantity: state.bookings.filter((booking) => booking.eventId === where.eventId && booking.status === where.status)
+      quantity: state.bookings.filter((booking) => booking.eventId === where.eventId && where.status.in.includes(booking.status))
         .reduce((sum, booking) => sum + booking.quantity, 0) || null,
     },
   }));
@@ -51,7 +51,7 @@ beforeEach(() => {
     const key = args.where.platform_externalBookingId;
     const existing = state.bookings.find((booking) => booking.platform === key.platform && booking.externalBookingId === key.externalBookingId);
     if (existing) { Object.assign(existing, args.update); return existing; }
-    const booking = { ...args.create, id: String(state.bookings.length + 1), number: state.bookings.length + 1, userId: null, customerName: null, customerEmail: null, createdAt: new Date(), updatedAt: new Date() };
+    const booking = { ...args.create, id: String(state.bookings.length + 1), number: state.bookings.length + 1, userId: null, customerName: null, customerEmail: null, reservedUntil: null, createdAt: new Date(), updatedAt: new Date() };
     state.bookings.push(booking);
     return booking;
   });
@@ -60,6 +60,14 @@ beforeEach(() => {
 });
 
 describe("central capacity and booking imports", () => {
+  it("keeps unpaid reservations occupied until Stripe-confirmed expiry", async () => {
+    await upsertExternalBooking({ ...input, quantity: 2 });
+    state.bookings[0].status = "PENDING_PAYMENT";
+    state.bookings[0].reservedUntil = new Date(0);
+    expect((await getEventCapacity(input.eventId)).remainingSeats).toBe(28);
+    state.bookings[0].status = "EXPIRED";
+    expect((await getEventCapacity(input.eventId)).remainingSeats).toBe(30);
+  });
   it("starts with full capacity and changes 30 to 29 after one booking", async () => {
     expect(await getEventCapacity(input.eventId)).toEqual({ maxSeats: 30, confirmedSeats: 0, remainingSeats: 30 });
     await upsertExternalBooking(input);
@@ -130,7 +138,7 @@ describe("central capacity and booking imports", () => {
       { id: "b", maxSeats: 10, confirmedSeats: 0, remainingSeats: 10 },
     ]);
     expect(db.booking.groupBy).toHaveBeenCalledWith(expect.objectContaining({
-      where: { eventId: { in: ["a", "b"] }, status: "CONFIRMED" },
+      where: { eventId: { in: ["a", "b"] }, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } },
     }));
   });
 });

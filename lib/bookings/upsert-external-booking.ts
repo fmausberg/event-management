@@ -1,4 +1,4 @@
-import { BookingStatus, Platform } from "@prisma/client";
+import { Platform } from "@prisma/client";
 import { getPrisma } from "@/lib/db/prisma";
 
 export interface UpsertExternalBookingInput {
@@ -6,7 +6,7 @@ export interface UpsertExternalBookingInput {
   platform: Platform;
   externalBookingId: string;
   quantity: number;
-  status: BookingStatus;
+  status: "CONFIRMED" | "CANCELLED";
   bookedAt: Date;
 }
 
@@ -17,7 +17,7 @@ export async function upsertExternalBooking(input: UpsertExternalBookingInput) {
   if (!input.eventId.trim() || !input.externalBookingId.trim()) {
     throw new Error("eventId and externalBookingId must not be empty.");
   }
-  if (!Object.values(Platform).includes(input.platform) || !Object.values(BookingStatus).includes(input.status)) {
+  if (!Object.values(Platform).includes(input.platform) || !["CONFIRMED", "CANCELLED"].includes(input.status)) {
     throw new Error("Unsupported platform or booking status.");
   }
   if (!(input.bookedAt instanceof Date) || !Number.isFinite(input.bookedAt.getTime())) {
