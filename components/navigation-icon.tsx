@@ -3,6 +3,8 @@ import type { NavigationIcon as IconName } from "@/lib/navigation/model";
 const paths: Record<IconName | "panel" | "logout", React.ReactNode> = {
   company: <><path d="M3 21h18M5 21V5l8-2v18M13 9h6v12M8 7h2M8 11h2M8 15h2M16 12v2M16 17v1" /></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2" /></>,
+  "calendar-check": <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18M8 16l2.5 2.5L16 13" /></>,
+  camera: <><path d="M8 6 9.5 3h5L16 6h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" /><circle cx="12" cy="13" r="4" /></>,
   venue: <><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></>,
   series: <><rect x="6" y="6" width="15" height="15" rx="2" /><path d="M17 6V3H3v14h3M10 11h7M10 16h7" /></>,
   users: <><circle cx="9" cy="7" r="3" /><path d="M3 21v-3a6 6 0 0 1 12 0v3M16 4a3 3 0 0 1 0 6M18 14a5 5 0 0 1 3 4v3" /></>,

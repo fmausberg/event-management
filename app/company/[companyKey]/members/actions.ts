@@ -1,5 +1,6 @@
 "use server";
 
+import { notifyAssignment } from "@/lib/mail/assignment";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { getPrisma } from "@/lib/db/prisma";
@@ -47,6 +48,7 @@ export async function changeMemberRole(companySlug: string, membershipId: string
 }
 
 export async function addCompanyMember(companySlug: string, _previous: MemberFormState, data: FormData): Promise<MemberFormState> {
+  let notificationMessage: string | undefined;
   try {
     const company = await requireCompanyAdmin(companySlug);
     const companyId = company.id;
@@ -59,9 +61,10 @@ export async function addCompanyMember(companySlug: string, _previous: MemberFor
       where: { companyId, OR: [{ email }, ...(user ? [{ userId: user.id }] : [])] }, select: { id: true },
     });
     if (duplicate) return { message: "Diese E-Mail-Adresse ist dieser Company bereits zugeordnet." };
-    await db.companyMembership.create({ data: {
-      companyId, email, userId: user?.id ?? null, role: "COMPANY_USER", status: "ACTIVE",
+    const assignment = await db.companyMembership.create({ data: {
+      companyId, email, userId: user?.emailVerified ? user.id : null, role: "COMPANY_USER", status: "ACTIVE",
     } });
+    notificationMessage = (await notifyAssignment("member", companySlug, assignment.id)).message;
   } catch (error) {
     if (error instanceof MemberAccessError) return { message: error.message };
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { message: "Diese E-Mail-Adresse ist dieser Company bereits zugeordnet." };
@@ -70,5 +73,5 @@ export async function addCompanyMember(companySlug: string, _previous: MemberFor
   revalidatePath(`/company/${encodeURIComponent(companySlug)}/members`);
   revalidatePath("/admin/companies");
   revalidatePath("/", "layout");
-  return { success: true, message: "Mitglied wurde hinzugefügt." };
+  return { success: true, message: notificationMessage ?? "Mitglied wurde hinzugefügt." };
 }

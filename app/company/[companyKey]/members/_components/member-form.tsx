@@ -12,7 +12,7 @@ export function MemberForm({ companySlug }: { companySlug: string }) {
       <input id="member-email" name="email" type="email" required maxLength={254} autoComplete="email" disabled={pending} placeholder="name@beispiel.de" className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700" />
       <button disabled={pending} className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50">{pending ? "Wird hinzugefügt …" : "Hinzufügen"}</button>
     </div>
-    <p className="text-xs text-zinc-500">Auch ohne vorhandenen Account möglich. Es wird keine E-Mail versendet.</p>
+    <p className="text-xs text-zinc-500">Auch ohne vorhandenen Account möglich. Die Person wird per E-Mail benachrichtigt. Zugriff erhält sie erst mit bestätigter E-Mail-Adresse.</p>
     {state.message && <p role={state.success ? "status" : "alert"} className={state.success ? "text-sm text-green-700 dark:text-green-400" : "text-sm text-red-700 dark:text-red-400"}>{state.message}</p>}
   </form>;
 }

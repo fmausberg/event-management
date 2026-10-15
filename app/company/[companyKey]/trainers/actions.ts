@@ -1,4 +1,6 @@
 "use server";
+import { findUserByEmail } from "@/lib/auth/users";
+import { notifyAssignment } from "@/lib/mail/assignment";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { MemberAccessError, requireCompanyAccess } from "@/lib/companies/members";
@@ -24,19 +26,23 @@ function validId(id: unknown): id is string { return typeof id === "string" && !
 
 export async function saveTrainer(slug: string, id: string | null, _previous: TrainerState, form: FormData): Promise<TrainerState> {
   let trainer: TrainerOption | undefined;
+  let notificationMessage: string | undefined;
   try {
     const { company } = await requireCompanyAccess(slug);
     if (id !== null && !validId(id)) return { message: "Ungültiger Trainer." };
     const parsed = trainerSchema.safeParse({ firstName: form.get("firstName"), lastName: form.get("lastName"), email: form.get("email") });
     if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
-    if (id === null) trainer = await getPrisma().trainer.create({ data: { ...parsed.data, companyId: company.id }, select: { id: true, firstName: true, lastName: true, email: true } });
+    const user = await findUserByEmail(parsed.data.email);
+    const data = { ...parsed.data, userId: user?.emailVerified ? user.id : null };
+    if (id === null) trainer = await getPrisma().trainer.create({ data: { ...data, companyId: company.id }, select: { id: true, firstName: true, lastName: true, email: true } });
     else {
-      const result = await getPrisma().trainer.updateMany({ where: { id, companyId: company.id }, data: parsed.data });
+      const result = await getPrisma().trainer.updateMany({ where: { id, companyId: company.id }, data });
       if (!result.count) return { message: "Dieser Trainer existiert nicht in dieser Company." };
     }
+    if (id === null && trainer) notificationMessage = (await notifyAssignment("trainer", slug, trainer.id)).message;
   } catch (error) { return failure(error); }
   refresh(slug);
-  return { success: true, trainer, message: id === null ? "Trainer wurde erstellt." : "Trainer wurde gespeichert." };
+  return { success: true, trainer, message: notificationMessage ?? (id === null ? "Trainer wurde erstellt." : "Trainer wurde gespeichert.") };
 }
 
 export async function deleteTrainer(slug: string, id: string, _previous: TrainerState, form: FormData): Promise<TrainerState> {

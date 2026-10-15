@@ -1,16 +1,18 @@
+vi.mock("@/lib/mail/assignment", () => ({ notifyAssignment: vi.fn(async () => ({ success: true })) }));
 import CompanySettingsPage from "@/app/company/[companyKey]/settings/page";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getCompanyMembers, requireCompanyAdmin } from "@/lib/companies/members";
-import { claimMemberships } from "@/lib/companies/claim-memberships";
+
 import { addCompanyMember, changeMemberRole, removeCompanyMember } from "@/app/company/[companyKey]/members/actions";
 import CompanyMembersPage from "@/app/company/[companyKey]/members/page";
 
 const { auth, db, revalidatePath } = vi.hoisted(() => ({
   auth: vi.fn(), revalidatePath: vi.fn(),
   db: { venueStaff: { updateMany: vi.fn() }, eventStaff: { updateMany: vi.fn() },
-    user: { findUnique: vi.fn(), findMany: vi.fn() },
+    $transaction: vi.fn(), trainer: { updateMany: vi.fn() },
+  user: { findUnique: vi.fn(), findMany: vi.fn() },
     company: { findUnique: vi.fn() },
     companyMembership: { findUnique: vi.fn(), findMany: vi.fn(), findFirst: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
   },
@@ -29,6 +31,7 @@ function form(email = "  ADA@Example.com  ") {
 }
 beforeEach(() => {
   vi.resetAllMocks();
+  db.$transaction.mockImplementation((fn) => fn(db)); db.companyMembership.create.mockResolvedValue({ id: "assignment" });
   auth.mockResolvedValue({ user: { id: "actor", role: "ADMIN" } });
   db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
   db.user.findMany.mockResolvedValue([]);
@@ -104,7 +107,7 @@ describe("adding and listing company members", () => {
     expect(revalidatePath).toHaveBeenCalledWith("/company/studio-berlin/members");
   });
   it("links an existing account", async () => {
-    db.user.findMany.mockResolvedValue([{ id: "user-2", email: "ada@example.com", emailVerified: null }]);
+    db.user.findMany.mockResolvedValue([{ id: "user-2", email: "ada@example.com", emailVerified: new Date() }]);
     await addCompanyMember("studio-berlin", {}, form());
     expect(db.companyMembership.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: "user-2", status: "ACTIVE" }) });
     expect(db.companyMembership.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { companyId: "company-a", OR: [{ email: "ada@example.com" }, { userId: "user-2" }] } }));
@@ -136,46 +139,7 @@ describe("adding and listing company members", () => {
   });
 });
 
-describe("claiming pending memberships", () => {
-  it("links both staff types by normalized email, without overwriting existing assignments", async () => {
-    db.user.findMany.mockResolvedValue([{ id: "new-user" }]);
-    await claimMemberships({ id: "new-user", email: " ADA@example.com ", emailVerified: null });
-    expect(db.venueStaff.updateMany).toHaveBeenCalledWith({ where: { email: { equals: "ada@example.com", mode: "insensitive" }, userId: null, venue: { staff: { none: { userId: "new-user" } } } }, data: { userId: "new-user" } });
-    expect(db.eventStaff.updateMany).toHaveBeenCalledWith({ where: { email: { equals: "ada@example.com", mode: "insensitive" }, userId: null, event: { staff: { none: { userId: "new-user" } } } }, data: { userId: "new-user" } });
-  });
-  it("does not link staff for ambiguous email identities", async () => {
-    db.user.findMany.mockResolvedValue([{ id: "new-user" }, { id: "other" }]);
-    await claimMemberships({ id: "new-user", email: "ada@example.com", emailVerified: null });
-    expect(db.venueStaff.updateMany).not.toHaveBeenCalled();
-    expect(db.eventStaff.updateMany).not.toHaveBeenCalled();
-  });
-  it("continues claiming event staff after a concurrent venue assignment", async () => {
-    db.user.findMany.mockResolvedValue([{ id: "new-user" }]);
-    db.venueStaff.updateMany.mockRejectedValue(new Prisma.PrismaClientKnownRequestError("duplicate", { code: "P2002", clientVersion: "test" }));
-    await expect(claimMemberships({ id: "new-user", email: "ada@example.com", emailVerified: null })).resolves.toBeUndefined();
-    expect(db.eventStaff.updateMany).toHaveBeenCalled();
-  });
-  it("links active membership even before email verification", async () => {
-    db.user.findMany.mockResolvedValue([{ id: "new-user" }]);
-    await claimMemberships({ id: "new-user", email: "ada@example.com", emailVerified: null });
-    expect(db.companyMembership.updateMany).toHaveBeenCalled();
-  });
-  it("claims only matching pending memberships without replacing existing roles or suspensions", async () => {
-    db.user.findMany.mockResolvedValue([{ id: "new-user" }]);
-    await claimMemberships({ id: "new-user", email: "ADA@example.com", emailVerified: new Date() });
-    expect(db.companyMembership.updateMany).toHaveBeenCalledWith({ where: { email: { equals: "ada@example.com", mode: "insensitive" }, userId: null, status: { in: ["ACTIVE", "INVITED"] }, company: { memberships: { none: { userId: "new-user" } } } }, data: { userId: "new-user", status: "ACTIVE" } });
-  });
-  it("does not claim ambiguous legacy email addresses", async () => {
-    db.user.findMany.mockResolvedValue([{ id: "new-user" }, { id: "other" }]);
-    await claimMemberships({ id: "new-user", email: "ada@example.com", emailVerified: new Date() });
-    expect(db.companyMembership.updateMany).not.toHaveBeenCalled();
-  });
-  it("keeps login working during a concurrent membership assignment", async () => {
-    db.user.findMany.mockResolvedValue([{ id: "new-user" }]);
-    db.companyMembership.updateMany.mockRejectedValue(new Prisma.PrismaClientKnownRequestError("duplicate", { code: "P2002", clientVersion: "test" }));
-    await expect(claimMemberships({ id: "new-user", email: "ada@example.com", emailVerified: new Date() })).resolves.toBeUndefined();
-  });
-});
+
 
 
 describe("company role changes", () => {
@@ -225,9 +189,9 @@ describe("company role changes", () => {
       { id: "3", email: null, role: "COMPANY_USER", user: { email: "verified@example.com", emailVerified: new Date() } },
     ]);
     const html = renderToStaticMarkup(await CompanyMembersPage({ params: Promise.resolve({ companyKey: "studio-berlin" }) }));
-    expect(html).toMatch(/bg-red-100[^>]*>no account/);
-    expect(html).toMatch(/bg-yellow-100[^>]*>not verified/);
-    expect(html).toMatch(/bg-green-100[^>]*>verified/);
+    expect(html).toMatch(/bg-red-100[^>]*>kein Account/);
+    expect(html).toMatch(/bg-yellow-100[^>]*>nicht verifiziert/);
+    expect(html).toMatch(/bg-green-100[^>]*>verifiziert/);
     expect(html).toContain('role="switch" aria-checked="true"');
     expect(html).toContain('role="switch" aria-checked="false"');
     expect(html).toContain('name="role" value="COMPANY_USER"');

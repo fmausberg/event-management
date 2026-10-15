@@ -5,6 +5,7 @@ import { handlers } from "@/auth";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { loginSchema, registerSchema } from "@/lib/auth/validation";
 
+vi.mock("@/lib/companies/claim-memberships", () => ({ claimMemberships: vi.fn() }));
 const { db } = vi.hoisted(() => ({ db: { venueStaff: { updateMany: vi.fn() }, eventStaff: { updateMany: vi.fn() },
   user: { findMany: vi.fn(), findUnique: vi.fn() },
   companyMembership: { updateMany: vi.fn() },
@@ -20,8 +21,8 @@ beforeEach(() => {
   vi.stubEnv("AUTH_SECRET", "test-only-secret-with-at-least-thirty-two-characters");
   vi.stubEnv("AUTH_URL", "https://events.example.test");
   for (const key of ["AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "AUTH_GITHUB_ID", "AUTH_GITHUB_SECRET"]) vi.stubEnv(key, "");
-  db.user.findMany.mockResolvedValue([{ id: "user-1", name: "Ada", email: "ada@example.com", image: null, passwordHash }]);
-  db.user.findUnique.mockResolvedValue({ id: "user-1", email: "ada@example.com", emailVerified: null });
+  db.user.findMany.mockResolvedValue([{ id: "user-1", name: "Ada", email: "ada@example.com", image: null, emailVerified: new Date(), passwordHash }]);
+  db.user.findUnique.mockResolvedValue({ id: "user-1", email: "ada@example.com", emailVerified: new Date() });
   db.companyMembership.updateMany.mockResolvedValue({ count: 0 });
   db.authRateLimit.deleteMany.mockResolvedValue({ count: 0 });
   db.authRateLimit.upsert.mockResolvedValue({ attempts: 1 });
@@ -110,7 +111,7 @@ describe("credentials HTTP flow with real Auth.js and password hashing (database
   });
   it.each(["a", "😀".repeat(1000)])("accepts short and long passwords through the login endpoint", async (value) => {
     const storedHash = await hashPassword(value);
-    db.user.findMany.mockResolvedValue([{ id: "user-1", name: "Ada", email: "ada@example.com", image: null, passwordHash: storedHash }]);
+    db.user.findMany.mockResolvedValue([{ id: "user-1", name: "Ada", email: "ada@example.com", image: null, emailVerified: new Date(), passwordHash: storedHash }]);
     const response = await login({ password: value });
     expect(response.headers.get("location")).toBe("https://events.example.test/account");
     expect(cookieHeader(response)).toContain("session-token");
@@ -191,4 +192,17 @@ describe("password and validation boundaries", () => {
     expect(registerSchema.safeParse({ ...data, password: "", confirmPassword: "" }).success).toBe(false);
     expect(loginSchema.safeParse({ email: data.email, password: null }).success).toBe(false);
   });
+});
+
+it("rejects correct credentials until email is verified", async () => {
+ db.user.findMany.mockResolvedValue([{ id: "user-1", email: "ada@example.com", emailVerified: null, passwordHash }]);
+ const response = await login();
+ expect(response.headers.get("location")).toContain("email_not_verified");
+ expect(response.headers.getSetCookie().some((cookie) => cookie.startsWith("__Secure-authjs.session-token=") && !cookie.includes("Max-Age=0"))).toBe(false);
+});
+it("revokes an existing session if email verification is removed", async () => {
+ const cookie = cookieHeader(await login());
+ db.user.findUnique.mockResolvedValue({ id: "user-1", email: "ada@example.com", emailVerified: null });
+ const response = await handlers.GET(request("session", { headers: { cookie } }));
+ expect(await response.json()).toBeNull();
 });

@@ -1,6 +1,7 @@
 "use client";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { deleteVenue, saveVenue } from "../actions";
+import { VenueUpdateConfirmation } from "./venue-update-confirmation";
 import { VenueStaff } from "./venue-staff";
 import type { VenueRow, VenueState, VenueValues } from "@/lib/venues/validation";
 const primary = "rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700 disabled:opacity-50";
@@ -11,6 +12,9 @@ const fields: { name: keyof VenueValues; label: string; max: number }[] = [
 ];
 function VenueForm({ slug, row, onSaved, onCancel }: { slug: string; row?: VenueRow; onSaved: (message: string) => void; onCancel: () => void }) {
  const panel = useRef<HTMLDialogElement>(null);
+ const [confirmingUpdate, setConfirmingUpdate] = useState(false);
+ const form = useRef<HTMLFormElement>(null);
+ const updateApproved = useRef(false);
  useEffect(() => {
   const dialog = panel.current!;
   const previousFocus = document.activeElement as HTMLElement | null;
@@ -29,8 +33,17 @@ function VenueForm({ slug, row, onSaved, onCancel }: { slug: string; row?: Venue
   if (result.success) onSaved(result.message!);
   return result;
  }, {});
- return <dialog ref={panel} aria-labelledby="venue-editor-title" onCancel={(event) => { event.preventDefault(); if (!pending) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
- <form action={action} className="space-y-5 p-6">
+ return <><dialog ref={panel} aria-labelledby="venue-editor-title" onCancel={(event) => { event.preventDefault(); if (!pending) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
+ <form ref={form} action={action} className="space-y-5 p-6" onSubmit={(event) => {
+  if (updateApproved.current) { updateApproved.current = false; return; }
+  if (!row || row._count.events < 1) return;
+  const data = new FormData(event.currentTarget);
+  const changed = fields.some(({ name }) => String(data.get(name) ?? "").trim() !== (row[name] ?? ""));
+  if (changed) {
+   event.preventDefault();
+   setConfirmingUpdate(true);
+  }
+ }}>
   <header className="flex items-center justify-between gap-3 border-b border-zinc-200 pb-4 dark:border-zinc-800"><h2 id="venue-editor-title" className="font-semibold">{row ? "Venue bearbeiten" : "Venue erstellen"}</h2><button type="button" disabled={pending} onClick={onCancel} aria-label="Formular schließen" className="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-primary-600 dark:hover:bg-zinc-800"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>
   <fieldset disabled={pending} className="grid gap-4">{fields.map(({ name, label, max }) => <div key={name}>
    <label htmlFor={`venue-${name}`} className="text-sm">{label}</label>
@@ -39,7 +52,15 @@ function VenueForm({ slug, row, onSaved, onCancel }: { slug: string; row?: Venue
   </div>)}</fieldset>
   {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
   <div className="flex gap-3"><button disabled={pending} className={primary}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
- </form>{row && <VenueStaff slug={slug} venueId={row.id} />}</dialog>;
+ </form>{row && <VenueStaff slug={slug} venueId={row.id} />}</dialog>
+ {confirmingUpdate && row && <VenueUpdateConfirmation eventCount={row._count.events} onDecision={(save) => {
+  setConfirmingUpdate(false);
+  if (save) {
+   updateApproved.current = true;
+   form.current?.requestSubmit();
+   updateApproved.current = false;
+  }
+ }} />}</>;
 }
 function DeleteVenue({ slug, row, onDeleted }: { slug: string; row: VenueRow; onDeleted: (message: string) => void }) {
  const [confirming, setConfirming] = useState(false);
@@ -49,7 +70,7 @@ function DeleteVenue({ slug, row, onDeleted }: { slug: string; row: VenueRow; on
   return result;
  }, {});
  const used = row._count.events > 0 || row._count.suggestedForSeries > 0;
- return <div className="max-w-64">{confirming ? <form action={action} className="space-y-2"><p>„{row.name}“ endgültig löschen?</p><input type="hidden" name="confirmed" value="yes" /><div className="flex gap-3"><button disabled={pending} className="text-red-700 underline dark:text-red-300">{pending ? "Wird gelöscht …" : "Löschen bestätigen"}</button><button type="button" disabled={pending} onClick={() => setConfirming(false)} className="underline">Abbrechen</button></div></form> : <button type="button" disabled={used} title={used ? "Diese Venue wird noch von Events oder Eventserien verwendet." : "Venue löschen"} aria-label={`${row.name} löschen`} onClick={() => setConfirming(true)} className="text-red-700 underline disabled:opacity-40 dark:text-red-300">Löschen</button>}{state.message && <p role="alert" className="mt-2 text-red-700 dark:text-red-300">{state.message}</p>}</div>;
+ return <div className="max-w-64">{confirming ? <form action={action} className="space-y-2"><p>„{row.name}“ endgültig löschen?</p><input type="hidden" name="confirmed" value="yes" /><div className="flex gap-3"><button disabled={pending} className="text-red-700 underline dark:text-red-300">{pending ? "Wird gelöscht …" : "Löschen bestätigen"}</button><button type="button" disabled={pending} onClick={() => setConfirming(false)} className="underline">Abbrechen</button></div></form> : <button type="button" disabled={used} title={used ? "Diese Venue wird noch von Events oder Eventserien verwendet." : "Venue löschen"} aria-label={`${row.name} löschen`} onClick={() => setConfirming(true)} className="rounded-lg p-2 text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-40 dark:text-red-300 dark:hover:bg-red-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5 6l1 14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1l1-14M10 10v7M14 10v7" /></svg></button>}{state.message && <p role="alert" className="mt-2 text-red-700 dark:text-red-300">{state.message}</p>}</div>;
 }
 export function VenuesTable({ company, venues }: { company: { name: string; slug: string }; venues: VenueRow[] }) {
  const [editor, setEditor] = useState<{ row?: VenueRow } | null>(null);
@@ -67,7 +88,7 @@ export function VenuesTable({ company, venues }: { company: { name: string; slug
     <td className="px-4 py-4">{row.number}</td><th scope="row" className="px-4 py-4 font-medium">{row.name}</th>
     <td className="px-4 py-4">{[row.addressLine1, row.addressLine2, [row.postalCode, row.city].filter(Boolean).join(" "), row.countryCode].filter(Boolean).join(", ") || "—"}</td>
     <td className="px-4 py-4">{row._count.events}</td><td className="px-4 py-4">{row._count.suggestedForSeries}</td>
-    <td className="px-4 py-4"><div className="flex flex-wrap gap-3"><button type="button" disabled={!!editor} aria-label={`${row.name} bearbeiten`} onClick={() => { setEditor({ row }); setMessage(""); }} className="text-primary-700 underline disabled:opacity-40 dark:text-primary-300">Bearbeiten</button>{!editor && <DeleteVenue slug={company.slug} row={row} onDeleted={setMessage} />}</div></td>
+    <td className="px-4 py-4"><div className="flex items-start gap-2"><button type="button" disabled={!!editor} title="Venue bearbeiten" aria-label={`${row.name} bearbeiten`} onClick={() => { setEditor({ row }); setMessage(""); }} className="rounded-lg p-2 text-primary-700 hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-40 dark:text-primary-300 dark:hover:bg-primary-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 5 5L8 21H3v-5ZM13 6l5 5" /></svg></button>{!editor && <DeleteVenue slug={company.slug} row={row} onDeleted={setMessage} />}</div></td>
    </tr>)}</tbody></table>
    {!visible.length && <p className="p-8 text-center text-sm text-zinc-500">{venues.length ? "Keine passenden Venues gefunden." : "Noch keine Venues vorhanden. Erstelle die erste Venue über den Button oben."}</p>}
   </div>

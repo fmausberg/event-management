@@ -68,10 +68,10 @@ describe("server-side identity", () => {
     findUnique.mockResolvedValue({ ...user, memberships: [] });
     ({ trainer, eventStaff, venueStaff })[assignment].mockResolvedValue({ id: "assignment" });
     const result = await getNavigation();
-    expect(result?.groups[0].items).toContainEqual({ label: "Ticket Scannen", href: "/account/scan", icon: "calendar" });
+    expect(result?.groups[0].items).toContainEqual({ label: "Ticket Scannen", href: "/account/scan", icon: "camera" });
     expect(eventStaff).toHaveBeenCalledWith({ where: { userId: "user-1" }, select: { id: true } });
     expect(venueStaff).toHaveBeenCalledWith({ where: { userId: "user-1" }, select: { id: true } });
-    expect(trainer).toHaveBeenCalledWith({ where: { OR: [{ userId: "user-1" }, { userId: null, email: { equals: "ada@example.com", mode: "insensitive" } }] }, select: { id: true } });
+    expect(trainer).toHaveBeenCalledWith({ where: { OR: [{ userId: "user-1" }] }, select: { id: true } });
   });
   it("hides Ticket Scannen without an assignment, including for admins", async () => {
     findUnique.mockResolvedValue({ ...user, role: "ADMIN" });

@@ -4,7 +4,7 @@ import { useActionState } from "react";
 import { login, register } from "@/app/(auth)/actions";
 import type { AuthFormState } from "@/lib/auth/validation";
 
-export function AuthForm({ mode }: { mode: "login" | "register" }) {
+export function AuthForm({ mode, returnTo = "/account" }: { mode: "login" | "register"; returnTo?: string }) {
   const registering = mode === "register";
   const [state, action, pending] = useActionState<AuthFormState, FormData>(registering ? register : login, {});
   const fields = [
@@ -15,6 +15,7 @@ export function AuthForm({ mode }: { mode: "login" | "register" }) {
   ];
   return (
     <form action={action} className="space-y-5">
+      <input type="hidden" name="returnTo" value={returnTo} />
       {state.message && <p role="alert" className="rounded-lg border border-red-300 p-3 text-sm text-red-700 dark:border-red-900 dark:text-red-400">{state.message}</p>}
       {fields.map((field) => (
         <div key={field.name}>

@@ -22,7 +22,7 @@ it("restricts access to the requested event/company and an active membership, tr
   expect(db.event.findFirst.mock.calls[0][0].where).toEqual({
     id: "event", company: { slug: "yoga" }, OR: [
       { company: { memberships: { some: { userId: "actor", status: "ACTIVE" } } } },
-      { trainers: { some: { trainer: { OR: [{ userId: "actor" }, { userId: null, email: { equals: "ada@example.com", mode: "insensitive" } }] } } } },
+      { trainers: { some: { trainer: { OR: [{ userId: "actor" }] } } } },
       { staff: { some: { userId: "actor" } } },
       { venue: { staff: { some: { userId: "actor" } } } },
     ],

@@ -57,6 +57,12 @@ services:
       MAIL_FROM_ADDRESS: ${MAIL_FROM_ADDRESS:-ticket@mausberg.net}
       MAIL_FROM_NAME: ${MAIL_FROM_NAME:-Event-Management}
       MAIL_TEST_RECIPIENT: ${MAIL_TEST_RECIPIENT:-}
+      IMAP_ARCHIVE_ENABLED: ${IMAP_ARCHIVE_ENABLED:-true}
+      IMAP_HOST: ${IMAP_HOST:-imap.strato.de}
+      IMAP_PORT: ${IMAP_PORT:-993}
+      IMAP_USER: ${IMAP_USER:-}
+      IMAP_PASSWORD: ${IMAP_PASSWORD:-}
+      IMAP_SENT_FOLDER: ${IMAP_SENT_FOLDER:-}
     depends_on:
       db:
         condition: service_healthy

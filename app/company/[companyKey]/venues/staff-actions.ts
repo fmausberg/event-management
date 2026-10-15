@@ -1,5 +1,6 @@
 "use server";
 import { Prisma } from "@prisma/client";
+import { notifyAssignment } from "@/lib/mail/assignment";
 import { auth } from "@/auth";
 import { requireCompanyAccess, MemberAccessError } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
@@ -37,10 +38,11 @@ export async function addVenueStaff(slug: string, venueId: string, email: string
   if (!parsed.success) return { message: parsed.error.issues[0].message };
   const actor = (await auth())?.user?.id;
   if (!actor) throw new MemberAccessError("UNAUTHENTICATED");
-  const users = await db.user.findMany({ where: { email: { equals: parsed.data, mode: "insensitive" } }, select: { id: true } });
+  const users = await db.user.findMany({ where: { email: { equals: parsed.data, mode: "insensitive" } }, select: { id: true, emailVerified: true } });
   if (users.length > 1) return { message: "Die E-Mail-Adresse ist keinem eindeutigen Account zugeordnet." };
-  await db.venueStaff.create({ data: { venueId, email: parsed.data, userId: users[0]?.id ?? null, assignedById: actor } });
-  return { success: true };
+  const assignment = await db.venueStaff.create({ data: { venueId, email: parsed.data, userId: users[0]?.emailVerified ? users[0].id : null, assignedById: actor } });
+  const notification = await notifyAssignment("venue", slug, assignment.id);
+  return { success: true, message: notification.message };
  } catch (error) { return { message: failure(error) }; }
 }
 export async function removeVenueStaff(slug: string, venueId: string, id: string) {

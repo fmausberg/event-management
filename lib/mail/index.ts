@@ -1,6 +1,9 @@
 import "server-only";
 import nodemailer from "nodemailer";
+import MailComposer from "nodemailer/lib/mail-composer";
+import { archiveSentMail } from "./sent-archive";
 import { z } from "zod";
+import { escapeHtml, mailFooter } from "./templates/footer";
 
 const header = z.string().trim().min(1).refine((value) => !/[\r\n]/.test(value));
 const configSchema = z.object({
@@ -18,6 +21,13 @@ const messageSchema = z.object({
   subject: header.max(998),
   text: z.string().trim().min(1),
   html: z.string().min(1).optional(),
+  attachments: z.array(z.object({
+    filename: header,
+    content: z.union([z.string(), z.instanceof(Buffer)]),
+    contentType: header.optional(),
+    encoding: z.enum(["utf8", "base64", "hex"]).optional(),
+    cid: header.optional(),
+  })).optional(),
 });
 export type MailMessage = z.input<typeof messageSchema>;
 
@@ -59,8 +69,24 @@ export async function sendMail(input: MailMessage): Promise<{ messageId: string 
   if (!parsed.success) throw new Error("Ungültiger Empfänger, Betreff oder E-Mail-Inhalt.");
   const { transport, from, testRecipient } = getMailer();
   try {
-    const info = await transport.sendMail({ ...parsed.data, from, to: testRecipient ?? parsed.data.to });
+    const imprintUrl = new URL("/impressum", process.env.AUTH_URL ?? "http://localhost:3000");
+    if (!["http:", "https:"].includes(imprintUrl.protocol)) throw new Error("Invalid mail origin");
+    const footer = mailFooter(parsed.data.to, imprintUrl.href);
+    const content = parsed.data.html ?? `<div style="max-width:600px;margin:auto;font-family:Arial,sans-serif;line-height:1.6">${escapeHtml(parsed.data.text).replace(/\n/g, "<br>")}</div>`;
+    const html = /<\/body\s*>/i.test(content)
+      ? content.replace(/<\/body\s*>/i, () => `${footer.html}</body>`)
+      : `${content}\n${footer.html}`;
+    const message = { ...parsed.data, text: `${parsed.data.text}\n\n${footer.text}`, html, from, to: testRecipient ?? parsed.data.to };
+    const compiled = new MailComposer({ ...message, disableFileAccess: true, disableUrlAccess: true }).compile();
+    const raw = await compiled.build();
+    const info = await transport.sendMail({ ...message, raw, envelope: compiled.getEnvelope(), messageId: compiled.messageId() });
     if (info.rejected.length || !info.accepted.length) throw new Error("Recipient rejected");
+    try {
+      await archiveSentMail(raw);
+    } catch {
+      // Delivery succeeded. Do not throw, retry SMTP, or log the underlying error.
+      console.error("[mail:archive] SMTP delivery succeeded; saving the Sent copy failed. Check IMAP configuration, folder and quota.");
+    }
     return { messageId: info.messageId };
   } catch {
     // Do not expose SMTP responses, credentials, recipients or message contents.

@@ -1,4 +1,7 @@
 "use client";
+import { AccountStatusTag } from "@/components/account-status-tag";
+
+import { ResendAssignment } from "@/components/resend-assignment";
 import { useEffect, useState, useTransition } from "react";
 import { addVenueStaff, listVenueStaff, removeVenueStaff } from "../staff-actions";
 type Staff = { id: string; email: string; status: string };
@@ -24,7 +27,7 @@ export function VenueStaff({ slug, venueId }: { slug: string; venueId: string })
     if (!result.success) { setMessage(result.message ?? "Speichern fehlgeschlagen."); return; }
     if (added) setEmail("");
     const next = await listVenueStaff(slug, venueId);
-    if (next.staff) { setStaff(next.staff); setMessage(added ? "VenueStaff hinzugefügt." : "Zuordnung entfernt."); }
+    if (next.staff) { setStaff(next.staff); setMessage(result.message ?? (added ? "VenueStaff hinzugefügt." : "Zuordnung entfernt.")); }
     else setMessage(next.message ?? "Laden fehlgeschlagen.");
    } catch { setMessage("Die Änderung konnte nicht abgeschlossen werden. Bitte lade die Venue erneut."); }
   });
@@ -37,8 +40,8 @@ export function VenueStaff({ slug, venueId }: { slug: string; venueId: string })
    <button disabled={pending} className="rounded-lg bg-primary-600 px-4 py-2 text-sm text-white disabled:opacity-50">Hinzufügen</button>
   </form>
   {message && <p role="status" className="mb-3 text-sm">{message}</p>}
-  {!loaded ? <p>Wird geladen …</p> : <table className="w-full text-left text-xs"><caption className="sr-only">VenueStaff und Kontostatus</caption><thead><tr><th className="py-2">E-Mail</th><th>Status</th><th><span className="sr-only">Entfernen</span></th></tr></thead><tbody>
-   {staff.map((row) => <tr key={row.id} className="border-t border-zinc-200"><td className="break-all py-3 pr-2">{row.email}</td><td><span className={`inline-block rounded-full px-2 py-1 ${row.status === "verified" ? "bg-green-100 text-green-800" : row.status === "not verified" ? "bg-yellow-100 text-yellow-800" : "bg-red-100 text-red-800"}`}>{row.status}</span></td><td><button type="button" disabled={pending} aria-label={`${row.email} entfernen`} title="Zuordnung entfernen" onClick={() => change(() => removeVenueStaff(slug, venueId, row.id))} className="p-2 text-red-700 disabled:opacity-50"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7" /></svg></button></td></tr>)}
+  {!loaded ? <p>Wird geladen …</p> : <table className="w-full text-left text-xs"><caption className="sr-only">VenueStaff und Kontostatus</caption><thead><tr><th className="py-2">E-Mail</th><th>Status</th><th scope="col" className="text-right">Aktionen</th></tr></thead><tbody>
+   {staff.map((row) => <tr key={row.id} className="border-t border-zinc-200"><td className="break-all py-3 pr-2">{row.email}</td><td><AccountStatusTag status={row.status} /></td><td><div className="flex items-start justify-end gap-2">{row.status !== "verified" && <ResendAssignment kind="venue" slug={slug} id={row.id} iconOnly />}<button type="button" disabled={pending} aria-label={`${row.email} entfernen`} title="Zuordnung entfernen" onClick={() => change(() => removeVenueStaff(slug, venueId, row.id))} className="rounded-lg p-2 text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-50 dark:text-red-300 dark:hover:bg-red-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7m4-7v7" /></svg></button></div></td></tr>)}
    {!staff.length && <tr><td colSpan={3} className="py-4 text-zinc-500">Noch kein VenueStaff vorhanden.</td></tr>}
   </tbody></table>}
  </section>;

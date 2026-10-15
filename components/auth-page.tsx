@@ -1,3 +1,4 @@
+import { safeReturnTo } from "@/lib/auth/return-to";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
@@ -5,11 +6,12 @@ import { oauthLogin } from "@/app/(auth)/actions";
 import { getOAuthProviders } from "@/lib/auth/providers";
 import { AuthForm } from "./auth-form";
 
-export async function AuthPage({ mode, error, registered }: {
-  mode: "login" | "register"; error?: string; registered?: boolean;
+export async function AuthPage({ mode, error, registered, returnTo }: {
+  mode: "login" | "register"; error?: string; registered?: boolean; returnTo?: string;
 }) {
+  const destination = safeReturnTo(returnTo);
   const session = await auth();
-  if (session?.user) redirect("/account");
+  if (session?.user) redirect(destination);
   const registering = mode === "register";
   const providers = getOAuthProviders();
   const errorMessage = error === "OAuthAccountNotLinked"
@@ -26,11 +28,13 @@ export async function AuthPage({ mode, error, registered }: {
         <h1 className="mt-6 text-2xl font-semibold">{registering ? "Konto erstellen" : "Willkommen zurück"}</h1>
         <p className="mb-6 mt-2 text-sm text-zinc-600 dark:text-zinc-400">{registering ? "Registriere dich für die Eventverwaltung." : "Melde dich bei der Eventverwaltung an."}</p>
         {error && <p role="alert" className="mb-5 text-sm text-red-700 dark:text-red-400">{errorMessage}</p>}
-        {registered && <p role="status" className="mb-5 text-sm text-green-700 dark:text-green-400">Dein Konto wurde erstellt. Du kannst dich jetzt anmelden.</p>}
-        <AuthForm mode={mode} />
+        {registered && <p role="status" className="mb-5 text-sm text-green-700 dark:text-green-400">Dein Konto wurde erstellt. Bitte bestätige deine E-Mail-Adresse, bevor du dich anmeldest.</p>}
+        <AuthForm mode={mode} returnTo={destination} />
+        <Link href="/verify-email" className="mt-4 block text-sm text-primary-700 underline dark:text-primary-300">E-Mail bestätigen / Bestätigungslink erneut anfordern</Link>
         {providers.length > 0 && <div className="mt-6 space-y-3 border-t border-zinc-200 pt-6 dark:border-zinc-800">
           <p className="text-center text-sm text-zinc-500">Oder mit einem Anbieter fortfahren</p>
           {providers.map((provider) => <form key={provider.id} action={oauthLogin}>
+            <input type="hidden" name="returnTo" value={destination} />
             <input type="hidden" name="provider" value={provider.id} />
             <button className="w-full rounded-lg border border-zinc-300 px-4 py-2.5 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-900">Mit {provider.name} fortfahren</button>
           </form>)}

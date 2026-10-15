@@ -6,4 +6,4 @@ export const trainerSchema = z.object({ firstName: name, lastName: name, email: 
 export type TrainerValues = z.input<typeof trainerSchema>;
 export type TrainerOption = z.output<typeof trainerSchema> & { id: string };
 export type TrainerState = { trainer?: TrainerOption; success?: boolean; message?: string; errors?: Partial<Record<keyof TrainerValues, string[]>> };
-export type TrainerRow = z.output<typeof trainerSchema> & { id: string; number: number; _count: { events: number; suggestedForSeries: number } };
+export type TrainerRow = z.output<typeof trainerSchema> & { id: string; number: number; accountStatus: "missing" | "unverified" | "verified"; _count: { events: number; suggestedForSeries: number } };

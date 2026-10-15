@@ -17,7 +17,7 @@ beforeEach(() => {
 });
 it("shows the personal menu entry without a company or admin role", () => {
   const navigation = buildNavigation({ name: "Ada", email: "ada@example.com", role: "USER", memberships: [] });
-  expect(navigation.groups[0].items).toContainEqual({ label: "Meine Veranstaltungen", href: "/account/events", icon: "calendar" });
+  expect(navigation.groups[0].items).toContainEqual({ label: "Meine Veranstaltungen", href: "/account/events", icon: "calendar-check" });
 });
 it("redirects guests and deleted accounts before querying events", async () => {
   auth.mockResolvedValue(null); await expect(getMyEvents()).rejects.toThrow("LOGIN");
@@ -27,7 +27,7 @@ it("redirects guests and deleted accounts before querying events", async () => {
 });
 it("scopes all four sources and returned relationships to the current database identity", async () => {
   await getMyEvents();
-  const trainer = { OR: [{ userId: "me" }, { userId: null, email: { equals: "ada@example.com", mode: "insensitive" } }] };
+  const trainer = { OR: [{ userId: "me" }] };
   expect(db.event.findMany).toHaveBeenCalledWith(expect.objectContaining({
     where: { status: { in: ["PUBLISHED", "CANCELLED", "COMPLETED"] }, OR: [{ bookings: { some: { userId: "me" } } }, { trainers: { some: { trainer } } }, { staff: { some: { userId: "me" } } }, { venue: { staff: { some: { userId: "me" } } } }] },
     select: expect.objectContaining({

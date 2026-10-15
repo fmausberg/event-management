@@ -34,7 +34,7 @@ it.each(["event", "venue"])("allows %s staff to redeem and scopes the atomic wri
  if (type === "venue") db.ticket.findUnique.mockResolvedValue({ ...ticket, booking: { ...ticket.booking, event: { ...event, staff: [], venue: { ...event.venue, staff: [{ id: "venue-staff" }] } } } });
  const result = await redeemTicket(token);
  expect(result.ticket).toMatchObject({ status: "Bereits eingelöst", canRedeem: false, checkedInAt: expect.any(String) });
- expect(db.ticket.updateMany).toHaveBeenCalledWith({ where: { id: "ticket", status: "VALID", checkedInAt: null, booking: { status: "CONFIRMED", event: { status: { not: "CANCELLED" }, OR: [{ staff: { some: { userId: "staff-user" } } }, { venue: { staff: { some: { userId: "staff-user" } } } }, { trainers: { some: { trainer: { OR: [{ userId: "staff-user" }, { userId: null, email: { equals: "ada@example.com", mode: "insensitive" } }] } } } }] } } }, data: { checkedInAt: expect.any(Date), checkedInById: "staff-user" } });
+ expect(db.ticket.updateMany).toHaveBeenCalledWith({ where: { id: "ticket", status: "VALID", checkedInAt: null, booking: { status: "CONFIRMED", event: { status: { not: "CANCELLED" }, OR: [{ staff: { some: { userId: "staff-user" } } }, { venue: { staff: { some: { userId: "staff-user" } } } }, { trainers: { some: { trainer: { OR: [{ userId: "staff-user" }] } } } }] } } }, data: { checkedInAt: expect.any(Date), checkedInById: "staff-user" } });
  expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 });
 it("returns ticket data but denies unauthorized redemption even via direct action calls", async () => {
@@ -47,7 +47,7 @@ it("allows an assigned trainer to inspect and redeem while checking the trainer 
  db.ticket.findUnique.mockResolvedValue({ ...ticket, booking: { ...ticket.booking, event: { ...event, trainers: [{ id: "assignment" }], staff: [], venue: null } } });
  expect((await inspectTicket(token)).ticket?.canRedeem).toBe(true);
  expect((await redeemTicket(token)).ticket?.status).toBe("Bereits eingelöst");
- const trainerFilter = { OR: [{ userId: "staff-user" }, { userId: null, email: { equals: "ada@example.com", mode: "insensitive" } }] };
+ const trainerFilter = { OR: [{ userId: "staff-user" }] };
  expect(db.ticket.findUnique.mock.calls[0][0].select.booking.select.event.select.trainers.where).toEqual({ trainer: trainerFilter });
  expect(db.ticket.updateMany.mock.calls[0][0].where.booking.event.OR).toContainEqual({ trainers: { some: { trainer: trainerFilter } } });
 });

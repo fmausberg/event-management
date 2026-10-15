@@ -12,6 +12,9 @@ import { consumeAuthAttempt } from "@/lib/auth/rate-limit";
 import { getOAuthProviders } from "@/lib/auth/providers";
 import { claimMemberships } from "@/lib/companies/claim-memberships";
 
+import { sendVerificationEmail } from "@/lib/auth/verification";
+
+class EmailNotVerified extends CredentialsSignin { code = "email_not_verified"; }
 class RateLimited extends CredentialsSignin { code = "rate_limited"; }
 
 // Lazy configuration preserves builds without a database connection.
@@ -23,14 +26,20 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       ...adapter,
       getUserByEmail: findUserByEmail,
       createUser: async (data) => {
-        const user = await adapter.createUser!({ ...data, email: emailSchema.parse(data.email) });
-        try { await claimMemberships(user); }
-        catch { console.error("Pending account assignments could not be linked; retry on login."); }
+        const user = await adapter.createUser!({ ...data, email: emailSchema.parse(data.email), emailVerified: null });
+        try { await sendVerificationEmail(user.email); }
+        catch { console.error("Verification email could not be sent; request another link."); }
         return user;
       },
-      updateUser: (data) => adapter.updateUser!({
-        ...data, ...(data.email ? { email: emailSchema.parse(data.email) } : {}),
-      }),
+      updateUser: async (data) => {
+        const { emailVerified: ignoredVerification, ...fields } = data;
+        void ignoredVerification;
+        const existing = await getPrisma().user.findUnique({ where: { id: data.id }, select: { email: true } });
+        const email = data.email ? emailSchema.parse(data.email) : undefined;
+        return adapter.updateUser!({ ...fields, ...(email ? { email } : {}),
+          ...(email && email !== existing?.email.trim().toLowerCase() ? { emailVerified: null } : {}),
+        });
+      },
     },
     // Auth.js Credentials requires JWT sessions, even when using an adapter.
     session: { strategy: "jwt", maxAge: 7 * 24 * 60 * 60 },
@@ -47,6 +56,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
           if (!await consumeAuthAttempt(email, "login")) throw new RateLimited();
           const user = await findUserByEmail(email);
           if (!await verifyPassword(password, user?.passwordHash ?? null) || !user) return null;
+          if (!user.emailVerified) throw new EmailNotVerified();
           return { id: user.id, name: user.name, email: user.email, image: user.image };
         },
       }),
@@ -57,6 +67,8 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
         const parsed = emailSchema.safeParse(user.email);
         if (!parsed.success) return false;
         user.email = parsed.data;
+        const existing = await findUserByEmail(parsed.data);
+        if (existing && !existing.emailVerified) return "/verify-email";
         // Keep Auth.js' default protection against automatic email account linking.
         return true;
       },
@@ -66,8 +78,9 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
         const existing = await getPrisma().user.findUnique({
           where: { id: token.sub }, select: { id: true, email: true, emailVerified: true },
         });
-        if (existing) await claimMemberships(existing);
-        return existing ? token : null;
+        if (!existing?.emailVerified) return null;
+        await claimMemberships(existing);
+        return token;
       },
       session({ session, token }) {
         if (session.user && token.sub) session.user.id = token.sub;

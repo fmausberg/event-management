@@ -1,3 +1,4 @@
+vi.mock("@/lib/mail/assignment", () => ({ notifyAssignment: vi.fn(async () => ({ success: true })) }));
 import { beforeEach, expect, it, vi } from "vitest";
 import { addEventStaff, listEventStaff, removeEventStaff } from "@/app/company/[companyKey]/events/staff-actions";
 const { access, db } = vi.hoisted(() => ({ access: vi.fn(), db: { event: { findFirst: vi.fn() }, eventStaff: { create: vi.fn(), findMany: vi.fn(), deleteMany: vi.fn() }, user: { findMany: vi.fn() } } }));
@@ -5,13 +6,13 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/auth", () => ({ auth: async () => ({ user: { id: "actor" } }) }));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
 vi.mock("@/lib/companies/members", async (original) => ({ ...await original<typeof import("@/lib/companies/members")>(), requireCompanyAccess: access }));
-beforeEach(() => { vi.resetAllMocks(); access.mockResolvedValue({ company: { id: "company" } }); db.event.findFirst.mockResolvedValue({ id: "event" }); db.user.findMany.mockResolvedValue([]); });
+beforeEach(() => { vi.resetAllMocks(); db.eventStaff.create.mockResolvedValue({ id: "assignment" }); access.mockResolvedValue({ company: { id: "company" } }); db.event.findFirst.mockResolvedValue({ id: "event" }); db.user.findMany.mockResolvedValue([]); });
 it("normalizes email and supports staff without an account", async () => {
- expect(await addEventStaff("slug", "event", " ADA@example.com ")).toEqual({ success: true });
+ expect(await addEventStaff("slug", "event", " ADA@example.com ")).toMatchObject({ success: true });
  expect(db.eventStaff.create).toHaveBeenCalledWith({ data: { eventId: "event", email: "ada@example.com", userId: null, assignedById: "actor" } });
 });
 it("links existing users", async () => {
- db.user.findMany.mockResolvedValue([{ id: "user" }]);
+ db.user.findMany.mockResolvedValue([{ id: "user", emailVerified: new Date() }]);
  await addEventStaff("slug", "event", "ada@example.com");
  expect(db.eventStaff.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: "user" }) });
 });
@@ -36,4 +37,10 @@ it("shows sorted statuses including accounts created after assignment", async ()
 it("validates email before writing", async () => {
  await addEventStaff("slug", "event", "bad");
  expect(db.eventStaff.create).not.toHaveBeenCalled();
+});
+
+it("keeps existing unverified accounts unlinked", async () => {
+ db.user.findMany.mockResolvedValue([{ id: "user", emailVerified: null }]);
+ await addEventStaff("slug", "scope", "ada@example.com");
+ expect(db.eventStaff.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: null }) });
 });

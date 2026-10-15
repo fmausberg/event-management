@@ -1,3 +1,4 @@
+vi.mock("@/lib/mail/assignment", () => ({ notifyAssignment: vi.fn(async () => ({ success: true })) }));
 import { beforeEach, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -8,7 +9,7 @@ import { getCompanyTrainers, getTrainerCompanies } from "@/lib/trainers/data";
 import { trainerSchema } from "@/lib/trainers/validation";
 
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
-  user: { findUnique: vi.fn() }, company: { findUnique: vi.fn(), findMany: vi.fn() }, companyMembership: { findUnique: vi.fn() },
+  user: { findMany: vi.fn(), findUnique: vi.fn() }, company: { findUnique: vi.fn(), findMany: vi.fn() }, companyMembership: { findUnique: vi.fn() },
   trainer: { findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
 } }));
 vi.mock("server-only", () => ({}));
@@ -22,7 +23,7 @@ function form(overrides: Record<string, string> = {}) {
 }
 const company = { id: "company-1", slug: "yoga", name: "Yoga" };
 beforeEach(() => {
-  vi.resetAllMocks(); auth.mockResolvedValue({ user: { id: "actor" } });
+  vi.resetAllMocks(); db.user.findMany.mockResolvedValue([]); auth.mockResolvedValue({ user: { id: "actor" } });
   db.user.findUnique.mockResolvedValue({ role: "USER" });
   db.company.findUnique.mockResolvedValue(company); db.company.findMany.mockResolvedValue([company]);
   db.companyMembership.findUnique.mockResolvedValue({ role: "COMPANY_USER", status: "ACTIVE" });
@@ -32,7 +33,7 @@ beforeEach(() => {
 it.each(["COMPANY_USER", "COMPANY_ADMIN"])("allows active %s to create a trainer without a user account", async (role) => {
   db.companyMembership.findUnique.mockResolvedValue({ role, status: "ACTIVE" });
   expect((await saveTrainer("yoga", null, {}, form({ companyId: "foreign", userId: "foreign", number: "123" }))).success).toBe(true);
-  expect(db.trainer.create).toHaveBeenCalledWith({ data: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com", companyId: "company-1" }, select: { id: true, firstName: true, lastName: true, email: true } });
+  expect(db.trainer.create).toHaveBeenCalledWith({ data: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com", userId: null, companyId: "company-1" }, select: { id: true, firstName: true, lastName: true, email: true } });
 });
 it("lets global admins manage a company without membership", async () => {
   db.user.findUnique.mockResolvedValue({ role: "ADMIN" }); db.companyMembership.findUnique.mockResolvedValue(null);
@@ -53,7 +54,7 @@ it.each([null, { role: "COMPANY_USER", status: "INVITED" }, { role: "COMPANY_ADM
 });
 it("scopes updates and deletes to the authorized company", async () => {
   await saveTrainer("yoga", "trainer-1", {}, form({ companyId: "foreign", userId: "foreign" }));
-  expect(db.trainer.updateMany).toHaveBeenCalledWith({ where: { id: "trainer-1", companyId: "company-1" }, data: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com" } });
+  expect(db.trainer.updateMany).toHaveBeenCalledWith({ where: { id: "trainer-1", companyId: "company-1" }, data: { firstName: "Ada", lastName: "Lovelace", email: "ada@example.com", userId: null } });
   await deleteTrainer("yoga", "trainer-1", {}, form({ confirmed: "yes" }));
   expect(db.trainer.deleteMany).toHaveBeenCalledWith({ where: { id: "trainer-1", companyId: "company-1", events: { none: {} }, suggestedForSeries: { none: {} } } });
 });
@@ -121,4 +122,10 @@ it("shows an empty company state and a recoverable database-error state", async 
   expect(renderToStaticMarkup(await AdminPage({ searchParams: Promise.resolve({}) }))).toContain("keine Company");
   db.trainer.findMany.mockRejectedValue(new Error("database unavailable"));
   expect(renderToStaticMarkup(await Page({ params: Promise.resolve({ companyKey: "yoga" }) }))).toContain("Erneut versuchen");
+});
+
+it.each([null, new Date()])("links trainer accounts only when verified: %s", async (emailVerified) => {
+ db.user.findMany.mockResolvedValue([{ id: "matched", emailVerified }]);
+ await saveTrainer("yoga", null, {}, form());
+ expect(db.trainer.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ userId: emailVerified ? "matched" : null }) }));
 });

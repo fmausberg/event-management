@@ -4,8 +4,8 @@ import { SiteFrame } from "@/components/site-frame";
 
 export const metadata: Metadata = { title: "Eventverwaltung" };
 export default async function LoginPage({ searchParams }: {
-  searchParams: Promise<{ error?: string | string[]; registered?: string | string[] }>;
+  searchParams: Promise<{ error?: string | string[]; registered?: string | string[]; returnTo?: string | string[] }>;
 }) {
   const params = await searchParams;
-  return <SiteFrame><AuthPage mode="login" error={typeof params.error === "string" ? params.error : undefined} registered={params.registered === "1"} /></SiteFrame>;
+  return <SiteFrame><AuthPage mode="login" returnTo={typeof params.returnTo === "string" ? params.returnTo : undefined} error={typeof params.error === "string" ? params.error : undefined} registered={params.registered === "1"} /></SiteFrame>;
 }

@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 import { CredentialsSignin } from "next-auth";
-import { claimMemberships } from "@/lib/companies/claim-memberships";
-vi.mock("@/lib/companies/claim-memberships", () => ({ claimMemberships: vi.fn() }));
+import { sendVerificationEmail } from "@/lib/auth/verification";
+vi.mock("@/lib/auth/verification", () => ({ sendVerificationEmail: vi.fn() }));
 import { verifyPassword } from "@/lib/auth/password";
 import { login, register, oauthLogin, logout } from "@/app/(auth)/actions";
 
@@ -34,10 +34,10 @@ afterEach(() => vi.unstubAllEnvs());
 
 describe("registration", () => {
   it("persists normalized identity and a verifiable hash, ignores submitted roles, then redirects", async () => {
-    await expect(register({}, form())).rejects.toThrow("REDIRECT:/login?registered=1");
-    expect(claimMemberships).toHaveBeenCalledWith({ id: "user-1", email: "ada@example.com", emailVerified: null });
+    await expect(register({}, form())).rejects.toThrow("REDIRECT:/verify-email?registered=1");
+    expect(sendVerificationEmail).toHaveBeenCalledWith("ada@example.com");
     const saved = db.user.create.mock.calls[0][0].data;
-    expect(Object.keys(saved).sort()).toEqual(["email", "name", "passwordHash"]);
+    expect(Object.keys(saved).sort()).toEqual(["email", "emailVerified", "name", "passwordHash"]);
     expect(saved.email).toBe("ada@example.com");
     expect(saved.name).toBe("Ada");
     expect(saved.passwordHash).not.toBe(password);
@@ -51,7 +51,7 @@ describe("registration", () => {
     expect(JSON.stringify(result)).not.toContain(password);
   });
   it.each(["a", "😀".repeat(1000)])("registers and verifies passwords without length or complexity restrictions", async (value) => {
-    await expect(register({}, form({ password: value, confirmPassword: value }))).rejects.toThrow("REDIRECT:/login?registered=1");
+    await expect(register({}, form({ password: value, confirmPassword: value }))).rejects.toThrow("REDIRECT:/verify-email?registered=1");
     const saved = db.user.create.mock.calls[0][0].data;
     expect(await verifyPassword(value, saved.passwordHash)).toBe(true);
     expect(await verifyPassword(`${value}x`, saved.passwordHash)).toBe(false);
@@ -103,7 +103,7 @@ describe("login actions", () => {
     vi.stubEnv("AUTH_GOOGLE_SECRET", "client-secret");
     signIn.mockResolvedValue("https://accounts.google.com/example");
     await expect(oauthLogin(form({ provider: "google" }))).rejects.toThrow("REDIRECT:https://accounts.google.com/example");
-    expect(signIn).toHaveBeenCalledWith("google", { redirect: false, redirectTo: "/account" });
+    expect(signIn).toHaveBeenCalledWith("google", { redirect: false, redirectTo: "/verify-email" });
   });
   it("signs out through the server action", async () => {
     await logout();

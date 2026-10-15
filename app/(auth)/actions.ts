@@ -1,5 +1,6 @@
 "use server";
 
+import { safeReturnTo } from "@/lib/auth/return-to";
 import { CredentialsSignin } from "next-auth";
 import { Prisma } from "@prisma/client";
 import { redirect } from "next/navigation";
@@ -9,23 +10,24 @@ import { hashPassword } from "@/lib/auth/password";
 import { findUserByEmail } from "@/lib/auth/users";
 import { consumeAuthAttempt } from "@/lib/auth/rate-limit";
 import { getOAuthProviders } from "@/lib/auth/providers";
-import { claimMemberships } from "@/lib/companies/claim-memberships";
+import { sendVerificationEmail } from "@/lib/auth/verification";
 import { loginSchema, registerSchema, type AuthFormState } from "@/lib/auth/validation";
 
 export async function login(_previous: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const returnTo = safeReturnTo(formData.get("returnTo"));
   const result = loginSchema.safeParse({ email: formData.get("email"), password: formData.get("password") });
   if (!result.success) return { errors: result.error.flatten().fieldErrors };
   try {
-    await signIn("credentials", { ...result.data, redirect: false, redirectTo: "/account" });
+    await signIn("credentials", { ...result.data, redirect: false, redirectTo: returnTo });
   } catch (error) {
     if (error instanceof CredentialsSignin) {
-      return { message: error.code === "rate_limited"
+      return { message: error.code === "email_not_verified" ? "Bitte bestätige zuerst deine E-Mail-Adresse. Unter E-Mail bestätigen kannst du einen neuen Link anfordern." : error.code === "rate_limited"
         ? "Zu viele Anmeldeversuche. Bitte versuche es in 15 Minuten erneut."
         : "E-Mail-Adresse oder Passwort ist falsch." };
     }
     return { message: "Die Anmeldung ist gerade nicht möglich. Bitte versuche es später erneut." };
   }
-  redirect("/account");
+  redirect(returnTo);
 }
 
 export async function register(_previous: AuthFormState, formData: FormData): Promise<AuthFormState> {
@@ -41,21 +43,20 @@ export async function register(_previous: AuthFormState, formData: FormData): Pr
     }
     const passwordHash = await hashPassword(result.data.password);
     if (await findUserByEmail(result.data.email)) return { message: unavailable };
-    const user = await getPrisma().user.create({
-      data: { name: result.data.name, email: result.data.email, passwordHash },
+    await getPrisma().user.create({
+      data: { name: result.data.name, email: result.data.email, passwordHash, emailVerified: null },
       select: { id: true },
     });
-    // A failed claim must not report an already-created account as a failed
-    // registration. The JWT callback retries pending assignments on login.
-    try { await claimMemberships({ id: user.id, email: result.data.email, emailVerified: null }); }
-    catch { console.error("Pending account assignments could not be linked; retry on login."); }
+    // Account creation stays successful even when SMTP is temporarily unavailable.
+    try { await sendVerificationEmail(result.data.email); }
+    catch { console.error("Verification email could not be sent; request another link."); }
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
       return { message: unavailable };
     }
     return { message: "Die Registrierung ist gerade nicht möglich. Bitte versuche es später erneut." };
   }
-  redirect("/login?registered=1");
+  redirect("/verify-email?registered=1");
 }
 
 export async function oauthLogin(formData: FormData) {
@@ -65,7 +66,7 @@ export async function oauthLogin(formData: FormData) {
   }
   let destination: string;
   try {
-    destination = await signIn(provider, { redirect: false, redirectTo: "/account" });
+    destination = await signIn(provider, { redirect: false, redirectTo: formData.get("returnTo") ? safeReturnTo(formData.get("returnTo")) : "/verify-email" });
   } catch {
     redirect("/login?error=OAuthSignin");
   }

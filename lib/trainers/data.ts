@@ -9,7 +9,16 @@ export async function getCompanyTrainers(slug: string) {
     where: { companyId: company.id }, orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "asc" }],
     select: { id: true, number: true, firstName: true, lastName: true, email: true, _count: { select: { events: true, suggestedForSeries: true } } },
   });
-  return { company, trainers };
+  const accounts = trainers.length ? await getPrisma().user.findMany({
+    where: { OR: trainers.map(({ email }) => ({ email: { equals: email, mode: "insensitive" as const } })) },
+    select: { email: true, emailVerified: true },
+  }) : [];
+  return { company, trainers: trainers.map((trainer) => {
+    const matches = accounts.filter((account) => account.email.toLowerCase() === trainer.email.toLowerCase());
+    const accountStatus: "missing" | "unverified" | "verified" = !matches.length ? "missing"
+      : matches.some((account) => !!account.emailVerified) ? "verified" : "unverified";
+    return { ...trainer, accountStatus };
+  }) };
 }
 
 export async function getTrainerCompanies() {
