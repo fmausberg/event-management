@@ -227,3 +227,8 @@ it("displays only linked trainer first names instead of the legacy text", async 
  expect(html).toContain("Ada &amp; Grace"); expect(html).not.toContain("Lovelace"); expect(html).not.toContain("Hopper"); expect(html).not.toContain("Old trainer");
  expect(db.event.findFirst).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ trainers: { orderBy: { trainer: { lastName: "asc" } }, select: { trainer: { select: { firstName: true } } } } }) }));
 });
+it("uses the event cover image on the booking page", async () => {
+ db.event.findFirst.mockResolvedValue({ ...event, imageUrl: "https://res.cloudinary.com/test/image/upload/cover.jpg", eventSeries: { imageUrl: "https://images.example/series.jpg" } });
+ const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companySlug: "yoga", eventId: "event-1" }) }));
+ expect(html).toContain('src="https://res.cloudinary.com/test/image/upload/cover.jpg"'); expect(html).not.toContain('src="https://images.example/series.jpg"');
+});

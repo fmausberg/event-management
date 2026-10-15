@@ -2,7 +2,7 @@ export type BookingConfirmation = {
   customerName: string;
   bookingNumber: number;
   eventName: string;
-  beginsAt: Date;
+  beginsAt: Date | null;
   quantity: number;
   ticketLinks?: string[];
 };
@@ -13,10 +13,10 @@ function escapeHtml(value: string) {
 
 /** Edit the subject and text here; HTML is generated from the same content. */
 export function bookingConfirmation(data: BookingConfirmation) {
-  const date = new Intl.DateTimeFormat("de-DE", {
+  const date = data.beginsAt ? new Intl.DateTimeFormat("de-DE", {
     weekday: "short", day: "2-digit", month: "2-digit", year: "numeric",
     hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin",
-  }).format(data.beginsAt);
+  }).format(data.beginsAt) : "Termin noch offen";
   const subject = `Deine Buchungsbestätigung #${data.bookingNumber}`;
   const text = `Hallo ${data.customerName},
 

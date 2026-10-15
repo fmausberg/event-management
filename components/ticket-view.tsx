@@ -34,7 +34,7 @@ export function TicketView() {
     {!ticket ? <p role="status" className="mt-4">{message}</p> : <>
       <p className="mt-4 text-sm text-zinc-500">Ticket #{ticket.number}</p>
       <h2 className="mt-2 text-xl font-semibold">{ticket.eventName}</h2>
-      <p className="mt-3">{new Intl.DateTimeFormat("de-DE", { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(ticket.beginsAt))} Uhr (Berlin)</p>
+      <p className="mt-3">{ticket.beginsAt ? new Intl.DateTimeFormat("de-DE", { dateStyle: "full", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(ticket.beginsAt)) : "Termin noch offen"} Uhr (Berlin)</p>
       {ticket.venue && <p className="mt-2">{ticket.venue}</p>}
       {ticketToken && <figure className="mt-6 flex flex-col items-center gap-2">
         <QRCodeSVG value={ticketToken} size={240} level="M" marginSize={4} title={`QR-Code für Ticket #${ticket.number}`} className="h-auto max-w-full" />

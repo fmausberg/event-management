@@ -14,7 +14,7 @@ export default async function TicketsPage({ params }: { params: Promise<{ compan
  }
  const date = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Berlin" });
  return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
-  <header><h1 className="text-2xl font-semibold">Tickets – {result.event.name}</h1><p className="mt-2 text-sm text-zinc-500">{result.company.name} · {date.format(result.event.beginsAt)} Uhr (Berlin)</p><Link className="mt-3 inline-block text-sm underline" href="/account/events">Meine Veranstaltungen</Link></header>
+  <header><h1 className="text-2xl font-semibold">Tickets – {result.event.name}</h1><p className="mt-2 text-sm text-zinc-500">{result.company.name} · {result.event.beginsAt ? date.format(result.event.beginsAt) : "Noch offen"} Uhr (Berlin)</p><Link className="mt-3 inline-block text-sm underline" href="/account/events">Meine Veranstaltungen</Link></header>
   <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"><table className="w-full text-left text-sm">
    <caption className="sr-only">Alle Tickets für {result.event.name}</caption>
    <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Ticketnummer", "Buchungsnummer", "E-Mail", "Status", "Einlösen"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label}</th>)}</tr></thead>

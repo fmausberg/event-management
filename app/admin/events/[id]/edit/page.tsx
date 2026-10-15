@@ -16,9 +16,9 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
       <h1 className="mb-6 text-2xl font-semibold">Event bearbeiten</h1>
       <EventForm action={updateEvent.bind(null, event.id)} initialValues={{
         name: event.name,
-        beginsAt: formatBerlinDateTime(event.beginsAt),
-        endsAt: formatBerlinDateTime(event.endsAt),
-        maxSeats: String(event.maxSeats),
+        beginsAt: event.beginsAt ? formatBerlinDateTime(event.beginsAt) : "",
+        endsAt: event.endsAt ? formatBerlinDateTime(event.endsAt) : "",
+        maxSeats: event.maxSeats?.toString() ?? "",
       }} />
     </main>
   );

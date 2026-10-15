@@ -16,7 +16,7 @@ beforeEach(() => { vi.resetAllMocks(); pathname.mockReturnValue("/events"); find
 it("queries only published events and selects no private data", async () => {
  await getPublicEvents();
  expect(findMany).toHaveBeenCalledWith({ where: { status: "PUBLISHED" }, orderBy: [{ beginsAt: "asc" }, { id: "asc" }], select: {
-  id: true, name: true, shortdescription: true, beginsAt: true, ticketPrice: true, currency: true, maxSeats: true, company: { select: { name: true, slug: true } }, venue: { select: { name: true, city: true } }, eventSeries: { select: { imageUrl: true } },
+  id: true, name: true, shortdescription: true, imageUrl: true, beginsAt: true, ticketPrice: true, currency: true, maxSeats: true, company: { select: { name: true, slug: true } }, venue: { select: { name: true, city: true } }, eventSeries: { select: { imageUrl: true } },
  } });
 });
 it("scopes company listings in the database and renders the shared search and filters", async () => {
@@ -41,7 +41,7 @@ it("renders the embedded listing without menus and opens event links outside the
  findMany.mockResolvedValue([{ id: "event-1", maxSeats: 10, name: "Yoga", shortdescription: null, beginsAt: new Date("2026-10-16T08:00:00Z"), ticketPrice: { toFixed: () => "19.50" }, currency: "EUR", company: { name: "Event Yoga", slug: "event-yoga" }, venue: null, eventSeries: null }]);
  const html = renderToStaticMarkup(await CompanyPage({ params: Promise.resolve({ companySlug: "event-yoga" }), searchParams: Promise.resolve({ embed: "1" }) }));
  expect(html).not.toContain("Öffentliches Menü"); expect(html).not.toContain("min-h-dvh");
- expect(html).toContain("Alle Städte"); expect(html).toContain("neuen Tab");
+ expect(html).toContain("Alle Städte"); expect(html).not.toContain("Entdecke dein nächstes Erlebnis.");
  expect(html.match(/target="_blank"/g)).toHaveLength(2);
  expect(html.match(/rel="noopener noreferrer"/g)).toHaveLength(2);
 });
@@ -56,6 +56,13 @@ it("renders cards, prices, dates, links and the requested menu", async () => {
  expect(html).toContain("Yoga"); expect(html).toContain("19,50"); expect(html).toContain("Fr., 16.10.2026, 10:00");
  expect(html).toContain('href="/events/studio/event-1"');
  for (const label of ["Einloggen", "Registrieren", "Information"]) expect(html).toContain(label);
+});
+it("uses the copied event cover and never restores a removed image from its series", async () => {
+ const event = { id: "event-1", maxSeats: 10, name: "Yoga", shortdescription: null, beginsAt: new Date("2026-10-16T08:00:00Z"), ticketPrice: { toFixed: () => "19.50" }, currency: "EUR", company: { name: "Studio", slug: "studio" }, venue: null, eventSeries: { imageUrl: "https://images.example/series.jpg" } };
+ findMany.mockResolvedValue([{ ...event, imageUrl: "https://res.cloudinary.com/test/image/upload/cover.jpg" }]);
+ const html = renderToStaticMarkup(await Page()); expect(html).toContain('src="https://res.cloudinary.com/test/image/upload/cover.jpg"'); expect(html).not.toContain('src="https://images.example/series.jpg"');
+ findMany.mockResolvedValue([{ ...event, imageUrl: null }]);
+ expect(renderToStaticMarkup(await Page())).not.toContain('src="https://images.example/series.jpg"');
 });
 it("shows distinct empty and error states", async () => {
  expect(renderToStaticMarkup(await Page())).toContain("Noch keine veröffentlichten Events");

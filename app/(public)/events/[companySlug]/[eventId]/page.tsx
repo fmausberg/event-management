@@ -22,7 +22,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ c
     }
     if (!event) notFound();
     const date = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
-    const image = event.eventSeries?.imageUrl;
+    const image = event.imageUrl;
     return <div className="min-h-dvh border-t-[3px] border-primary-600 bg-white text-zinc-900"><PublicHeader signedIn={signedIn} />
         <main className="mx-auto max-w-6xl px-5 pb-16 pt-4 sm:px-8"><Link href="/events" className="text-sm text-primary-700 hover:underline">← Alle Events</Link>
             <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">

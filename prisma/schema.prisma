@@ -258,13 +258,15 @@ model Event {
   name             String
   shortdescription String?
   description      String?
-  beginsAt         DateTime    @map("Begin")
-  endsAt           DateTime    @map("End")
-  maxSeats         Int
+  beginsAt         DateTime?    @map("Begin")
+  endsAt           DateTime?    @map("End")
+  maxSeats         Int?
   status           EventStatus @default(DRAFT)
-  ticketPrice      Decimal     @db.Decimal(10, 2)
+  ticketPrice      Decimal?     @db.Decimal(10, 2)
   currency         String      @default("EUR") @db.Char(3)
   trainerName      String?
+  imageUrl         String?
+  imagePublicId    String?
 
   // n:1 Relationen
   eventSeriesId String?

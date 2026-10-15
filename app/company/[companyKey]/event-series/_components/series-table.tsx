@@ -1,7 +1,8 @@
 "use client";
+import { EventImage } from "../../events/_components/event-image";
 import { TrainerPicker } from "@/components/trainer-picker";
 import type { TrainerOption } from "@/lib/trainers/validation";
-import { useActionState, useState } from "react";
+import { useActionState, useEffect, useRef, useState } from "react";
 import { deleteSeries, saveSeries } from "../actions";
 import type { SeriesRow, SeriesState, SeriesValues, VenueOption } from "@/lib/event-series/validation";
 
@@ -10,24 +11,36 @@ const primaryClass = "rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium te
 const fields: { name: keyof SeriesValues; label: string; type?: string; maxLength?: number; min?: number; max?: number; step?: string }[] = [
   { name: "name", label: "Name", maxLength: 160 },
   { name: "shortdescription", label: "Kurzbeschreibung", maxLength: 500 },
-  { name: "imageUrl", label: "Bild-URL", type: "url" },
   { name: "suggestedMaxSeats", label: "Teilnehmerzahl (Vorgabe)", type: "number", min: 1, max: 2147483647, step: "1" },
   { name: "suggestedTicketPrice", label: "Ticketpreis (Vorgabe)", type: "number", min: 0, max: 99999999.99, step: "0.01" },
-  { name: "suggestedCurrency", label: "Währung", maxLength: 3 },
 ];
 function SeriesForm({ slug, row, venues, trainers, onSaved, onCancel }: { slug: string; row?: SeriesRow; trainers: TrainerOption[]; venues: VenueOption[]; onSaved: (message: string) => void; onCancel: () => void }) {
+  const panel = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = panel.current!;
+    const previous = document.activeElement as HTMLElement | null;
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const open = () => { dialog.close(); if (desktop.matches) dialog.show(); else dialog.showModal(); dialog.querySelector<HTMLInputElement>('input[name="name"]')?.focus(); };
+    open(); desktop.addEventListener("change", open);
+    return () => { desktop.removeEventListener("change", open); dialog.close(); previous?.focus(); };
+  }, []);
+  const [coverFile, setCoverFile] = useState<File | null>(null);
   const [trainerBusy, setTrainerBusy] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState(row?.suggestedTrainerId ?? "");
   const [state, action, pending] = useActionState<SeriesState, FormData>(async (previous, form) => {
+    if (coverFile) form.set("coverImage", coverFile);
+    else form.delete("coverImage");
     const result = await saveSeries(slug, row?.id ?? null, previous, form);
     if (result.success) onSaved(result.message!);
     return result;
   }, {});
   function error(name: keyof SeriesValues) { return state.errors?.[name] && <p id={`error-${name}`} className="mt-1 text-xs text-red-700 dark:text-red-300">{state.errors[name]?.join(" ")}</p>; }
-  return <form action={action} onSubmit={(e) => { if (trainerBusy) e.preventDefault(); }} className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-    <h2 className="font-semibold">{row ? "Eventserie bearbeiten" : "Eventserie erstellen"}</h2>
-    <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2">
-      {fields.map(({ name, label, ...attributes }) => <div key={name}><label htmlFor={`series-${name}`} className="text-sm">{label}</label><input {...attributes} id={`series-${name}`} name={name} required={name === "name" || name === "suggestedCurrency"} defaultValue={row?.[name] ?? (name === "suggestedCurrency" ? "EUR" : "")} aria-invalid={!!state.errors?.[name]} aria-describedby={state.errors?.[name] ? `error-${name}` : undefined} className={inputClass} />{error(name)}</div>)}
+  return <dialog ref={panel} aria-labelledby="series-form-title" onCancel={(e) => { e.preventDefault(); if (!pending && !trainerBusy) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
+    <form action={action} onSubmit={(e) => { if (trainerBusy) e.preventDefault(); }} className="space-y-4">
+    <header className="flex items-center justify-between"><h2 id="series-form-title" className="font-semibold">{row ? "Eventserie bearbeiten" : "Eventserie erstellen"}</h2><button type="button" disabled={pending || trainerBusy} aria-label="Formular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
+    <fieldset disabled={pending} className="space-y-4">
+      {fields.map(({ name, label, ...attributes }) => <div key={name}><label htmlFor={`series-${name}`} className="text-sm">{label}</label><input {...attributes} id={`series-${name}`} name={name} required={name === "name"} defaultValue={row?.[name] ?? ""} aria-invalid={!!state.errors?.[name]} aria-describedby={state.errors?.[name] ? `error-${name}` : undefined} className={inputClass} />{error(name)}</div>)}
+      <div className="sm:col-span-2 max-w-xl"><EventImage imageUrl={row?.imageUrl} onFileChange={setCoverFile} /></div>
       <TrainerPicker slug={slug} trainers={trainers} name="suggestedTrainerId" value={selectedTrainer ? [selectedTrainer] : []} onChange={(ids) => setSelectedTrainer(ids[0] ?? "")} onBusy={setTrainerBusy} errors={state.errors?.suggestedTrainerId} legacyName={row?.suggestedTrainerName} />
       <div><label htmlFor="series-venue" className="text-sm">Venue (Vorgabe)</label><select id="series-venue" name="suggestedVenueId" defaultValue={row?.suggestedVenueId ?? ""} className={inputClass}><option value="">Keine Venue</option>{venues.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select>{error("suggestedVenueId")}</div>
       <div className="sm:col-span-2"><label htmlFor="series-description" className="text-sm">Beschreibung</label><textarea id="series-description" name="description" rows={5} maxLength={20000} defaultValue={row?.description ?? ""} className={inputClass} />{error("description")}</div>
@@ -35,7 +48,7 @@ function SeriesForm({ slug, row, venues, trainers, onSaved, onCancel }: { slug: 
     <p className="text-xs text-zinc-500">Vorgaben dienen als Vorlage. Bestehende Events werden durch Änderungen an der Serie nicht verändert.</p>
     {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
     <div className="flex gap-3"><button disabled={pending || trainerBusy} className={primaryClass}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending || trainerBusy} onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
-  </form>;
+  </form></dialog>;
 }
 function DeleteSeries({ slug, row, onDeleted }: { slug: string; row: SeriesRow; onDeleted: (message: string) => void }) {
   const [confirm, setConfirm] = useState(false);
@@ -52,7 +65,7 @@ export function SeriesTable({ company, series, venues, trainers }: { company: { 
   const [message, setMessage] = useState("");
   const visible = series.filter((row) => `${row.name} ${row.number} ${row.shortdescription ?? ""}`.toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
   function saved(message: string) { setEditor(null); setMessage(message); }
-  return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
+  return <main className={`flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black ${editor ? "xl:mr-96" : ""}`}>
     <header className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-2xl font-semibold">Eventserien</h1><p className="mt-1 text-sm text-zinc-500">{company.name}</p></div><button type="button" disabled={!!editor} onClick={() => { setEditor({}); setMessage(""); }} className={primaryClass}>+ Eventserie erstellen</button></header>
     {message && <p role="status" className="text-sm text-green-700 dark:text-green-300">{message}</p>}
     {editor && <SeriesForm key={editor.row?.id ?? "new"} slug={company.slug} row={editor.row} venues={venues} trainers={trainers} onSaved={saved} onCancel={() => setEditor(null)} />}

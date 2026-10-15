@@ -40,8 +40,8 @@ export default async function EventsPage() {
                 <tr key={event.id} className="border-t border-zinc-200 text-zinc-700 dark:border-zinc-800 dark:text-zinc-300">
                   <td className="px-4 py-3">{event.number}</td>
                   <th scope="row" className="px-4 py-3 font-medium text-black dark:text-zinc-50">{event.name}</th>
-                  <td className="whitespace-nowrap px-4 py-3"><time dateTime={event.beginsAt.toISOString()}>{dateFormatter.format(event.beginsAt)}</time></td>
-                  <td className="whitespace-nowrap px-4 py-3"><time dateTime={event.endsAt.toISOString()}>{dateFormatter.format(event.endsAt)}</time></td>
+                  <td className="whitespace-nowrap px-4 py-3"><time dateTime={event.beginsAt?.toISOString()}>{event.beginsAt ? dateFormatter.format(event.beginsAt) : "Noch offen"}</time></td>
+                  <td className="whitespace-nowrap px-4 py-3"><time dateTime={event.endsAt?.toISOString()}>{event.endsAt ? dateFormatter.format(event.endsAt) : "Noch offen"}</time></td>
                   <td className="px-4 py-3">{event.maxSeats}</td>
                   <td className="px-4 py-3">{event.confirmedSeats}</td>
                   <td className="px-4 py-3">{event.remainingSeats}</td>

@@ -56,7 +56,7 @@ async function processTicket(token: string, redeem: boolean): Promise<ScanResult
     checkedInAt = timestamp;
     message = "Ticket erfolgreich eingelöst.";
    } else if (redeem && allowed) message = cancelled ? "Dieses Ticket ist storniert." : "Dieses Ticket wurde bereits eingelöst.";
-   return { message, ticket: { number: ticket.number, eventName: event.name, beginsAt: event.beginsAt.toISOString(), venue: event.venue ? [event.venue.name, event.venue.city].filter(Boolean).join(", ") : null,
+   return { message, ticket: { number: ticket.number, eventName: event.name, beginsAt: event.beginsAt?.toISOString() ?? "", venue: event.venue ? [event.venue.name, event.venue.city].filter(Boolean).join(", ") : null,
     status: cancelled ? "Storniert" : checkedInAt ? "Bereits eingelöst" : "Gültig", checkedInAt: checkedInAt?.toISOString() ?? null, canRedeem: allowed && !cancelled && !checkedInAt,
    } };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

@@ -16,7 +16,7 @@ export async function getMyEvents() {
   const trainerIdentity = await trainerIdentityForUser(user);
   const ownStaff = { userId: user.id };
   const rows = await db.event.findMany({
-    where: { OR: [
+    where: { status: { in: ["PUBLISHED", "CANCELLED", "COMPLETED"] }, OR: [
       { bookings: { some: ownBooking } },
       { trainers: { some: { trainer: trainerIdentity } } },
       { staff: { some: ownStaff } },

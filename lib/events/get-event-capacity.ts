@@ -12,6 +12,6 @@ export async function getEventCapacity(eventId: string) {
       where: { eventId, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } },
       _sum: { quantity: true },
     });
-    return calculateEventCapacity(event.maxSeats, bookings._sum.quantity ?? 0);
+    return calculateEventCapacity(event.maxSeats ?? 0, bookings._sum.quantity ?? 0);
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 }

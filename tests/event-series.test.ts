@@ -4,10 +4,12 @@ import { saveSeries, deleteSeries } from "@/app/company/[companyKey]/event-serie
 import Page from "@/app/company/[companyKey]/event-series/page";
 import { getCompanySeries } from "@/lib/event-series/data";
 import { seriesSchema } from "@/lib/event-series/validation";
+import { uploadEventImage, deleteEventImage } from "@/lib/events/images";
+vi.mock("@/lib/events/images", async (original) => ({ ...await original<typeof import("@/lib/events/images")>(), uploadEventImage: vi.fn(), deleteEventImage: vi.fn() }));
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
  trainer: { findMany: vi.fn(), findFirst: vi.fn() },
  user: { findUnique: vi.fn() }, company: { findUnique: vi.fn() }, companyMembership: { findUnique: vi.fn() },
- eventSeries: { findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() }, venue: { findMany: vi.fn(), findFirst: vi.fn() },
+ eventSeries: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() }, venue: { findMany: vi.fn(), findFirst: vi.fn() },
 } }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/auth", () => ({ auth }));
@@ -76,4 +78,43 @@ it("serializes decimal prices and scopes listing and venue options", async () =>
  expect((await getCompanySeries("yoga")).series[0].suggestedTicketPrice).toBe("12.50");
  expect(db.eventSeries.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { companyId: "company-id" } }));
  expect(db.venue.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { companyId: "company-id" } }));
+});
+
+it.each(["COMPANY_USER", "COMPANY_ADMIN", "ADMIN"])("allows %s to upload a series cover", async (role) => {
+ db.user.findUnique.mockResolvedValue({ role: role === "ADMIN" ? "ADMIN" : "USER" });
+ db.companyMembership.findUnique.mockResolvedValue({ role, status: "ACTIVE" });
+ vi.mocked(uploadEventImage).mockResolvedValue({ imageUrl: "https://example.com/new.jpg", imagePublicId: "new" });
+ const data = form(); data.set("coverImage", new File(["image"], "cover.jpg", { type: "image/jpeg" }));
+ expect((await saveSeries("yoga", null, {}, data)).success).toBe(true);
+ expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ imageUrl: "https://example.com/new.jpg" }) });
+ expect(deleteEventImage).not.toHaveBeenCalled();
+});
+it("rejects uploads for a foreign series before contacting Cloudinary", async () => {
+ db.eventSeries.findFirst.mockResolvedValue(null);
+ const data = form(); data.set("coverImage", new File(["image"], "cover.jpg", { type: "image/jpeg" }));
+ expect((await saveSeries("yoga", "foreign", {}, data)).success).toBeUndefined();
+ expect(uploadEventImage).not.toHaveBeenCalled();
+});
+it("preserves the stored URL on edits and only clears the reference on removal", async () => {
+ await saveSeries("yoga", "series-1", {}, form({ imageUrl: "https://untrusted.example/" }));
+ expect(db.eventSeries.updateMany.mock.calls[0][0].data).not.toHaveProperty("imageUrl");
+ await saveSeries("yoga", "series-1", {}, form({ removeImage: "yes" }));
+ expect(db.eventSeries.updateMany.mock.calls[1][0].data.imageUrl).toBeNull();
+ await deleteSeries("yoga", "series-1", {}, form({ confirmed: "yes" }));
+ expect(deleteEventImage).not.toHaveBeenCalled();
+});
+it("cleans up only the new unreferenced upload after a failed series save", async () => {
+ vi.mocked(uploadEventImage).mockResolvedValue({ imageUrl: "https://example.com/new.jpg", imagePublicId: "new" });
+ db.eventSeries.create.mockRejectedValue(new Error("failed"));
+ const data = form(); data.set("coverImage", new File(["image"], "cover.jpg", { type: "image/jpeg" }));
+ expect((await saveSeries("yoga", null, {}, data)).success).toBeUndefined();
+ expect(deleteEventImage).toHaveBeenCalledWith("new");
+});
+
+it("stores EUR when currency is omitted or manipulated", async () => {
+ const missing = form(); missing.delete("suggestedCurrency");
+ expect((await saveSeries("yoga", null, {}, missing)).success).toBe(true);
+ expect(db.eventSeries.create.mock.calls[0][0].data.suggestedCurrency).toBe("EUR");
+ await saveSeries("yoga", "existing", {}, form({ suggestedCurrency: "USD" }));
+ expect(db.eventSeries.updateMany.mock.calls[0][0].data.suggestedCurrency).toBe("EUR");
 });

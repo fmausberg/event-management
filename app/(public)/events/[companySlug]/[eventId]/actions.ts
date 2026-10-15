@@ -37,14 +37,14 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
   // Check live capability outside the database transaction. No network calls under locks.
   if (token.price !== "0.00") {
    const companyEvent = await getPrisma().event.findFirst({ where: { id: eventId, company: { slug } }, select: { companyId: true, ticketPrice: true, currency: true } });
-   if (!companyEvent) return { message: "Dieses Event ist nicht buchbar." };
+   if (!companyEvent || companyEvent.ticketPrice === null) return { message: "Dieses Event ist nicht buchbar." };
    if (companyEvent.ticketPrice.toFixed(2) !== token.price || companyEvent.currency !== token.currency) return { message: "Der Preis wurde geändert. Bitte lade die Seite neu und prüfe den aktuellen Preis." };
    const company = await refreshConnectAccount(companyEvent.companyId);
    if (!company.stripeAccountId || !company.stripeChargesEnabled || !company.stripePayoutsEnabled) return { message: "Der Veranstalter hat die Online-Zahlung noch nicht freigeschaltet." };
   }
   result = await getPrisma().$transaction(async (tx): Promise<PublicBookingState> => {
    const event = await tx.event.findFirst({ where: { id: eventId, company: { slug } }, select: { id: true, name: true, status: true, beginsAt: true, maxSeats: true, ticketPrice: true, currency: true, company: { select: { stripeAccountId: true, stripeChargesEnabled: true, stripePayoutsEnabled: true } } } });
-   if (!event) return { message: "Dieses Event ist nicht buchbar." };
+   if (!event || !event.beginsAt || event.ticketPrice === null || event.maxSeats === null) return { message: "Dieses Event ist nicht buchbar." };
    const existing = await tx.booking.findUnique({ where: { id: token.id }, select: { eventId: true, number: true, status: true, payment: { select: { id: true } } } });
    if (existing?.eventId === eventId) {
     if (existing.status === "PENDING_PAYMENT" && existing.payment) return { paymentId: existing.payment.id };

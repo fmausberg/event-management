@@ -32,7 +32,7 @@ export async function saveBooking(slug: string, eventId: string, id: string | nu
    const nextSeats = parsed.data.status === "CONFIRMED" ? parsed.data.quantity : 0;
    if (nextSeats > previousSeats) {
     const reserved = await tx.booking.aggregate({ where: { eventId, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] }, ...(id ? { id: { not: id } } : {}) }, _sum: { quantity: true } });
-    if ((reserved._sum.quantity ?? 0) + nextSeats > event.maxSeats) return { message: "Für diese Buchung sind nicht genügend freie Plätze vorhanden." };
+    if ((reserved._sum.quantity ?? 0) + nextSeats > (event.maxSeats ?? 0)) return { message: "Für diese Buchung sind nicht genügend freie Plätze vorhanden." };
    }
    if (id === null) await tx.booking.create({ data: { ...parsed.data, eventId, platform: null, externalBookingId: null } });
    else await tx.booking.updateMany({ where: { id, eventId }, data: parsed.data });

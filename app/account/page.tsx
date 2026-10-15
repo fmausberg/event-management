@@ -67,7 +67,7 @@ export default async function AccountPage() {
                   <tr key={booking.id} className="border-t border-zinc-200 dark:border-zinc-800">
                     <td className="px-4 py-3">#{booking.number}</td>
                     <th scope="row" className="px-4 py-3 font-medium">{booking.event.name}</th>
-                    <td className="whitespace-nowrap px-4 py-3">{date.format(booking.event.beginsAt)}</td>
+                    <td className="whitespace-nowrap px-4 py-3">{booking.event.beginsAt ? date.format(booking.event.beginsAt) : "Noch offen"}</td>
                     <td className="px-4 py-3">{booking.quantity}</td>
                     <td className="px-4 py-3">{({ CONFIRMED: "Bestätigt", CANCELLED: "Storniert", PENDING_PAYMENT: "Zahlung ausstehend", EXPIRED: "Abgelaufen" })[booking.status]}</td>
                   </tr>
@@ -99,7 +99,7 @@ export default async function AccountPage() {
             <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Eventname", "Eventbeginn (Europe/Berlin)", "Assigner-E-Mail", "Company"].map((label) => <th scope="col" key={label} className="px-4 py-3">{label}</th>)}</tr></thead>
             <tbody>{eventStaff.map((row) => <tr key={row.id} className="border-t border-zinc-200 dark:border-zinc-800">
               <th scope="row" className="px-4 py-3 font-medium"><Link href={`/events/${encodeURIComponent(row.event.company.slug)}/${encodeURIComponent(row.event.id)}`} className="text-primary-700 underline dark:text-primary-300">{row.event.name}</Link></th>
-              <td className="whitespace-nowrap px-4 py-3">{date.format(row.event.beginsAt)}</td>
+              <td className="whitespace-nowrap px-4 py-3">{row.event.beginsAt ? date.format(row.event.beginsAt) : "Noch offen"}</td>
               <td className="px-4 py-3">{row.assignedBy.email}</td>
               <td className="px-4 py-3">{row.event.company.name}</td>
             </tr>)}</tbody>

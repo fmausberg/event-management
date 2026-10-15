@@ -35,7 +35,7 @@ function RemoveBooking({ slug, eventId, row, onDeleted }: { slug: string; eventI
     const [state, action, pending] = useActionState<BookingState, FormData>(async (previous, form) => { const result = await deleteBooking(slug, eventId, row.id, previous, form); if (result.success) onDeleted(result.message!); return result; }, {});
     return <div className="max-w-64">{confirm ? <form action={action}><p>Buchung #{row.number} endgültig löschen?</p>{row.platform && <p className="text-xs">Ein Plattformimport kann die Buchung erneut anlegen.</p>}<input type="hidden" name="confirmed" value="yes" /><div className="mt-2 flex gap-3"><button disabled={pending} className="text-red-700 underline dark:text-red-300">{pending ? "Wird gelöscht …" : "Löschen bestätigen"}</button><button type="button" disabled={pending} onClick={() => setConfirm(false)} className="underline">Abbrechen</button></div></form> : <button type="button" onClick={() => setConfirm(true)} aria-label={`Buchung ${row.number} löschen`} className="text-red-700 underline dark:text-red-300">Löschen</button>}{state.message && <p role="alert" className="text-red-700 dark:text-red-300">{state.message}</p>}</div>;
 }
-export function BookingsTable({ company, event, bookings }: { company: { name: string; slug: string }; event: { id: string; name: string; maxSeats: number; beginsAt: string }; bookings: BookingRow[] }) {
+export function BookingsTable({ company, event, bookings }: { company: { name: string; slug: string }; event: { id: string; name: string; maxSeats: number | null; beginsAt: string }; bookings: BookingRow[] }) {
     const [editor, setEditor] = useState<{ row?: BookingRow } | null>(null);
     const [query, setQuery] = useState(""); const [message, setMessage] = useState("");
     const visible = bookings.filter((b) => [b.number, b.customerName, b.customerEmail, b.externalBookingId, b.platform].join(" ").toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
@@ -44,8 +44,8 @@ export function BookingsTable({ company, event, bookings }: { company: { name: s
         <Link href={`/company/${encodeURIComponent(company.slug)}/events`} className="text-sm text-primary-700 underline dark:text-primary-300">Zur Eventübersicht</Link>
         <header className="flex flex-wrap items-center justify-between gap-4">
             <div>
-                <h1 className="text-2xl font-semibold">Buchungen - {event.name} ({new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(event.beginsAt))} Uhr)</h1>
-                <p className="text-sm text-zinc-500">{company.name} · {seats} von {event.maxSeats} Plätzen belegt</p>
+                <h1 className="text-2xl font-semibold">Buchungen - {event.name} ({event.beginsAt ? new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(event.beginsAt)) : "Noch offen"} Uhr)</h1>
+                <p className="text-sm text-zinc-500">{company.name} · {seats} von {event.maxSeats ?? "Noch offen"} Plätzen belegt</p>
             </div>
             <button type="button" disabled={!!editor} onClick={() => { setEditor({}); setMessage(""); }} className={primary}>+ Buchung erstellen</button>
         </header>

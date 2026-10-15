@@ -2,6 +2,8 @@
 import { TrainerPicker } from "@/components/trainer-picker";
 import type { TrainerOption } from "@/lib/trainers/validation";
 import { EventStaff } from "./event-staff";
+import { PublishConfirmation } from "./publish-confirmation";
+import { EventImage } from "./event-image";
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { saveEvent, deleteEvent } from "../actions";
@@ -11,11 +13,22 @@ const input = "mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3
 const primary = "rounded-lg bg-primary-600 px-4 py-2 text-sm text-white hover:bg-primary-700 disabled:opacity-50";
 const statuses = { DRAFT: "Entwurf", PUBLISHED: "Veröffentlicht", CANCELLED: "Abgesagt", COMPLETED: "Abgeschlossen" };
 const statusColors = { DRAFT: "bg-yellow-100 text-yellow-800", PUBLISHED: "bg-green-100 text-green-800", CANCELLED: "bg-red-100 text-red-800", COMPLETED: "bg-zinc-200 text-zinc-700" };
+function RequiredMark() { return <><span aria-hidden="true" className="ml-1 text-xs text-red-600 dark:text-red-400">*</span><span className="sr-only"> (zum Veröffentlichen erforderlich)</span></>; }
 function StatusTag({ status }: { status: EventValues["status"] }) { return <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[status]}`}>{statuses[status]}</span>; }
 type Props = { canManage: boolean; company: { name: string; slug: string }; events: EventRow[]; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[] };
 function EventForm({ slug, row, series, venues, trainers, onSaved, onCancel }: { slug: string; row?: EventRow; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[]; onSaved: (message: string) => void; onCancel: () => void }) {
- const [values, setValues] = useState<EventValues>(() => row ? { ...row, maxSeats: String(row.maxSeats), beginsAt: localDateTime(row.beginsAt), endsAt: localDateTime(row.endsAt) } : { ...emptyEvent });
+ const [values, setValues] = useState<EventValues>(() => row ? { ...row, maxSeats: row.maxSeats?.toString() ?? "", beginsAt: localDateTime(row.beginsAt), endsAt: localDateTime(row.endsAt) } : { ...emptyEvent });
  const [trainerBusy, setTrainerBusy] = useState(false);
+ const [coverFile, setCoverFile] = useState<File | null>(null);
+ const [publishWarnings, setPublishWarnings] = useState<string[] | null>(null);
+ const publishDecision = useRef<((publish: boolean) => void) | null>(null);
+ useEffect(() => () => { publishDecision.current?.(false); }, []);
+ function decidePublication(publish: boolean) {
+  setPublishWarnings(null);
+  publishDecision.current?.(publish);
+  publishDecision.current = null;
+  if (!publish) requestAnimationFrame(() => panel.current?.querySelector<HTMLElement>("#event-description")?.focus());
+ }
  const panel = useRef<HTMLDialogElement>(null);
  useEffect(() => {
   const dialog = panel.current!;
@@ -26,12 +39,26 @@ function EventForm({ slug, row, series, venues, trainers, onSaved, onCancel }: {
   return () => { desktop.removeEventListener("change", open); dialog.close(); previous?.focus(); };
  }, []);
  const [state, action, pending] = useActionState<EventState, FormData>(async (previous, data) => {
+  // React resets uncontrolled file inputs after an action, including validation errors.
+  // Keep the selected File alongside its preview so a retry still uploads that image.
+  if (coverFile) data.set("coverImage", coverFile);
+  else data.delete("coverImage");
   for (const key of data.get("intent") === "cancel" ? [] : ["beginsAt", "endsAt"]) {
+   if (!data.get(key)) continue;
    const date = new Date(String(data.get(key)));
    if (!Number.isFinite(date.getTime())) return { message: "Bitte gib gültige Start- und Endzeiten ein." };
    data.set(key, date.toISOString());
   }
-  const result = await saveEvent(slug, row?.id ?? null, previous, data);
+  let result = await saveEvent(slug, row?.id ?? null, previous, data);
+  if (result.warnings?.length) {
+   const confirmed = await new Promise<boolean>((resolve) => {
+    publishDecision.current = resolve;
+    setPublishWarnings(result.warnings!);
+   });
+   if (!confirmed) return {};
+   data.set("confirmMissingOptional", "yes");
+   result = await saveEvent(slug, row?.id ?? null, previous, data);
+  }
   if (result.success) onSaved(result.message!);
   return result;
  }, {});
@@ -41,17 +68,20 @@ function EventForm({ slug, row, series, venues, trainers, onSaved, onCancel }: {
   { key: "beginsAt", label: "Beginn", type: "datetime-local", required: true }, { key: "endsAt", label: "Ende", type: "datetime-local", required: true },
   { key: "maxSeats", label: "Teilnehmerzahl", type: "number", required: true, min: 1, step: "1" },
   { key: "ticketPrice", label: "Ticketpreis", type: "number", required: true, min: 0, step: "0.01" },
-  { key: "currency", label: "Währung", required: true, maxLength: 3 },
  ];
- return <dialog ref={panel} aria-labelledby="event-form-title" onCancel={(e) => { e.preventDefault(); if (!pending && !trainerBusy) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
-  <form action={action} onSubmit={(e) => { if (trainerBusy) e.preventDefault(); }} className="space-y-4"><header className="flex items-center justify-between"><h2 id="event-form-title" className="font-semibold">{row ? "Event bearbeiten" : "Event erstellen"}</h2><button type="button" disabled={pending || trainerBusy} aria-label="Formular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
+ return <dialog ref={panel} aria-labelledby="event-form-title" onCancel={(e) => { e.preventDefault(); if (!pending && !trainerBusy) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-[28rem] dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
+  {/* React resets forms after resolved actions, including validation and dismissed warnings.
+      Keep the editor intact; a successful save closes it via onSaved instead. */}
+  <form action={action} noValidate onReset={(event) => event.preventDefault()} onSubmit={(e) => { if (trainerBusy) e.preventDefault(); }} className="space-y-4"><header className="flex items-center justify-between"><h2 id="event-form-title" className="font-semibold">{row ? "Event bearbeiten" : "Event erstellen"}</h2><button type="button" disabled={pending || trainerBusy} aria-label="Formular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
+   <p className="text-xs text-zinc-500"><span className="text-red-600 dark:text-red-400">*</span> Zum Veröffentlichen erforderlich. Entwürfe dürfen unvollständig sein.</p>
    <fieldset disabled={pending} className="space-y-4">
     <div><label htmlFor="event-series">Eventreihe</label><select id="event-series" name="eventSeriesId" value={values.eventSeriesId} onChange={(e) => { const selected = series.find((s) => s.id === e.target.value); setValues((old) => selected ? applySeries(old, selected) : { ...old, eventSeriesId: "" }); }} className={input}><option value="">Keine Eventreihe</option>{series.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select><p className="mt-1 text-xs text-zinc-500">Die Auswahl übernimmt die Vorgaben der Reihe und ersetzt die entsprechenden Formularfelder. Datum und Status bleiben erhalten. Alle Werte sind danach bearbeitbar.</p></div>
-    {fields.map(({ key, label, ...attributes }) => <div key={key}><label htmlFor={`event-${key}`}>{label}</label><input {...attributes} id={`event-${key}`} name={key} value={values[key]} onChange={(e) => change(key, e.target.value)} aria-invalid={!!state.errors?.[key]} aria-describedby={state.errors?.[key] ? `error-${key}` : undefined} className={input} />{state.errors?.[key] && <p id={`error-${key}`} className="text-xs text-red-700 dark:text-red-300">{state.errors[key]?.join(" ")}</p>}</div>)}
+    <div className="grid grid-cols-2 gap-4">{fields.map(({ key, label, ...attributes }) => <div key={key} className={key === "name" || key === "shortdescription" ? "col-span-2 min-w-0" : "min-w-0"}><label htmlFor={`event-${key}`}>{label}<RequiredMark /></label><input {...attributes} id={`event-${key}`} name={key} value={values[key]} onChange={(e) => change(key, e.target.value)} aria-invalid={!!state.errors?.[key]} aria-describedby={state.errors?.[key] ? `error-${key}` : undefined} className={`${input} min-w-0 max-w-full`} />{state.errors?.[key] && <p id={`error-${key}`} className="text-xs text-red-700 dark:text-red-300">{state.errors[key]?.join(" ")}</p>}</div>)}</div>
     <p className="text-xs text-zinc-500">Zeiten in deiner lokalen Zeitzone ({Intl.DateTimeFormat().resolvedOptions().timeZone}).</p>
+    <div><label htmlFor="event-venue">Venue<RequiredMark /></label><select id="event-venue" name="venueId" value={values.venueId} onChange={(e) => change("venueId", e.target.value)} className={input}><option value="">Keine Venue</option>{venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>{state.errors?.venueId && <p className="text-xs text-red-700">{state.errors.venueId.join(" ")}</p>}</div>
     <div><label htmlFor="event-description">Beschreibung</label><textarea id="event-description" name="description" value={values.description} onChange={(e) => change("description", e.target.value)} maxLength={20000} rows={4} className={input} />{state.errors?.description && <p className="text-xs text-red-700">{state.errors.description.join(" ")}</p>}</div>
     <TrainerPicker slug={slug} trainers={trainers} name="trainerIds" multiple value={values.trainerIds} onChange={(trainerIds) => setValues((old) => ({ ...old, trainerIds }))} onBusy={setTrainerBusy} errors={state.errors?.trainerIds} legacyName={row?.trainerName} />
-    <div><label htmlFor="event-venue">Venue</label><select id="event-venue" name="venueId" value={values.venueId} onChange={(e) => change("venueId", e.target.value)} className={input}><option value="">Keine Venue</option>{venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select></div>
+    <EventImage imageUrl={row?.imageUrl} seriesImageUrl={row ? undefined : series.find((item) => item.id === values.eventSeriesId)?.imageUrl} onFileChange={setCoverFile} />
     <div className="flex items-center gap-2"><span>Status</span><StatusTag status={row?.status ?? "DRAFT"} /></div>
    </fieldset>
    {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
@@ -65,6 +95,7 @@ function EventForm({ slug, row, series, venues, trainers, onSaved, onCancel }: {
    </div>
   </form>
   {row && <EventStaff slug={slug} eventId={row.id} />}
+  {publishWarnings && <PublishConfirmation missing={publishWarnings} onDecision={decidePublication} />}
  </dialog>;
 }
 function DeleteEvent({ slug, row, onDeleted }: { slug: string; row: EventRow; onDeleted: (message: string) => void }) {
@@ -76,13 +107,13 @@ export function EventsTable({ company, events, series, venues, trainers, canMana
  const [editor, setEditor] = useState<{ row?: EventRow } | null>(null);
  const [query, setQuery] = useState(""); const [message, setMessage] = useState("");
  const visible = events.filter((e) => `${e.name} ${e.number}`.toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
- return <main className={`flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black ${editor ? "xl:mr-96" : ""}`}>
+ return <main className={`flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black ${editor ? "xl:mr-[28rem]" : ""}`}>
   <header className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-2xl font-semibold">Events</h1><p className="text-sm text-zinc-500">{company.name}</p></div>{canManage && <button type="button" disabled={!!editor} onClick={() => { setEditor({}); setMessage(""); }} className={primary}>+ Event erstellen</button>}</header>
   {message && <p role="status" className="text-green-700 dark:text-green-300">{message}</p>}
   {canManage && editor && <EventForm key={editor.row?.id ?? "new"} slug={company.slug} row={editor.row} series={series} venues={venues} trainers={trainers} onCancel={() => setEditor(null)} onSaved={(text) => { setEditor(null); setMessage(text); }} />}
   <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
    <div className="flex items-center justify-between gap-4 p-4"><label><span className="sr-only">Events durchsuchen</span><input type="search" placeholder="Events durchsuchen …" value={query} onChange={(e) => setQuery(e.target.value)} className={input} /></label><span className="text-sm text-zinc-500">{visible.length} von {events.length} Events</span></div>
-   <table className="w-full text-left text-sm"><caption className="sr-only">Events von {company.name}</caption><thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Nr.", "Event", "Beginn (Europe/Berlin)", "Reihe", "Venue", "Status", "(freie) Plätze", "Preis", "Aktionen"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label}</th>)}</tr></thead><tbody>{visible.map((row) => <tr key={row.id} className="border-t border-zinc-200 align-top dark:border-zinc-800"><td className="px-4 py-4">{row.number}</td><th scope="row" className="px-4 py-4 font-medium">{row.name}</th><td className="whitespace-nowrap px-4 py-4">{new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(row.beginsAt))}</td><td className="px-4 py-4">{series.find((s) => s.id === row.eventSeriesId)?.name ?? "—"}</td><td className="px-4 py-4">{venues.find((v) => v.id === row.venueId)?.name ?? "—"}</td><td className="px-4 py-4"><StatusTag status={row.status} /></td><td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}/tickets`} aria-label={`Ticketverwaltung: ${row.remainingSeats} von ${row.maxSeats} Plätzen frei`} className="text-primary-700 underline dark:text-primary-300">{row.remainingSeats} / {row.maxSeats}</Link></td><td className="whitespace-nowrap px-4 py-4">{row.ticketPrice.replace(".", ",")} {row.currency}</td><td className="px-4 py-4"><div className="flex flex-wrap gap-3"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}/bookings`} className="text-primary-700 underline dark:text-primary-300">Bookings ({row._count.bookings})</Link>{canManage && <button type="button" disabled={!!editor} onClick={() => { setEditor({ row }); setMessage(""); }} className="text-primary-700 underline disabled:opacity-40 dark:text-primary-300">Bearbeiten</button>}{canManage && !editor && <DeleteEvent slug={company.slug} row={row} onDeleted={setMessage} />}</div></td></tr>)}</tbody></table>
+   <table className="w-full text-left text-sm"><caption className="sr-only">Events von {company.name}</caption><thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Nr.", "Event", "Beginn (Europe/Berlin)", "Reihe", "Venue", "Status", "(freie) Plätze", "Preis", "Aktionen"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label}</th>)}</tr></thead><tbody>{visible.map((row) => <tr key={row.id} className="border-t border-zinc-200 align-top dark:border-zinc-800"><td className="px-4 py-4">{row.number}</td><th scope="row" className="px-4 py-4 font-medium">{row.name || "Unbenannter Entwurf"}</th><td className="whitespace-nowrap px-4 py-4">{row.beginsAt ? new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(row.beginsAt)) : "Noch offen"}</td><td className="px-4 py-4">{series.find((s) => s.id === row.eventSeriesId)?.name ?? "—"}</td><td className="px-4 py-4">{venues.find((v) => v.id === row.venueId)?.name ?? "—"}</td><td className="px-4 py-4"><StatusTag status={row.status} /></td><td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}/tickets`} aria-label={`Ticketverwaltung: ${row.remainingSeats} von ${row.maxSeats} Plätzen frei`} className="text-primary-700 underline dark:text-primary-300">{row.remainingSeats ?? "?"} / {row.maxSeats ?? "?"}</Link></td><td className="whitespace-nowrap px-4 py-4">{row.ticketPrice ? `${row.ticketPrice.replace(".", ",")} ${row.currency}` : "Noch offen"}</td><td className="px-4 py-4"><div className="flex flex-wrap gap-3"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}/bookings`} className="text-primary-700 underline dark:text-primary-300">Bookings ({row._count.bookings})</Link>{canManage && <button type="button" disabled={!!editor} onClick={() => { setEditor({ row }); setMessage(""); }} className="text-primary-700 underline disabled:opacity-40 dark:text-primary-300">Bearbeiten</button>}{canManage && !editor && <DeleteEvent slug={company.slug} row={row} onDeleted={setMessage} />}</div></td></tr>)}</tbody></table>
    {!visible.length && <p className="p-8 text-center text-sm text-zinc-500">{events.length ? "Keine passenden Events gefunden." : "Noch keine Events vorhanden. Erstelle das erste Event über den Button oben."}</p>}
   </div>
  </main>;

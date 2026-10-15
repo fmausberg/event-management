@@ -1,4 +1,5 @@
 "use client";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import type QrScanner from "qr-scanner";
 import { inspectTicket, redeemTicket, type ScanResult } from "./actions";
@@ -67,9 +68,13 @@ export function TicketScanner() {
   {pending && <p role="status" className="mt-5">Wird verarbeitet …</p>}
   {result.message && <p role="status" className="mt-5 rounded-lg bg-zinc-100 p-4 text-zinc-900">{result.message}</p>}
   {result.ticket && <section className="mt-5 rounded-xl border border-zinc-200 p-6">
-   <h2 className="text-xl font-semibold">Ticket #{result.ticket.number}</h2><p className="mt-3 font-medium">{result.ticket.eventName}</p><p>{date(result.ticket.beginsAt)} Uhr (Berlin)</p>{result.ticket.venue && <p>{result.ticket.venue}</p>}
+   <h2 className="text-xl font-semibold">Ticket #{result.ticket.number}</h2><p className="mt-3 font-medium">{result.ticket.eventName}</p><p>{result.ticket.beginsAt ? date(result.ticket.beginsAt) : "Termin noch offen"} Uhr (Berlin)</p>{result.ticket.venue && <p>{result.ticket.venue}</p>}
    <p className="mt-4"><span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${result.ticket.status === "Gültig" ? "bg-green-100 text-green-800" : result.ticket.status === "Storniert" ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"}`}>{result.ticket.status}</span></p>{result.ticket.checkedInAt && <p>Eingelöst: {date(result.ticket.checkedInAt)}</p>}
    {result.ticket.canRedeem && <button type="button" disabled={pending} onClick={() => void redeem()} className={`${button} mt-5`}>Einlösen</button>}
   </section>}
+  <aside className="mt-8 rounded-xl border border-primary-100 bg-primary-50 p-5 text-sm leading-relaxed text-zinc-700 dark:border-primary-900 dark:bg-primary-950 dark:text-zinc-300">
+   <h2 className="font-semibold text-primary-800 dark:text-primary-200">Tickets auch ohne QR-Code einlösen</h2>
+   <p className="mt-2">Öffne <Link href="/account/events" className="font-medium text-primary-700 underline underline-offset-2 dark:text-primary-300">Meine Veranstaltungen</Link> und klicke bei der gewünschten Veranstaltung auf <strong>Ticketverwaltung</strong>. Dort kannst du Tickets anhand der <strong>Ticketnummer</strong> oder der <strong>E-Mail-Adresse des Käufers</strong> suchen und einlösen.</p>
+  </aside>
  </main>;
 }

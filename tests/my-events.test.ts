@@ -29,7 +29,7 @@ it("scopes all four sources and returned relationships to the current database i
   await getMyEvents();
   const trainer = { OR: [{ userId: "me" }, { userId: null, email: { equals: "ada@example.com", mode: "insensitive" } }] };
   expect(db.event.findMany).toHaveBeenCalledWith(expect.objectContaining({
-    where: { OR: [{ bookings: { some: { userId: "me" } } }, { trainers: { some: { trainer } } }, { staff: { some: { userId: "me" } } }, { venue: { staff: { some: { userId: "me" } } } }] },
+    where: { status: { in: ["PUBLISHED", "CANCELLED", "COMPLETED"] }, OR: [{ bookings: { some: { userId: "me" } } }, { trainers: { some: { trainer } } }, { staff: { some: { userId: "me" } } }, { venue: { staff: { some: { userId: "me" } } } }] },
     select: expect.objectContaining({
       bookings: { where: { userId: "me" }, select: { status: true }, distinct: ["status"] },
       trainers: { where: { trainer }, select: { id: true }, take: 1 },
@@ -67,7 +67,7 @@ it("keeps cancelled events visible without a broken public link", async () => {
   expect(html).not.toContain('href="/events/studio/event-1"');
 });
 it("renders an empty state and a link to discover events", async () => {
-  const html = renderToStaticMarkup(await Page()); expect(html).toContain("noch keine Veranstaltungen"); expect(html).toContain('href="/events"');
+  const html = renderToStaticMarkup(await Page()); expect(html).toContain("Hier erscheinen deine gebuchten"); expect(html).toContain('href="/events"');
 });
 it.each([
   { trainers: [{ id: "trainer" }] },
@@ -82,4 +82,15 @@ it.each([
 it("does not offer ticket management to participants alone", async () => {
   db.event.findMany.mockResolvedValue([{ ...event, bookings: [{ status: "CONFIRMED" }] }]);
   expect(renderToStaticMarkup(await Page())).not.toContain("Ticketverwaltung");
+});
+
+it.each([
+ ["PUBLISHED", "bg-green-100"], ["CANCELLED", "bg-red-100"], ["COMPLETED", "bg-zinc-200"],
+])("renders %s with a status tag and puts ticket management in its own cell", async (status, color) => {
+ db.event.findMany.mockResolvedValue([{ ...event, status, trainers: [{ id: "trainer" }] }]);
+ const html = renderToStaticMarkup(await Page());
+ expect(html).toContain(color); expect(html).toContain("rounded-full");
+ const cells = html.match(/<td[\s\S]*?<\/td>/g)!;
+ expect(cells[4]).toContain("Trainer"); expect(cells[4]).not.toContain("Ticketverwaltung");
+ expect(cells[5]).toContain("Ticketverwaltung");
 });

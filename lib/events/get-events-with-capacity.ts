@@ -18,7 +18,7 @@ export async function getEventsWithCapacity() {
     const seatsByEvent = new Map(totals.map((total) => [total.eventId, total._sum.quantity ?? 0]));
     return events.map((event) => ({
       ...event,
-      ...calculateEventCapacity(event.maxSeats, seatsByEvent.get(event.id) ?? 0),
+      ...calculateEventCapacity(event.maxSeats ?? 0, seatsByEvent.get(event.id) ?? 0),
     }));
   }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
 }

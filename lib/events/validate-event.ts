@@ -30,7 +30,7 @@ export function readEventFormData(formData: FormData): EventFormValues {
 
 export function validateEvent(
   values: EventFormValues,
-  original?: Pick<EventInput, "beginsAt" | "endsAt">,
+  original?: { beginsAt: Date | null; endsAt: Date | null },
 ): { success: true; data: EventInput } | { success: false; errors: EventFieldErrors } {
   const errors: EventFieldErrors = {};
   const name = values.name.trim();
@@ -38,9 +38,9 @@ export function validateEvent(
 
   let beginsAt: Date | undefined;
   let endsAt: Date | undefined;
-  try { beginsAt = parseBerlinDateTime(values.beginsAt, original?.beginsAt); }
+  try { beginsAt = parseBerlinDateTime(values.beginsAt, original?.beginsAt ?? undefined); }
   catch (error) { errors.beginsAt = (error as Error).message; }
-  try { endsAt = parseBerlinDateTime(values.endsAt, original?.endsAt); }
+  try { endsAt = parseBerlinDateTime(values.endsAt, original?.endsAt ?? undefined); }
   catch (error) { errors.endsAt = (error as Error).message; }
   if (beginsAt && endsAt && endsAt <= beginsAt) {
     errors.endsAt = "Das Ende muss nach dem Beginn liegen.";

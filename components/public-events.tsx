@@ -1,7 +1,7 @@
 "use client";
 import Link from "next/link";
 import { useRef, useState } from "react";
-export type PublicEvent = { remainingSeats: number; id: string; name: string; shortdescription: string | null; beginsAt: string; ticketPrice: string; currency: string; company: { name: string; slug: string }; venue: { name: string; city: string | null } | null; eventSeries: { imageUrl: string | null } | null };
+export type PublicEvent = { imageUrl?: string | null; remainingSeats: number; id: string; name: string; shortdescription: string | null; beginsAt: string; ticketPrice: string; currency: string; company: { name: string; slug: string }; venue: { name: string; city: string | null } | null; eventSeries: { imageUrl: string | null } | null };
 export function PublicHeader({ signedIn = false }: { signedIn?: boolean }) {
   const menu = useRef<HTMLDetailsElement>(null);
   return <header className="mx-auto flex h-16 w-full max-w-6xl items-center justify-end px-5 sm:px-8">
@@ -13,7 +13,7 @@ export function PublicHeader({ signedIn = false }: { signedIn?: boolean }) {
 }
 function EventImage({ event }: { event: PublicEvent }) {
   const [failed, setFailed] = useState(false);
-  const url = event.eventSeries?.imageUrl;
+  const url = event.imageUrl;
   const valid = url && /^https?:\/\//i.test(url);
   return <div className="relative aspect-[16/9] overflow-hidden bg-primary-50">
     {valid && !failed ? /* External series images are rendered without a server-side image proxy. */
@@ -56,7 +56,7 @@ export function PublicEvents({ events, companyName, embedded = false }: { events
     <p role="status" className="mb-4 text-sm text-zinc-500">{visible.length} {visible.length === 1 ? "Event" : "Events"}</p>
     <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
       {visible.map((event) => <article key={event.id} className="group flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-        <EventImage event={event} />
+        <EventImage key={event.imageUrl ?? event.id} event={event} />
         <div className="flex flex-1 flex-col p-5"><p className="text-xs font-medium text-primary-700">{new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(event.beginsAt))} Uhr</p><h2 className="mt-2 text-lg font-semibold leading-snug"><Link target={embedded ? "_blank" : undefined} rel={embedded ? "noopener noreferrer" : undefined} href={`/events/${encodeURIComponent(event.company.slug)}/${encodeURIComponent(event.id)}`} className="hover:text-primary-700 focus-visible:outline-primary-600">{event.name}</Link></h2><p className="mt-2 text-sm text-zinc-600">{event.venue ? [event.venue.name, event.venue.city].filter(Boolean).join(" · ") : event.company.name}</p>{event.shortdescription && <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-zinc-500">{event.shortdescription}</p>}
           <div className="mt-auto flex items-end justify-between gap-3 pt-6"><span className="text-xs text-zinc-400">{event.company.name}</span>{event.remainingSeats <= 0 ? <button type="button" disabled className="shrink-0 cursor-not-allowed rounded-md bg-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-500">ausgebucht</button> : <Link target={embedded ? "_blank" : undefined} rel={embedded ? "noopener noreferrer" : undefined} href={`/events/${encodeURIComponent(event.company.slug)}/${encodeURIComponent(event.id)}`} aria-label={`Details zu ${event.name}`} className="shrink-0 rounded-md bg-accent-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-accent-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600">{Number(event.ticketPrice) === 0 ? "Kostenlos" : `${Number(event.ticketPrice).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${event.currency}`} <span aria-hidden="true">›</span></Link>}</div>
         </div>
