@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { refreshConnectAccount } from "@/lib/payments/connect";
 import { startStripeOnboarding } from "./actions";
 import { MemberAccessError, requireCompanyAdmin } from "@/lib/companies/members";
+import { EmbedCode } from "./embed-code";
 export const dynamic = "force-dynamic";
 export default async function CompanySettingsPage({ params, searchParams }: { params: Promise<{ companyKey: string }>; searchParams?: Promise<{ stripe?: string }> }) {
  const { companyKey } = await params;
@@ -26,6 +27,7 @@ export default async function CompanySettingsPage({ params, searchParams }: { pa
  const { stripe } = (await searchParams) ?? {};
  return <main className="flex-1 space-y-6 p-6 sm:p-10">
   <h1 className="text-2xl font-semibold">Einstellungen – {company.name}</h1>
+  <EmbedCode slug={company.slug} companyName={company.name} />
   <section className="max-w-2xl space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
    <h2 className="text-xl font-semibold">Ticketzahlungen</h2>
    <p>Käufer bezahlen über Stripe. Die Zahlung geht direkt auf das Stripe-Konto deiner Company. Aktuell wird keine Plattformprovision erhoben.</p>

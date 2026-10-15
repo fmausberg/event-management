@@ -21,7 +21,7 @@ function EventImage({ event }: { event: PublicEvent }) {
       <img src={url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setFailed(true)} className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-105" /> : <div className="flex h-full items-center justify-center bg-gradient-to-br from-primary-100 via-primary-50 to-amber-50"><svg aria-hidden="true" width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" className="text-primary-600/50"><rect x="3" y="5" width="18" height="16" rx="3" /><path d="M7 3v4m10-4v4M3 11h18m-14 4h3m4 0h3m-10 3h3" /></svg></div>}
   </div>;
 }
-export function PublicEvents({ events }: { events: PublicEvent[] }) {
+export function PublicEvents({ events, companyName, embedded = false }: { events: PublicEvent[]; companyName?: string; embedded?: boolean }) {
   const [query, setQuery] = useState(""); const [search, setSearch] = useState(""); const [sort, setSort] = useState("date");
   const [city, setCity] = useState("");
   const cities = [...new Map(events.flatMap((event) => {
@@ -30,20 +30,38 @@ export function PublicEvents({ events }: { events: PublicEvent[] }) {
   })).entries()].sort((a, b) => a[1].localeCompare(b[1], "de"));
   const visible = events.filter((e) => (!city || e.venue?.city?.trim().toLocaleLowerCase("de-DE") === city) && [e.name, e.shortdescription, e.company.name, e.venue?.name, e.venue?.city].join(" ").toLocaleLowerCase("de-DE").includes(search.toLocaleLowerCase("de-DE"))).sort((a, b) => sort === "name" ? a.name.localeCompare(b.name, "de") : sort === "latest" ? b.beginsAt.localeCompare(a.beginsAt) : a.beginsAt.localeCompare(b.beginsAt));
   return <main className="mx-auto w-full max-w-6xl px-5 pb-16 pt-4 sm:px-8">
-    <h1 className="text-3xl font-semibold tracking-tight">Events</h1><p className="mt-2 text-sm text-zinc-500">Entdecke dein nächstes Erlebnis.</p>
+    {!embedded && <><h1 className="text-3xl font-semibold tracking-tight">{companyName ? `Events – ${companyName}` : "Events"}</h1><p className="mt-2 text-sm text-zinc-500">Entdecke dein nächstes Erlebnis.</p></>}
     <form onSubmit={(e) => { e.preventDefault(); setSearch(query.trim()); }} className="my-7 flex flex-wrap items-end gap-4 rounded-xl border border-zinc-200 bg-white p-5 shadow-sm">
-      <div className="min-w-48 flex-1"><label htmlFor="public-search" className="text-sm font-medium">Name oder Ort</label><input id="public-search" type="search" value={query} onChange={(e) => { setQuery(e.target.value); if (!e.target.value) setSearch(""); }} placeholder="Events suchen …" className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2.5 text-sm focus:outline-2 focus:outline-primary-600" /></div>
-      <div className="w-full sm:w-44"><label htmlFor="public-city" className="text-sm font-medium">Stadt</label><select id="public-city" value={city} onChange={(e) => setCity(e.target.value)} className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-sm focus:outline-primary-600"><option value="">Alle Städte</option>{cities.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></div>
+      <div className="min-w-48 flex-1">
+        <label htmlFor="public-search" className="text-sm font-medium">Name oder Ort</label>
+        <input id="public-search" type="search" value={query} onChange={(e) => { setQuery(e.target.value); if (!e.target.value) setSearch(""); }} placeholder="Events suchen …" className="mt-2 w-full rounded-md border border-zinc-300 px-3 py-2.5 text-sm focus:outline-2 focus:outline-primary-600" />
+      </div>
+      <div className="w-full sm:w-44">
+        <label htmlFor="public-city" className="text-sm font-medium">Stadt</label>
+        <select id="public-city" value={city} onChange={(e) => setCity(e.target.value)} className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-sm focus:outline-primary-600">
+          <option value="">Alle Städte</option>
+          {cities.map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+        </select>
+      </div>
       <button className="rounded-md bg-primary-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600">Suchen</button>
-      <div className="w-full sm:ml-auto sm:w-52"><label htmlFor="public-sort" className="text-sm font-medium">Sortierung</label><select id="public-sort" value={sort} onChange={(e) => setSort(e.target.value)} className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-sm focus:outline-primary-600"><option value="date">Datum aufsteigend</option><option value="latest">Datum absteigend</option><option value="name">Name A–Z</option></select></div>
+      <div className="w-full sm:ml-auto sm:w-52">
+        <label htmlFor="public-sort" className="text-sm font-medium">Sortierung</label>
+        <select id="public-sort" value={sort} onChange={(e) => setSort(e.target.value)} className="mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 text-sm focus:outline-primary-600">
+          <option value="date">Datum aufsteigend</option>
+          <option value="latest">Datum absteigend</option>
+          <option value="name">Name A–Z</option>
+        </select>
+      </div>
     </form>
     <p role="status" className="mb-4 text-sm text-zinc-500">{visible.length} {visible.length === 1 ? "Event" : "Events"}</p>
-    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">{visible.map((event) => <article key={event.id} className="group flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md">
-      <EventImage event={event} />
-      <div className="flex flex-1 flex-col p-5"><p className="text-xs font-medium text-primary-700">{new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(event.beginsAt))} Uhr</p><h2 className="mt-2 text-lg font-semibold leading-snug"><Link href={`/events/${encodeURIComponent(event.company.slug)}/${encodeURIComponent(event.id)}`} className="hover:text-primary-700 focus-visible:outline-primary-600">{event.name}</Link></h2><p className="mt-2 text-sm text-zinc-600">{event.venue ? [event.venue.name, event.venue.city].filter(Boolean).join(" · ") : event.company.name}</p>{event.shortdescription && <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-zinc-500">{event.shortdescription}</p>}
-        <div className="mt-auto flex items-end justify-between gap-3 pt-6"><span className="text-xs text-zinc-400">{event.company.name}</span>{event.remainingSeats <= 0 ? <button type="button" disabled className="shrink-0 cursor-not-allowed rounded-md bg-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-500">ausgebucht</button> : <Link href={`/events/${encodeURIComponent(event.company.slug)}/${encodeURIComponent(event.id)}`} aria-label={`Details zu ${event.name}`} className="shrink-0 rounded-md bg-accent-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-accent-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600">{Number(event.ticketPrice) === 0 ? "Kostenlos" : `${Number(event.ticketPrice).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${event.currency}`} <span aria-hidden="true">›</span></Link>}</div>
-      </div>
-    </article>)}</div>
+    <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+      {visible.map((event) => <article key={event.id} className="group flex flex-col overflow-hidden rounded-xl border border-zinc-200 bg-white shadow-sm transition-shadow hover:shadow-md">
+        <EventImage event={event} />
+        <div className="flex flex-1 flex-col p-5"><p className="text-xs font-medium text-primary-700">{new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(event.beginsAt))} Uhr</p><h2 className="mt-2 text-lg font-semibold leading-snug"><Link target={embedded ? "_blank" : undefined} rel={embedded ? "noopener noreferrer" : undefined} href={`/events/${encodeURIComponent(event.company.slug)}/${encodeURIComponent(event.id)}`} className="hover:text-primary-700 focus-visible:outline-primary-600">{event.name}</Link></h2><p className="mt-2 text-sm text-zinc-600">{event.venue ? [event.venue.name, event.venue.city].filter(Boolean).join(" · ") : event.company.name}</p>{event.shortdescription && <p className="mt-3 line-clamp-2 text-sm leading-relaxed text-zinc-500">{event.shortdescription}</p>}
+          <div className="mt-auto flex items-end justify-between gap-3 pt-6"><span className="text-xs text-zinc-400">{event.company.name}</span>{event.remainingSeats <= 0 ? <button type="button" disabled className="shrink-0 cursor-not-allowed rounded-md bg-zinc-200 px-4 py-2.5 text-sm font-semibold text-zinc-500">ausgebucht</button> : <Link target={embedded ? "_blank" : undefined} rel={embedded ? "noopener noreferrer" : undefined} href={`/events/${encodeURIComponent(event.company.slug)}/${encodeURIComponent(event.id)}`} aria-label={`Details zu ${event.name}`} className="shrink-0 rounded-md bg-accent-500 px-4 py-2.5 text-sm font-semibold text-zinc-950 hover:bg-accent-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600">{Number(event.ticketPrice) === 0 ? "Kostenlos" : `${Number(event.ticketPrice).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ${event.currency}`} <span aria-hidden="true">›</span></Link>}</div>
+        </div>
+      </article>)}
+    </div>
     {!visible.length && <div className="rounded-xl border border-dashed border-zinc-300 px-6 py-16 text-center"><h2 className="font-semibold">{events.length ? "Keine passenden Events gefunden" : "Noch keine veröffentlichten Events"}</h2><p className="mt-2 text-sm text-zinc-500">{events.length ? "Versuche einen anderen Suchbegriff oder wähle eine andere Stadt." : "Schau bald wieder vorbei."}</p></div>}
   </main>;
 }

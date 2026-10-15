@@ -1,9 +1,9 @@
 import "server-only";
 import { getPrisma } from "@/lib/db/prisma";
 import { calculateEventCapacity } from "./calculate-event-capacity";
-export async function getPublicEvents() {
+export async function getPublicEvents(companySlug?: string) {
  const events = await getPrisma().event.findMany({
-  where: { status: "PUBLISHED" }, orderBy: [{ beginsAt: "asc" }, { id: "asc" }],
+  where: { status: "PUBLISHED", ...(companySlug !== undefined ? { company: { slug: companySlug } } : {}) }, orderBy: [{ beginsAt: "asc" }, { id: "asc" }],
   select: { id: true, name: true, shortdescription: true, beginsAt: true, ticketPrice: true, currency: true, maxSeats: true,
    company: { select: { name: true, slug: true } }, venue: { select: { name: true, city: true } }, eventSeries: { select: { imageUrl: true } },
   },

@@ -13,7 +13,7 @@ export const eventSchema = z.object({
 }).refine((v) => new Date(v.endsAt) > new Date(v.beginsAt), { path: ["endsAt"], message: "Das Ende muss nach dem Beginn liegen." });
 export type EventValues = z.input<typeof eventSchema>;
 export type EventState = { success?: boolean; message?: string; errors?: Partial<Record<keyof EventValues, string[]>> };
-export type EventRow = Omit<EventValues, "maxSeats"> & { id: string; number: number; trainerName?: string | null; maxSeats: number; _count: { bookings: number; platformEvents: number } };
+export type EventRow = Omit<EventValues, "maxSeats"> & { id: string; number: number; trainerName?: string | null; maxSeats: number; remainingSeats: number; _count: { bookings: number; platformEvents: number } };
 export const emptyEvent: EventValues = { name: "", shortdescription: "", description: "", trainerIds: [], eventSeriesId: "", venueId: "", beginsAt: "", endsAt: "", maxSeats: "", ticketPrice: "", currency: "EUR", status: "DRAFT" };
 export function applySeries(values: EventValues, series: SeriesRow): EventValues {
  return { ...values, eventSeriesId: series.id, name: series.name, shortdescription: series.shortdescription ?? "", description: series.description ?? "", trainerIds: series.suggestedTrainerId ? [series.suggestedTrainerId] : [], venueId: series.suggestedVenueId ?? "", maxSeats: series.suggestedMaxSeats?.toString() ?? "", ticketPrice: series.suggestedTicketPrice ?? "", currency: series.suggestedCurrency };

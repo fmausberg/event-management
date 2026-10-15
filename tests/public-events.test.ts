@@ -4,12 +4,13 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getPublicEvents } from "@/lib/events/public-events";
 import Page from "@/app/(public)/events/page";
+import CompanyPage from "@/app/(public)/events/[companySlug]/page";
 import { NavigationShell } from "@/components/navigation-shell";
-const { findMany, groupBy, pathname } = vi.hoisted(() => ({ findMany: vi.fn(), groupBy: vi.fn(), pathname: vi.fn() }));
+const { findMany, groupBy, pathname, company } = vi.hoisted(() => ({ findMany: vi.fn(), groupBy: vi.fn(), pathname: vi.fn(), company: vi.fn() }));
 vi.mock("@/auth", () => ({ auth: async () => null }));
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ event: { findMany }, booking: { groupBy } }) }));
-vi.mock("next/navigation", () => ({ usePathname: pathname }));
+vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ event: { findMany }, booking: { groupBy }, company: { findUnique: company } }) }));
+vi.mock("next/navigation", () => ({ usePathname: pathname, notFound: () => { throw new Error("NOT_FOUND"); } }));
 vi.mock("@/app/(auth)/actions", () => ({ logout: vi.fn() }));
 beforeEach(() => { vi.resetAllMocks(); pathname.mockReturnValue("/events"); findMany.mockResolvedValue([]); groupBy.mockResolvedValue([]); });
 it("queries only published events and selects no private data", async () => {
@@ -18,12 +19,43 @@ it("queries only published events and selects no private data", async () => {
   id: true, name: true, shortdescription: true, beginsAt: true, ticketPrice: true, currency: true, maxSeats: true, company: { select: { name: true, slug: true } }, venue: { select: { name: true, city: true } }, eventSeries: { select: { imageUrl: true } },
  } });
 });
+it("scopes company listings in the database and renders the shared search and filters", async () => {
+ company.mockResolvedValue({ name: "Event Yoga" });
+ const html = renderToStaticMarkup(await CompanyPage({ params: Promise.resolve({ companySlug: "event-yoga" }) }));
+ expect(company).toHaveBeenCalledWith({ where: { slug: "event-yoga" }, select: { name: true } });
+ expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "PUBLISHED", company: { slug: "event-yoga" } } }));
+ for (const label of ["Events – Event Yoga", "Name oder Ort", "Alle Städte", "Sortierung", "Noch keine veröffentlichten Events"]) expect(html).toContain(label);
+});
+it("returns not found for unknown company slugs without querying all events", async () => {
+ company.mockResolvedValue(null);
+ await expect(CompanyPage({ params: Promise.resolve({ companySlug: "missing" }) })).rejects.toThrow("NOT_FOUND");
+ expect(findMany).not.toHaveBeenCalled();
+});
+it("keeps the company scope when retrying a failed listing", async () => {
+ company.mockResolvedValue({ name: "Event Yoga" }); findMany.mockRejectedValue(new Error("offline"));
+ const html = renderToStaticMarkup(await CompanyPage({ params: Promise.resolve({ companySlug: "event-yoga" }) }));
+ expect(html).toContain("konnten gerade nicht geladen werden"); expect(html).toContain('href="/events/event-yoga"');
+});
+it("renders the embedded listing without menus and opens event links outside the iframe", async () => {
+ company.mockResolvedValue({ name: "Event Yoga" });
+ findMany.mockResolvedValue([{ id: "event-1", maxSeats: 10, name: "Yoga", shortdescription: null, beginsAt: new Date("2026-10-16T08:00:00Z"), ticketPrice: { toFixed: () => "19.50" }, currency: "EUR", company: { name: "Event Yoga", slug: "event-yoga" }, venue: null, eventSeries: null }]);
+ const html = renderToStaticMarkup(await CompanyPage({ params: Promise.resolve({ companySlug: "event-yoga" }), searchParams: Promise.resolve({ embed: "1" }) }));
+ expect(html).not.toContain("Öffentliches Menü"); expect(html).not.toContain("min-h-dvh");
+ expect(html).toContain("Alle Städte"); expect(html).toContain("neuen Tab");
+ expect(html.match(/target="_blank"/g)).toHaveLength(2);
+ expect(html.match(/rel="noopener noreferrer"/g)).toHaveLength(2);
+});
+it("preserves embed mode on the retry link", async () => {
+ company.mockRejectedValue(new Error("offline"));
+ const html = renderToStaticMarkup(await CompanyPage({ params: Promise.resolve({ companySlug: "event-yoga" }), searchParams: Promise.resolve({ embed: "1" }) }));
+ expect(html).not.toContain("Öffentliches Menü"); expect(html).toContain('href="/events/event-yoga?embed=1"');
+});
 it("renders cards, prices, dates, links and the requested menu", async () => {
  findMany.mockResolvedValue([{ id: "event-1", maxSeats: 10, name: "Yoga", shortdescription: "Entspannung", beginsAt: new Date("2026-10-16T08:00:00Z"), ticketPrice: { toFixed: () => "19.50" }, currency: "EUR", company: { name: "Studio", slug: "studio" }, venue: { name: "Saal", city: "Berlin" }, eventSeries: { imageUrl: null } }]);
  const html = renderToStaticMarkup(await Page());
  expect(html).toContain("Yoga"); expect(html).toContain("19,50"); expect(html).toContain("Fr., 16.10.2026, 10:00");
  expect(html).toContain('href="/events/studio/event-1"');
- for (const label of ["Einloggen", "Registrieren", "Event-Management"]) expect(html).toContain(label);
+ for (const label of ["Einloggen", "Registrieren", "Information"]) expect(html).toContain(label);
 });
 it("shows distinct empty and error states", async () => {
  expect(renderToStaticMarkup(await Page())).toContain("Noch keine veröffentlichten Events");
@@ -50,6 +82,6 @@ it("hides the management sidebar for signed-in visitors", () => {
 it("shows profile and management links only when signed in", () => {
  const html = renderToStaticMarkup(createElement(PublicHeader, { signedIn: true }));
  expect(html).toMatch(/href="\/account"[^>]*>Zur Plattform<\/a>/); expect(html).toContain("Mein Profil"); expect(html).toContain('href="/account"');
- expect(html).toContain("Event-Management"); expect(html).toContain('href="/"');
+ expect(html).toContain("Information"); expect(html).toContain('href="/"');
  expect(html).not.toContain("Einloggen"); expect(html).not.toContain("Registrieren");
 });
