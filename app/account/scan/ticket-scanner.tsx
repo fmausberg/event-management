@@ -55,7 +55,13 @@ export function TicketScanner() {
  return <main className="mx-auto w-full max-w-2xl p-6 sm:p-10">
   <h1 className="text-2xl font-semibold">Tickets scannen</h1>
   <p className="mt-2 text-sm text-zinc-500">Scanne den QR-Code eines Tickets. Erst der Button „Einlösen“ bestätigt den Eintritt.</p>
-  <video ref={video} muted playsInline aria-label="Kameravorschau zum Scannen" className={`mt-6 aspect-video w-full rounded-xl bg-black object-cover ${running ? "" : "hidden"}`} />
+  <figure className="mt-6 w-full max-w-xs">
+   <div className="relative overflow-hidden rounded-xl border border-zinc-300 bg-black shadow-sm dark:border-zinc-700">
+    <video ref={video} muted playsInline aria-label="Kameravorschau zum Scannen" className="block aspect-video w-full object-contain" />
+    {!running && <div className="absolute inset-0 flex items-center justify-center bg-zinc-950 px-5 text-center text-sm text-zinc-300">Starte die Kamera, um das Livebild zu sehen.</div>}
+   </div>
+   <figcaption className="mt-2 text-xs text-zinc-500">{running ? "Livebild – halte den QR-Code vor die Kamera." : "Kameravorschau – Kamera ist ausgeschaltet."}</figcaption>
+  </figure>
   <div className="mt-5 flex gap-3"><button type="button" disabled={pending || running} onClick={() => void start()} className={button}>{result.ticket ? "Nächstes Ticket scannen" : "Kamera starten"}</button>{running && <button type="button" onClick={stop} className="underline">Kamera stoppen</button>}</div>
   <details className="mt-5 text-sm"><summary className="cursor-pointer">Token manuell eingeben</summary><form className="mt-3 flex gap-2" onSubmit={(event) => { event.preventDefault(); void inspect(manual.trim()); }}><input aria-label="Ticket-Token" required maxLength={43} autoComplete="off" value={manual} onChange={(event) => setManual(event.target.value)} className="min-w-0 flex-1 rounded border p-2" /><button disabled={pending} className={button}>Prüfen</button></form></details>
   {pending && <p role="status" className="mt-5">Wird verarbeitet …</p>}

@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { getPrisma } from "@/lib/db/prisma";
+import { trainerIdentityForUser } from "@/lib/trainers/identity";
 
 export type ScanResult = { message?: string; ticket?: {
  number: number; eventName: string; beginsAt: string; venue: string | null;
@@ -22,27 +23,32 @@ async function processTicket(token: string, redeem: boolean): Promise<ScanResult
   await db.authRateLimit.deleteMany({ where: { expiresAt: { lte: new Date(now) } } });
   const limit = await db.authRateLimit.upsert({ where: { key }, create: { key, attempts: 1, expiresAt: new Date((window + 1) * 60000) }, update: { attempts: { increment: 1 } } });
   if (limit.attempts > 120) return { message: "Zu viele Anfragen. Bitte in einer Minute erneut versuchen." };
+  const user = await db.user.findUnique({ where: { id: userId }, select: { id: true, email: true } });
+  if (!user) return { message: "Bitte melde dich an." };
+  const trainerIdentity = await trainerIdentityForUser(user);
   return await db.$transaction(async (tx): Promise<ScanResult> => {
    const ticket = await tx.ticket.findUnique({
     where: { publicTokenHash: createHash("sha256").update(token).digest("hex") },
     select: { id: true, number: true, status: true, checkedInAt: true, booking: { select: {
      status: true, event: { select: { name: true, beginsAt: true, status: true,
       staff: { where: { userId }, select: { id: true } },
+      trainers: { where: { trainer: trainerIdentity }, select: { id: true } },
       venue: { select: { name: true, city: true, staff: { where: { userId }, select: { id: true } } } },
      } },
     } } },
    });
    if (!ticket) return { message: "Ticket nicht verfügbar." };
    const event = ticket.booking.event;
-   const allowed = event.staff.length > 0 || (event.venue?.staff.length ?? 0) > 0;
+   const allowed = event.trainers.length > 0 || event.staff.length > 0 || (event.venue?.staff.length ?? 0) > 0;
    const cancelled = ticket.status === "CANCELLED" || ticket.booking.status === "CANCELLED" || event.status === "CANCELLED";
    let checkedInAt = ticket.checkedInAt;
-   let message = !allowed ? "Du darfst dieses Ticket nicht einlösen. Du bist weder EventStaff dieses Events noch VenueStaff seiner Venue." : undefined;
+   let message = !allowed ? "Du darfst dieses Ticket nicht einlösen. Du bist diesem Event weder als Trainer noch als Event-Staff oder Venue-Staff zugeteilt." : undefined;
    if (redeem && allowed && !cancelled && !checkedInAt) {
     const timestamp = new Date();
     const result = await tx.ticket.updateMany({
      where: { id: ticket.id, status: "VALID", checkedInAt: null, booking: { status: "CONFIRMED", event: { status: { not: "CANCELLED" }, OR: [
       { staff: { some: { userId } } }, { venue: { staff: { some: { userId } } } },
+      { trainers: { some: { trainer: trainerIdentity } } },
      ] } } },
      data: { checkedInAt: timestamp, checkedInById: userId },
     });

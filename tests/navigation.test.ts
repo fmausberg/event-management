@@ -2,10 +2,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { buildNavigation, isNavigationItemActive, type NavigationUser } from "@/lib/navigation/model";
 import { getNavigation } from "@/lib/navigation/get-navigation";
 
-const { auth, findUnique } = vi.hoisted(() => ({ auth: vi.fn(), findUnique: vi.fn() }));
+const { auth, findUnique, findMany, trainer, eventStaff, venueStaff } = vi.hoisted(() => ({ auth: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), trainer: vi.fn(), eventStaff: vi.fn(), venueStaff: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/auth", () => ({ auth }));
-vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ user: { findUnique } }) }));
+vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ user: { findUnique, findMany }, trainer: { findFirst: trainer }, eventStaff: { findFirst: eventStaff }, venueStaff: { findFirst: venueStaff } }) }));
 
 const user: NavigationUser = {
   name: "Ada", email: "ada@example.com", role: "USER", memberships: [
@@ -16,6 +16,9 @@ const user: NavigationUser = {
   ],
 };
 beforeEach(() => {
+  vi.resetAllMocks();
+  findMany.mockResolvedValue([{ id: "user-1" }]);
+  trainer.mockResolvedValue(null); eventStaff.mockResolvedValue(null); venueStaff.mockResolvedValue(null);
   auth.mockResolvedValue({ user: { id: "user-1" } });
   findUnique.mockResolvedValue(user);
 });
@@ -24,13 +27,13 @@ describe("navigation visibility", () => {
   it("always links public events and uses company slugs for active memberships", () => {
     const result = buildNavigation(user);
     expect(result.groups.map((group) => group.label)).toEqual(["Allgemein", "Company A", "Company B"]);
-    expect(result.groups[0].items.map((item) => item.href)).toEqual(["/events"]);
+    expect(result.groups[0].items.map((item) => item.href)).toEqual(["/events", "/account/events"]);
     expect(result.groups[1].items.map((item) => item.href)).toEqual([
-      "/company/slug-company-a/venues", "/company/slug-company-a/event-series", "/company/slug-company-a/events", "/company/slug-company-a/trainers",
+      "/company/slug-company-a/event-series", "/company/slug-company-a/events", "/company/slug-company-a/venues", "/company/slug-company-a/trainers",
     ]);
     expect(result.groups[2].items.map((item) => item.href)).toEqual([
-      "/company/slug-company-b/venues", "/company/slug-company-b/event-series",
-      "/company/slug-company-b/events", "/company/slug-company-b/trainers", "/company/slug-company-b/settings", "/company/slug-company-b/members",
+      "/company/slug-company-b/event-series", "/company/slug-company-b/events",
+      "/company/slug-company-b/venues", "/company/slug-company-b/trainers", "/company/slug-company-b/settings", "/company/slug-company-b/members",
     ]);
   });
 
@@ -61,6 +64,19 @@ describe("navigation visibility", () => {
 });
 
 describe("server-side identity", () => {
+  it.each(["trainer", "eventStaff", "venueStaff"] as const)("shows Ticket Scannen for %s without a company membership", async (assignment) => {
+    findUnique.mockResolvedValue({ ...user, memberships: [] });
+    ({ trainer, eventStaff, venueStaff })[assignment].mockResolvedValue({ id: "assignment" });
+    const result = await getNavigation();
+    expect(result?.groups[0].items).toContainEqual({ label: "Ticket Scannen", href: "/account/scan", icon: "calendar" });
+    expect(eventStaff).toHaveBeenCalledWith({ where: { userId: "user-1" }, select: { id: true } });
+    expect(venueStaff).toHaveBeenCalledWith({ where: { userId: "user-1" }, select: { id: true } });
+    expect(trainer).toHaveBeenCalledWith({ where: { OR: [{ userId: "user-1" }, { userId: null, email: { equals: "ada@example.com", mode: "insensitive" } }] }, select: { id: true } });
+  });
+  it("hides Ticket Scannen without an assignment, including for admins", async () => {
+    findUnique.mockResolvedValue({ ...user, role: "ADMIN" });
+    expect((await getNavigation())?.groups[0].items.some((item) => item.href === "/account/scan")).toBe(false);
+  });
   it("does not query navigation data for guests", async () => {
     auth.mockResolvedValue(null);
     expect(await getNavigation()).toBeNull();

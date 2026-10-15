@@ -18,20 +18,24 @@ export type NavigationUser = {
   }[];
 };
 
-export function buildNavigation(user: NavigationUser): NavigationData {
+export function buildNavigation(user: NavigationUser, canScanTickets = false): NavigationData {
   const groups: NavigationGroup[] = [{
     id: "general", label: "Allgemein",
-    items: [{ label: "Zu den Veranstaltungen", href: "/events", icon: "calendar" }],
+    items: [
+      { label: "Zu den Veranstaltungen", href: "/events", icon: "calendar" },
+      { label: "Meine Veranstaltungen", href: "/account/events", icon: "calendar" },
+    ],
   }];
+  if (canScanTickets) groups[0].items.push({ label: "Ticket Scannen", href: "/account/scan", icon: "calendar" });
 
   for (const membership of user.memberships) {
     if (membership.status !== "ACTIVE") continue;
     const company = membership.company;
     const base = `/company/${encodeURIComponent(company.slug)}`;
     const items: NavigationItem[] = [
-      { label: "Orte", href: `${base}/venues`, icon: "venue" },
       { label: "Veranstaltungsreihen", href: `${base}/event-series`, icon: "series" },
       { label: "Veranstaltungen", href: `${base}/events`, icon: "calendar" },
+      { label: "Orte", href: `${base}/venues`, icon: "venue" },
       { label: "Trainer", href: `${base}/trainers`, icon: "users" },
     ];
     if (user.role === "ADMIN" || membership.role === "COMPANY_ADMIN") items.push(

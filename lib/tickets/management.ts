@@ -1,12 +1,10 @@
 import "server-only";
-import { MemberAccessError, requireCompanyAccess } from "@/lib/companies/members";
+import { requireEventTicketAccess } from "./access";
 import { getPrisma } from "@/lib/db/prisma";
 
 export async function getEventTickets(slug: string, eventId: string) {
- const { company } = await requireCompanyAccess(slug);
+ const { company, event } = await requireEventTicketAccess(slug, eventId);
  const db = getPrisma();
- const event = await db.event.findFirst({ where: { id: eventId, companyId: company.id }, select: { id: true, name: true, beginsAt: true, status: true } });
- if (!event) throw new MemberAccessError("NOT_FOUND");
  const tickets = await db.ticket.findMany({
   where: { booking: { eventId, event: { companyId: company.id } } },
   orderBy: [{ number: "asc" }],

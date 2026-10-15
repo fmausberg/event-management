@@ -7,20 +7,19 @@ import Page from "@/app/company/[companyKey]/events/[eventId]/tickets/page";
 const { access, event, tickets, update } = vi.hoisted(() => ({ update: vi.fn(), access: vi.fn(), event: vi.fn(), tickets: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/auth", () => ({ auth: vi.fn(async () => ({ user: { id: "actor" } })) }));
-vi.mock("@/lib/companies/members", async (original) => ({ ...await original<typeof import("@/lib/companies/members")>(), requireCompanyAccess: access }));
+vi.mock("@/lib/tickets/access", () => ({ requireEventTicketAccess: access }));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ event: { findFirst: event }, ticket: { findMany: tickets, updateMany: update } }) }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); }, redirect: () => { throw new Error("LOGIN"); } }));
 const props = { params: Promise.resolve({ companyKey: "yoga", eventId: "event" }) };
-beforeEach(() => { vi.resetAllMocks(); access.mockResolvedValue({ company: { id: "company", name: "Studio" } }); event.mockResolvedValue({ id: "event", name: "Yoga", beginsAt: new Date("2026-10-16T15:30Z"), status: "PUBLISHED" }); tickets.mockResolvedValue([]); });
+beforeEach(() => { vi.resetAllMocks(); access.mockResolvedValue({ actor: "actor", company: { id: "company", name: "Studio" }, event: { id: "event", name: "Yoga", beginsAt: new Date("2026-10-16T15:30Z"), status: "PUBLISHED" } }); event.mockResolvedValue({ id: "event", name: "Yoga", beginsAt: new Date("2026-10-16T15:30Z"), status: "PUBLISHED" }); tickets.mockResolvedValue([]); });
 it("scopes the event and tickets to the authorized company", async () => {
  await getEventTickets("yoga", "event");
- expect(access).toHaveBeenCalledWith("yoga");
- expect(event).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "event", companyId: "company" } }));
+ expect(access).toHaveBeenCalledWith("yoga", "event");
  expect(tickets).toHaveBeenCalledWith(expect.objectContaining({ where: { booking: { eventId: "event", event: { companyId: "company" } } } }));
  expect(JSON.stringify(tickets.mock.calls)).not.toContain("publicTokenHash");
 });
 it("rejects foreign events and unauthorized users before reading tickets", async () => {
- event.mockResolvedValue(null); await expect(getEventTickets("yoga", "foreign")).rejects.toThrow();
+ access.mockRejectedValue(new Error("forbidden")); await expect(getEventTickets("yoga", "foreign")).rejects.toThrow();
  access.mockRejectedValue(new Error("forbidden")); await expect(getEventTickets("other", "event")).rejects.toThrow();
  expect(tickets).not.toHaveBeenCalled();
 });
