@@ -6,6 +6,8 @@ import { requireCompanyAccess, MemberAccessError } from "@/lib/companies/members
 import { getPrisma } from "@/lib/db/prisma";
 import { eventSchema, emptyEvent, type EventState } from "@/lib/company-events/model";
 function refresh(slug: string) {
+ revalidatePath(`/company/${encodeURIComponent(slug)}/trainers`);
+ revalidatePath("/events/[companySlug]/[eventId]", "page");
  for (const path of [`/company/${encodeURIComponent(slug)}/events`, `/company/${encodeURIComponent(slug)}/event-series`, `/company/${encodeURIComponent(slug)}/venues`, "/admin/companies", "/admin/events", "/events", `/events/${encodeURIComponent(slug)}`]) revalidatePath(path);
 }
 function failure(error: unknown): EventState {
@@ -18,19 +20,28 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
  try {
   const { company } = await requireCompanyAccess(slug);
   if (id !== null && !validId(id)) return { message: "Ungültiges Event." };
-  const parsed = eventSchema.safeParse(Object.fromEntries(Object.keys(emptyEvent).map((key) => [key, form.get(key)])));
+  const parsed = eventSchema.safeParse(Object.fromEntries(Object.keys(emptyEvent).map((key) => [key, key === "trainerIds" ? form.getAll(key) : form.get(key)])));
   if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
   const db = getPrisma();
   const { eventSeriesId, venueId } = parsed.data;
   if (eventSeriesId && !await db.eventSeries.findFirst({ where: { id: eventSeriesId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle eine Eventreihe dieser Company." };
   if (venueId && !await db.venue.findFirst({ where: { id: venueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle eine Venue dieser Company." };
-  const data = { ...parsed.data, beginsAt: new Date(parsed.data.beginsAt), endsAt: new Date(parsed.data.endsAt) };
+  const { trainerIds, ...fields } = parsed.data;
+  const trainers = await db.trainer.findMany({ where: { id: { in: trainerIds }, companyId: company.id }, select: { id: true } });
+  if (trainers.length !== trainerIds.length) return { message: "Bitte wähle Trainer dieser Company.", errors: { trainerIds: ["Mindestens ein Trainer ist nicht verfügbar."] } };
+  const data = { ...fields, trainerName: null, beginsAt: new Date(parsed.data.beginsAt), endsAt: new Date(parsed.data.endsAt) };
   if (id === null) {
    const session = await auth();
    if (!session?.user?.id) return { message: "Bitte melde dich erneut an." };
-   await db.event.create({ data: { ...data, companyId: company.id, createdById: session.user.id } });
+   await db.event.create({ data: { ...data, companyId: company.id, createdById: session.user.id, trainers: { create: trainerIds.map((trainerId) => ({ trainerId })) } } });
   } else {
-   const result = await db.event.updateMany({ where: { id, companyId: company.id }, data });
+   const result = await db.$transaction(async (tx) => {
+    const updated = await tx.event.updateMany({ where: { id, companyId: company.id }, data });
+    if (!updated.count) return updated;
+    await tx.eventTrainer.deleteMany({ where: { eventId: id, trainerId: { notIn: trainerIds } } });
+    if (trainerIds.length) await tx.eventTrainer.createMany({ data: trainerIds.map((trainerId) => ({ eventId: id, trainerId })), skipDuplicates: true });
+    return updated;
+   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
    if (!result.count) return { message: "Dieses Event existiert nicht in dieser Company." };
   }
  } catch (error) { return failure(error); }

@@ -55,8 +55,8 @@ enum EventStatus {
 model User {
   checkedInTickets Ticket[] @relation("TicketCheckedInBy")
   // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
+  id               String   @id @default(cuid())
+  number           Int      @unique @default(autoincrement())
 
   // Attribute
   email String   @unique
@@ -79,6 +79,7 @@ model User {
   sessions                Session[]
   createdVenueAssignments VenueStaff[]        @relation("VenueStaffAssignedBy")
   createdEventAssignments EventStaff[]        @relation("EventStaffAssignedBy")
+  trainerProfiles         Trainer[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -137,9 +138,9 @@ model Company {
   number Int    @unique @default(autoincrement())
 
   // Attribute
-  name String
-  slug String @unique
-  stripeAccountId String? @unique
+  name                 String
+  slug                 String  @unique
+  stripeAccountId      String? @unique
   stripeChargesEnabled Boolean @default(false)
   stripePayoutsEnabled Boolean @default(false)
 
@@ -148,6 +149,7 @@ model Company {
   memberships CompanyMembership[]
   eventSeries EventSeries[]
   events      Event[]
+  trainers    Trainer[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -227,12 +229,14 @@ model EventSeries {
   suggestedTrainerName String?
 
   // n:1 Relationen
-  companyId        String
-  company          Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  createdById      String
-  createdBy        User    @relation("EventSeriesCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  suggestedVenueId String?
-  suggestedVenue   Venue?  @relation("SeriesSuggestedVenue", fields: [suggestedVenueId], references: [id], onDelete: Restrict)
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdById        String
+  createdBy          User     @relation("EventSeriesCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  suggestedVenueId   String?
+  suggestedVenue     Venue?   @relation("SeriesSuggestedVenue", fields: [suggestedVenueId], references: [id], onDelete: Restrict)
+  suggestedTrainerId String?
+  suggestedTrainer   Trainer? @relation("SeriesSuggestedTrainer", fields: [suggestedTrainerId], references: [id], onDelete: SetNull)
 
   // 1:n Relationen
   events Event[]
@@ -276,6 +280,7 @@ model Event {
   platformEvents PlatformEvent[]
   bookings       Booking[]
   staff          EventStaff[]
+  trainers       EventTrainer[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -332,36 +337,37 @@ enum PaymentStatus {
 }
 
 model Payment {
-  id String @id @default(cuid())
-  bookingId String @unique
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  stripeAccountId String
-  checkoutSessionId String? @unique
-  paymentIntentId String? @unique
-  publicToken String @unique
-  amount Int
-  currency String @db.Char(3)
-  status PaymentStatus @default(PENDING)
-  checkoutRequest Json
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  mail PaymentMail?
+  id                String        @id @default(cuid())
+  bookingId         String        @unique
+  booking           Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  stripeAccountId   String
+  checkoutSessionId String?       @unique
+  paymentIntentId   String?       @unique
+  publicToken       String        @unique
+  amount            Int
+  currency          String        @db.Char(3)
+  status            PaymentStatus @default(PENDING)
+  checkoutRequest   Json
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  mail              PaymentMail?
+
   @@index([status, createdAt])
 }
 
 model StripeWebhookEvent {
-  id String @id
+  id          String   @id
   processedAt DateTime @default(now())
 }
 
 // Ticket bearer links are encrypted while awaiting SMTP delivery, then erased.
 model PaymentMail {
-  paymentId String @id
-  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  paymentId        String    @id
+  payment          Payment   @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   encryptedMessage String?
-  sentAt DateTime?
-  lockedUntil DateTime?
-  createdAt DateTime @default(now())
+  sentAt           DateTime?
+  lockedUntil      DateTime?
+  createdAt        DateTime  @default(now())
 }
 
 model PlatformEvent {
@@ -404,7 +410,7 @@ model Ticket {
   status          TicketStatus @default(VALID)
   checkedInAt     DateTime?
   checkedInById   String?
-  checkedInBy     User? @relation("TicketCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+  checkedInBy     User?        @relation("TicketCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
 
   // n:1 Relation
   bookingId String
@@ -420,17 +426,19 @@ model Ticket {
 
 model VenueStaff {
   // ID & number
-  id     String  @id @default(cuid())
-  number Int     @unique @default(autoincrement())
-  email  String?
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  //attribute
+  email String?
 
   // n:1 Relation
   venueId      String
-  venue        Venue  @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  venue        Venue   @relation(fields: [venueId], references: [id], onDelete: Cascade)
   userId       String?
-  user         User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignedById String
-  assignedBy   User   @relation("VenueStaffAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  assignedBy   User    @relation("VenueStaffAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -449,11 +457,11 @@ model EventStaff {
 
   // n:1 Relation
   eventId      String
-  event        Event  @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  event        Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   userId       String?
-  user         User?  @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user         User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
   assignedById String
-  assignedBy   User   @relation("EventStaffAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+  assignedBy   User    @relation("EventStaffAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -462,4 +470,53 @@ model EventStaff {
   @@unique([eventId, userId])
   @@unique([eventId, email])
   @@index([userId])
+}
+
+model Trainer {
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  //attribute
+  firstName String
+  lastName  String
+  email     String
+
+  // n:1 Relation
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // 1:n Relation
+  events             EventTrainer[]
+  suggestedForSeries EventSeries[]  @relation("SeriesSuggestedTrainer")
+
+  // Timestamps
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  //Indizes
+  @@unique([companyId, email])
+  @@index([userId])
+}
+
+model EventTrainer {
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // n:1 Relation
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Indizes
+  @@unique([eventId, trainerId])
+  @@index([trainerId])
 }

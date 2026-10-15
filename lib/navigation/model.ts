@@ -32,6 +32,7 @@ export function buildNavigation(user: NavigationUser): NavigationData {
       { label: "Orte", href: `${base}/venues`, icon: "venue" },
       { label: "Veranstaltungsreihen", href: `${base}/event-series`, icon: "series" },
       { label: "Veranstaltungen", href: `${base}/events`, icon: "calendar" },
+      { label: "Trainer", href: `${base}/trainers`, icon: "users" },
     ];
     if (user.role === "ADMIN" || membership.role === "COMPANY_ADMIN") items.push(
       { label: "Einstellungen", href: `${base}/settings`, icon: "settings" },
@@ -48,6 +49,7 @@ export function buildNavigation(user: NavigationUser): NavigationData {
       { label: "Veranstaltungsreihen", href: "/admin/event-series", icon: "series" },
       { label: "Veranstaltungen", href: "/admin/events", icon: "calendar" },
       { label: "Benutzer", href: "/admin/users", icon: "users" },
+      { label: "Trainer", href: "/admin/trainers", icon: "users" },
     ],
   });
   return { user: { name: user.name, email: user.email }, groups };

@@ -7,6 +7,7 @@ import EventsPage from "@/app/company/[companyKey]/events/page";
 import { saveEvent } from "@/app/company/[companyKey]/events/actions";
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
  user: { findUnique: vi.fn() }, company: { findUnique: vi.fn() }, companyMembership: { findUnique: vi.fn() },
+ trainer: { findMany: vi.fn() },
  event: { findFirst: vi.fn(), findUniqueOrThrow: vi.fn(), findMany: vi.fn() }, eventSeries: { findMany: vi.fn() }, venue: { findMany: vi.fn() },
  booking: { findMany: vi.fn(), findFirst: vi.fn(), aggregate: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() }, $transaction: vi.fn(),
 } }));
@@ -24,7 +25,7 @@ beforeEach(() => {
  db.booking.findMany.mockResolvedValue([]); db.booking.aggregate.mockResolvedValue({ _sum: { quantity: 5 } });
  db.booking.findFirst.mockResolvedValue({ id: "booking-1", quantity: 1, status: "CONFIRMED" }); db.booking.deleteMany.mockResolvedValue({ count: 1 });
  db.$transaction.mockImplementation(async (callback) => callback(db));
- db.event.findMany.mockResolvedValue([]); db.eventSeries.findMany.mockResolvedValue([]); db.venue.findMany.mockResolvedValue([]);
+ db.event.findMany.mockResolvedValue([]); db.eventSeries.findMany.mockResolvedValue([]); db.venue.findMany.mockResolvedValue([]); db.trainer.findMany.mockResolvedValue([]);
 });
 it.each(["COMPANY_USER", "COMPANY_ADMIN"])("allows active %s and normalizes manual bookings", async (role) => {
  db.companyMembership.findUnique.mockResolvedValue({ role, status: "ACTIVE" });

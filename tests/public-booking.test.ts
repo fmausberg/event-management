@@ -221,3 +221,9 @@ it("renders event details, booking form and sold-out state without exposing cust
  db.event.findFirst.mockResolvedValue(null);
  await expect(Page(props)).rejects.toThrow("NOT_FOUND");
 });
+it("displays only linked trainer first names instead of the legacy text", async () => {
+ db.event.findFirst.mockResolvedValue({ ...event, trainerName: "Old trainer", trainers: [{ trainer: { firstName: "Ada", lastName: "Lovelace" } }, { trainer: { firstName: "Grace", lastName: "Hopper" } }] });
+ const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companySlug: "yoga", eventId: "event-1" }) }));
+ expect(html).toContain("Ada &amp; Grace"); expect(html).not.toContain("Lovelace"); expect(html).not.toContain("Hopper"); expect(html).not.toContain("Old trainer");
+ expect(db.event.findFirst).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({ trainers: { orderBy: { trainer: { lastName: "asc" } }, select: { trainer: { select: { firstName: true } } } } }) }));
+});
