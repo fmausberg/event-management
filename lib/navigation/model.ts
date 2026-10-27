@@ -23,6 +23,7 @@ export function buildNavigation(user: NavigationUser, canScanTickets = false): N
     id: "general", label: "Allgemein",
     items: [
       { label: "Zu den Veranstaltungen", href: "/events", icon: "calendar" },
+      { label: "Meine Buchungen", href: "/account/bookings", icon: "calendar-check" },
       { label: "Meine Veranstaltungen", href: "/account/events", icon: "calendar-check" },
     ],
   }];
@@ -37,6 +38,7 @@ export function buildNavigation(user: NavigationUser, canScanTickets = false): N
       { label: "Veranstaltungen", href: `${base}/events`, icon: "calendar" },
       { label: "Orte", href: `${base}/venues`, icon: "venue" },
       { label: "Trainer", href: `${base}/trainers`, icon: "users" },
+      { label: "Stornierungen", href: `${base}/cancellations`, icon: "calendar-check" },
     ];
     if (user.role === "ADMIN" || membership.role === "COMPANY_ADMIN") items.push(
       { label: "Einstellungen", href: `${base}/settings`, icon: "settings" },

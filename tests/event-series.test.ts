@@ -27,6 +27,12 @@ it("saves duration as integer minutes and allows clearing it", async () => {
  await saveSeries("yoga", "series-1", {}, form({ suggestedDuration: "" }));
  expect(db.eventSeries.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ suggestedDuration: null }) }));
 });
+it("saves and clears the optional cancellation policy without touching events", async () => {
+ await saveSeries("yoga", "series-1", {}, form({ suggestedFreeCancellationUntilMinutesBeforeStart: "1440" }));
+ expect(db.eventSeries.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ suggestedFreeCancellationUntilMinutesBeforeStart: 1440 }) }));
+ await saveSeries("yoga", "series-1", {}, form({ suggestedFreeCancellationUntilMinutesBeforeStart: "" }));
+ expect(db.eventSeries.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ suggestedFreeCancellationUntilMinutesBeforeStart: null }) }));
+});
 beforeEach(() => {
  vi.resetAllMocks(); db.trainer.findMany.mockResolvedValue([]); auth.mockResolvedValue({ user: { id: "actor" } }); db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
  db.company.findUnique.mockResolvedValue({ id: "company-id", slug: "yoga", name: "Yoga" });

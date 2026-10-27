@@ -7,6 +7,10 @@ Datenhaltung und Integrationsverträge bereit. Externe APIs sind noch nicht ange
 
 SMTP-Mailversand und STRATO-Konfiguration: siehe [Mailversand](docs/mail.md).
 
+Stornofristen, Kundenanfragen, Freigaben und Stripe-Erstattungen:
+siehe [Stornierungen](docs/cancellations.md) einschließlich Migration, Webhook-Events
+und Wiederaufnahme über den bestehenden Zahlungs-Scheduler.
+
 Die Aufteilung der Seiten und ihre URLs sind in der [Projektstruktur](docs/project-structure.md) dokumentiert.
 
 Login, Registrierung und OAuth: siehe [Authentifizierung](docs/authentication.md)

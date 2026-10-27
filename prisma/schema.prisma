@@ -53,6 +53,7 @@ enum EventStatus {
 }
 
 model User {
+  cancellationDecisions CancellationRequest[] @relation("CancellationDecider")
   checkedInTickets Ticket[] @relation("TicketCheckedInBy")
   // ID & number
   id               String   @id @default(cuid())
@@ -223,6 +224,7 @@ model EventSeries {
   shortdescription     String?
   description          String?
   imageUrl             String?
+  suggestedFreeCancellationUntilMinutesBeforeStart Int?
   suggestedDuration    Int?
   suggestedMaxSeats    Int?
   suggestedTicketPrice Decimal? @db.Decimal(10, 2)
@@ -261,6 +263,7 @@ model Event {
   description      String?
   beginsAt         DateTime?    @map("Begin")
   endsAt           DateTime?    @map("End")
+  freeCancellationUntilMinutesBeforeStart Int?
   maxSeats         Int?
   status           EventStatus @default(DRAFT)
   ticketPrice      Decimal?     @db.Decimal(10, 2)
@@ -319,6 +322,7 @@ model Booking {
   user    User?   @relation("UserBookings", fields: [userId], references: [id], onDelete: Restrict)
 
   // 1:n Relation
+  cancellationRequests CancellationRequest[]
   tickets Ticket[]
 
   // Timestamps
@@ -522,4 +526,56 @@ model EventTrainer {
   // Indizes
   @@unique([eventId, trainerId])
   @@index([trainerId])
+}
+
+
+enum CancellationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum CancellationRefundStatus {
+  NONE
+  PENDING
+  SUCCEEDED
+  FAILED
+  REVIEW
+}
+
+model CancellationRequest {
+  id String @id @default(cuid())
+  bookingId String
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  status CancellationRequestStatus @default(PENDING)
+  requestedAt DateTime @default(now())
+  decidedAt DateTime?
+  decidedById String?
+  decidedBy User? @relation("CancellationDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  customerReason String?
+  internalNote String?
+  automatic Boolean @default(false)
+  refundStatus CancellationRefundStatus @default(NONE)
+  stripeRefundId String? @unique
+  refundAttempt Int @default(0)
+  refundStartedAt DateTime?
+  refundCheckedAt DateTime?
+  refundLockedUntil DateTime?
+  refundError String?
+  mails CancellationMail[]
+  @@index([bookingId, requestedAt])
+  @@index([status, requestedAt])
+  @@index([refundStatus, refundCheckedAt])
+}
+
+model CancellationMail {
+  id String @id
+  requestId String
+  request CancellationRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  encryptedMessage String?
+  sentAt DateTime?
+  lockedUntil DateTime?
+  createdAt DateTime @default(now())
+  @@index([sentAt, createdAt])
 }

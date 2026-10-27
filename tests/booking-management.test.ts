@@ -61,7 +61,7 @@ it("scopes booking updates and deletes to event and rejects foreign booking IDs"
  db.booking.findFirst.mockResolvedValue(null);
  expect((await saveBooking("yoga", "event-1", "foreign", {}, form())).success).toBeUndefined();
  await deleteBooking("yoga", "event-1", "booking-1", {}, form());
- expect(db.booking.deleteMany).toHaveBeenCalledWith({ where: { id: "booking-1", eventId: "event-1", payment: { is: null } } });
+ expect(db.booking.deleteMany).toHaveBeenCalledWith({ where: { id: "booking-1", eventId: "event-1", payment: { is: null }, cancellationRequests: { none: {} } } });
  db.booking.deleteMany.mockResolvedValue({ count: 0 });
  expect((await deleteBooking("yoga", "event-1", "foreign", {}, form())).success).toBeUndefined();
 });

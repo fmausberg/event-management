@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useActionState } from "react";
+import { CancellationPolicyField } from "@/components/cancellation-policy-field";
+import { useState, useActionState } from "react";
 import type { EventFormState, EventFormValues } from "@/lib/events/validate-event";
 
 interface Props {
@@ -18,6 +19,7 @@ const fields = [
 ] as const;
 
 export function EventForm({ action, initialValues = emptyValues }: Props) {
+  const [cancellationMinutes, setCancellationMinutes] = useState(initialValues.freeCancellationUntilMinutesBeforeStart ?? "");
   const [state, formAction, pending] = useActionState(action, { values: initialValues });
 
   return (
@@ -47,6 +49,7 @@ export function EventForm({ action, initialValues = emptyValues }: Props) {
             {state.errors?.[name] && <p id={`${name}-error`} className="mt-1 text-sm text-red-700 dark:text-red-400">{state.errors[name]}</p>}
           </div>
         ))}
+        <CancellationPolicyField name="freeCancellationUntilMinutesBeforeStart" value={cancellationMinutes} onChange={setCancellationMinutes} error={state.errors?.freeCancellationUntilMinutesBeforeStart ? [state.errors.freeCancellationUntilMinutesBeforeStart] : undefined} />
       </fieldset>
       <p role="status" aria-live="polite" className="text-sm text-red-700 dark:text-red-400">{state.message}</p>
       <div className="flex items-center justify-end gap-4">

@@ -11,6 +11,7 @@ export default async function MyEventsPage() {
   const date = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" });
   return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
     <header><h1 className="text-2xl font-semibold">Meine Veranstaltungen</h1><p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Deine gebuchten Veranstaltungen und deine Einteilungen als Trainer oder Staff – einschließlich vergangener Veranstaltungen.</p></header>
+    <Link href="/account/bookings" className="self-start text-primary-700 underline dark:text-primary-300">Meine Buchungen und Stornierungen verwalten</Link>
     <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       <table className="w-full text-left text-sm">
         <caption className="sr-only">Meine Veranstaltungen und Rollen</caption>

@@ -9,6 +9,8 @@ import { uploadEventImage, deleteEventImage, EventImageError, type UploadedEvent
 function refresh(slug: string) {
  revalidatePath("/company/[companyKey]/event-series/[seriesId]", "page");
  revalidatePath("/account/events");
+ revalidatePath("/account/bookings");
+ revalidatePath("/account");
  revalidatePath(`/company/${encodeURIComponent(slug)}/trainers`);
  revalidatePath("/events/[companySlug]/[eventId]", "page");
  for (const path of [`/company/${encodeURIComponent(slug)}/events`, `/company/${encodeURIComponent(slug)}/event-series`, `/company/${encodeURIComponent(slug)}/venues`, "/admin/companies", "/admin/events", "/events", `/events/${encodeURIComponent(slug)}`]) revalidatePath(path);

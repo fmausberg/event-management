@@ -25,9 +25,10 @@ export async function saveBooking(slug: string, eventId: string, id: string | nu
   if (!parsed.success) return { message: parsed.error.issues[0].message };
   const result = await getPrisma().$transaction(async (tx) => {
    const event = await tx.event.findUniqueOrThrow({ where: { id: eventId }, select: { maxSeats: true } });
-   const existing = id === null ? null : await tx.booking.findFirst({ where: { id, eventId }, select: { id: true, quantity: true, status: true, payment: { select: { id: true } } } });
+   const existing = id === null ? null : await tx.booking.findFirst({ where: { id, eventId }, select: { id: true, quantity: true, status: true, payment: { select: { id: true } }, cancellationRequests: { where: { status: { in: ["PENDING", "APPROVED"] } }, select: { id: true } } } });
    if (id !== null && !existing) return { message: "Diese Buchung gehört nicht zu diesem Event oder existiert nicht mehr." };
-   if (existing?.payment) return { message: "Stripe-Buchungen können hier nicht geändert werden. Erstattungen bitte im Stripe-Dashboard durchführen." };
+   if (existing?.cancellationRequests?.length) return { message: "Diese Buchung hat einen Stornierungsvorgang. Bitte verwende die Stornierungsverwaltung." };
+   if (existing?.payment) return { message: "Stripe-Buchungen können hier nicht geändert werden. Erstattungen bitte in der Stornierungsverwaltung durchführen." };
    const previousSeats = existing?.status === "CONFIRMED" ? existing.quantity : 0;
    const nextSeats = parsed.data.status === "CONFIRMED" ? parsed.data.quantity : 0;
    if (nextSeats > previousSeats) {
@@ -47,7 +48,7 @@ export async function deleteBooking(slug: string, eventId: string, id: string, _
  try {
   await requireBookingEvent(slug, eventId);
   if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen." };
-  const result = await getPrisma().booking.deleteMany({ where: { id, eventId, payment: { is: null } } });
+  const result = await getPrisma().booking.deleteMany({ where: { id, eventId, payment: { is: null }, cancellationRequests: { none: {} } } });
   if (!result.count) return { message: "Diese Buchung gehört nicht zu diesem Event oder wurde bereits entfernt." };
  } catch (error) { return failure(error); }
  refresh(slug, eventId);

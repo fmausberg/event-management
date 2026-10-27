@@ -1,4 +1,5 @@
 "use client";
+import { CancellationPolicyField } from "@/components/cancellation-policy-field";
 import Link from "next/link";
 import { EventImage } from "../../events/_components/event-image";
 import { TrainerPicker } from "@/components/trainer-picker";
@@ -26,6 +27,7 @@ function SeriesForm({ slug, row, venues, trainers, onSaved, onCancel }: { slug: 
     open(); desktop.addEventListener("change", open);
     return () => { desktop.removeEventListener("change", open); dialog.close(); previous?.focus(); };
   }, []);
+  const [cancellationMinutes, setCancellationMinutes] = useState(row?.suggestedFreeCancellationUntilMinutesBeforeStart?.toString() ?? "");
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [trainerBusy, setTrainerBusy] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState(row?.suggestedTrainerId ?? "");
@@ -42,6 +44,7 @@ function SeriesForm({ slug, row, venues, trainers, onSaved, onCancel }: { slug: 
     <header className="flex items-center justify-between"><h2 id="series-form-title" className="font-semibold">{row ? "Eventserie bearbeiten" : "Eventserie erstellen"}</h2><button type="button" disabled={pending || trainerBusy} aria-label="Formular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
     <fieldset disabled={pending} className="space-y-4">
       {fields.map(({ name, label, ...attributes }) => <div key={name}><label htmlFor={`series-${name}`} className="text-sm">{label}</label><input {...attributes} id={`series-${name}`} name={name} required={name === "name"} defaultValue={row?.[name] ?? ""} aria-invalid={!!state.errors?.[name]} aria-describedby={state.errors?.[name] ? `error-${name}` : undefined} className={inputClass} />{error(name)}</div>)}
+      <CancellationPolicyField name="suggestedFreeCancellationUntilMinutesBeforeStart" value={cancellationMinutes} onChange={setCancellationMinutes} error={state.errors?.suggestedFreeCancellationUntilMinutesBeforeStart} />
       <div className="sm:col-span-2 max-w-xl"><EventImage imageUrl={row?.imageUrl} onFileChange={setCoverFile} /></div>
       <TrainerPicker slug={slug} trainers={trainers} name="suggestedTrainerId" value={selectedTrainer ? [selectedTrainer] : []} onChange={(ids) => setSelectedTrainer(ids[0] ?? "")} onBusy={setTrainerBusy} errors={state.errors?.suggestedTrainerId} legacyName={row?.suggestedTrainerName} />
       <div><label htmlFor="series-venue" className="text-sm">Venue (Vorgabe)</label><select id="series-venue" name="suggestedVenueId" defaultValue={row?.suggestedVenueId ?? ""} className={inputClass}><option value="">Keine Venue</option>{venues.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select>{error("suggestedVenueId")}</div>

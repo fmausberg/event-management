@@ -8,7 +8,7 @@ export async function getCompanySeries(slug: string, adminOnly = false) {
   const [series, venues, trainers] = await Promise.all([
     db.eventSeries.findMany({ where: { companyId: company.id }, orderBy: [{ name: "asc" }, { id: "asc" }], select: {
       id: true, number: true, name: true, shortdescription: true, description: true, imageUrl: true,
-      suggestedDuration: true, suggestedMaxSeats: true, suggestedTicketPrice: true, suggestedCurrency: true, suggestedTrainerName: true, suggestedTrainerId: true, suggestedVenueId: true,
+      suggestedFreeCancellationUntilMinutesBeforeStart: true, suggestedDuration: true, suggestedMaxSeats: true, suggestedTicketPrice: true, suggestedCurrency: true, suggestedTrainerName: true, suggestedTrainerId: true, suggestedVenueId: true,
       _count: { select: { events: true } },
     } }),
     db.venue.findMany({ where: { companyId: company.id }, orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true } }),

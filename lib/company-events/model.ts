@@ -1,7 +1,9 @@
+import { cancellationMinutes } from "@/lib/cancellations/policy";
 import { z } from "zod";
 import type { SeriesRow } from "@/lib/event-series/validation";
 const optional = z.string().trim().max(20000).transform((v) => v || null);
 export const eventSchema = z.object({
+ freeCancellationUntilMinutesBeforeStart: cancellationMinutes,
  name: z.string().trim().max(160),
  shortdescription: optional, description: optional, trainerIds: z.array(z.string().trim().min(1).max(191)).max(50).transform((ids) => [...new Set(ids)]),
  eventSeriesId: z.string().max(191).transform((v) => v || null), venueId: z.string().max(191).transform((v) => v || null),
@@ -19,9 +21,9 @@ export const publishEventSchema = eventSchema.superRefine((v, ctx) => {
 export type EventValues = z.input<typeof eventSchema>;
 export type EventState = { success?: boolean; message?: string; warnings?: string[]; errors?: Partial<Record<keyof EventValues, string[]>> };
 export type EventRow = Omit<EventValues, "maxSeats"> & { id: string; number: number; trainerName?: string | null; imageUrl?: string | null; maxSeats: number | null; remainingSeats: number | null; _count: { bookings: number; platformEvents: number } };
-export const emptyEvent: EventValues = { name: "", shortdescription: "", description: "", trainerIds: [], eventSeriesId: "", venueId: "", beginsAt: "", endsAt: "", maxSeats: "", ticketPrice: "", currency: "EUR", status: "DRAFT" };
+export const emptyEvent: EventValues = { freeCancellationUntilMinutesBeforeStart: "", name: "", shortdescription: "", description: "", trainerIds: [], eventSeriesId: "", venueId: "", beginsAt: "", endsAt: "", maxSeats: "", ticketPrice: "", currency: "EUR", status: "DRAFT" };
 export function applySeries(values: EventValues, series: SeriesRow): EventValues {
- return { ...values, eventSeriesId: series.id, name: series.name, shortdescription: series.shortdescription ?? "", description: series.description ?? "", trainerIds: series.suggestedTrainerId ? [series.suggestedTrainerId] : [], venueId: series.suggestedVenueId ?? "", maxSeats: series.suggestedMaxSeats?.toString() ?? "", ticketPrice: series.suggestedTicketPrice ?? "", currency: "EUR" };
+ return { ...values, freeCancellationUntilMinutesBeforeStart: series.suggestedFreeCancellationUntilMinutesBeforeStart?.toString() ?? "", eventSeriesId: series.id, name: series.name, shortdescription: series.shortdescription ?? "", description: series.description ?? "", trainerIds: series.suggestedTrainerId ? [series.suggestedTrainerId] : [], venueId: series.suggestedVenueId ?? "", maxSeats: series.suggestedMaxSeats?.toString() ?? "", ticketPrice: series.suggestedTicketPrice ?? "", currency: "EUR" };
 }
 export function localDateTime(iso: string) {
  if (!iso) return "";

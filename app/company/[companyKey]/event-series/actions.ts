@@ -30,7 +30,7 @@ export async function saveSeries(slug: string, id: string | null, _previous: Ser
   try {
     const { company } = await requireCompanyAccess(slug);
     if (id !== null && !validId(id)) return { message: "Ungültige Eventserie." };
-    const parsed = seriesSchema.safeParse(Object.fromEntries(Object.keys(seriesSchema.shape).map((key) => [key, key === "suggestedCurrency" ? "EUR" : key === "imageUrl" ? "" : form.get(key)])));
+    const parsed = seriesSchema.safeParse(Object.fromEntries(Object.keys(seriesSchema.shape).map((key) => [key, key === "suggestedCurrency" ? "EUR" : key === "imageUrl" ? "" : form.get(key) ?? ""])));
     if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
     const db = getPrisma();
     if (parsed.data.suggestedVenueId && !await db.venue.findFirst({ where: { id: parsed.data.suggestedVenueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle eine Venue dieser Company.", errors: { suggestedVenueId: ["Die Venue gehört nicht zu dieser Company."] } };

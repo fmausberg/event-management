@@ -1,3 +1,4 @@
+import { cancellationPolicyText } from "@/lib/cancellations/policy";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { MemberAccessError } from "@/lib/companies/members";
@@ -27,6 +28,7 @@ export default async function CompanyEventSeriesDetailPage({ params }: {
   const trainer = result.trainers.find((row) => row.id === series.suggestedTrainerId);
   const details = [
     ["Nummer", series.number],
+    ["Stornofrist (Vorgabe)", cancellationPolicyText(series.suggestedFreeCancellationUntilMinutesBeforeStart)],
     ["Dauer (Vorgabe)", series.suggestedDuration ? `${series.suggestedDuration} Minuten` : "—"],
     ["Venue (Vorgabe)", result.venues.find((row) => row.id === series.suggestedVenueId)?.name ?? "—"],
     ["Trainer (Vorgabe)", trainer ? `${trainer.firstName} ${trainer.lastName}` : series.suggestedTrainerName ?? "—"],

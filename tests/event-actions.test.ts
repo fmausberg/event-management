@@ -4,12 +4,14 @@ import { createEvent, updateEvent, deleteEvent } from "@/app/admin/events/action
 import { removeEvent } from "@/lib/events/event-mutations";
 import type { EventFormState } from "@/lib/events/validate-event";
 
-const { db, revalidatePath, redirect } = vi.hoisted(() => ({
+const { db, revalidatePath, redirect, requireAdmin } = vi.hoisted(() => ({
+  requireAdmin: vi.fn(),
   db: { event: { create: vi.fn(), update: vi.fn(), deleteMany: vi.fn(), findUnique: vi.fn() } },
   revalidatePath: vi.fn(),
   redirect: vi.fn((path: string) => { throw new Error(`REDIRECT:${path}`); }),
 }));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
+vi.mock("@/lib/auth/require-admin", () => ({ requireAdmin }));
 vi.mock("next/cache", () => ({ revalidatePath }));
 vi.mock("next/navigation", () => ({ redirect }));
 
@@ -21,6 +23,7 @@ function form() {
   return data;
 }
 beforeEach(() => {
+  requireAdmin.mockResolvedValue({ id: "admin", role: "ADMIN" });
   db.event.create.mockResolvedValue({ id: "event-1" });
   db.event.update.mockResolvedValue({ id: "event-1" });
   db.event.deleteMany.mockResolvedValue({ count: 1 });
@@ -28,6 +31,12 @@ beforeEach(() => {
 });
 
 describe("create and update actions", () => {
+  it("does not allow non-admins to change the cancellation policy through the legacy form", async () => {
+    requireAdmin.mockRejectedValueOnce(new Error("Forbidden"));
+    const data = form(); data.set("freeCancellationUntilMinutesBeforeStart", "0");
+    await updateEvent("event-1", initial, data);
+    expect(db.event.update).not.toHaveBeenCalled();
+  });
   it("directs legacy creation to the complete company event form", async () => {
     expect((await createEvent(initial, form())).message).toContain("Eventverwaltung");
     expect(db.event.create).not.toHaveBeenCalled();

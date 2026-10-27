@@ -1,5 +1,6 @@
 "use server";
 
+import { requireAdmin } from "@/lib/auth/require-admin";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { getEvent } from "@/lib/events/get-event";
@@ -16,6 +17,7 @@ export async function createEvent(_previous: EventFormState, formData: FormData)
 export async function updateEvent(id: string, _previous: EventFormState, formData: FormData): Promise<EventFormState> {
   const values = readEventFormData(formData);
   try {
+    await requireAdmin();
     const original = await getEvent(id);
     if (!original) return { values, message: "Dieses Event existiert nicht mehr." };
     const result = validateEvent(values, original);
@@ -26,6 +28,9 @@ export async function updateEvent(id: string, _previous: EventFormState, formDat
   }
   revalidatePath("/admin/events");
   revalidatePath("/admin/events/[id]/edit", "page");
+  revalidatePath("/account/bookings");
+  revalidatePath("/events/[companySlug]/[eventId]", "page");
+  revalidatePath("/company/[companyKey]", "layout");
   redirect("/admin/events");
 }
 

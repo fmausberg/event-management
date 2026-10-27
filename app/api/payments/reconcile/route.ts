@@ -1,3 +1,5 @@
+import { reconcileCancellationRefunds } from "@/lib/cancellations/refunds";
+import { deliverCancellationMails } from "@/lib/cancellations/mail";
 import { timingSafeEqual } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 import { ensureCheckout } from "@/lib/payments/checkout";
@@ -25,5 +27,7 @@ export async function POST(request: Request) {
   for (const mail of mails) {
     try { await deliverPaymentMail(mail.paymentId); } catch { failures++; }
   }
-  return Response.json({ checked: pending.length, mails: mails.length, failures }, { status: failures ? 503 : 200 });
+  let cancellations = 0;
+  try { cancellations = await reconcileCancellationRefunds(); failures += await deliverCancellationMails(); } catch { failures++; console.error("Cancellation reconciliation failed"); }
+  return Response.json({ cancellations, checked: pending.length, mails: mails.length, failures }, { status: failures ? 503 : 200 });
 }

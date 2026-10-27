@@ -1,6 +1,8 @@
+import { cancellationMinutes } from "@/lib/cancellations/policy";
 import { parseBerlinDateTime } from "./berlin-date-time";
 
 export interface EventFormValues {
+  freeCancellationUntilMinutesBeforeStart?: string;
   name: string;
   beginsAt: string;
   endsAt: string;
@@ -14,6 +16,7 @@ export interface EventFormState {
   message?: string;
 }
 export interface EventInput {
+  freeCancellationUntilMinutesBeforeStart?: number | null;
   name: string;
   beginsAt: Date;
   endsAt: Date;
@@ -25,7 +28,7 @@ export function readEventFormData(formData: FormData): EventFormValues {
     const value = formData.get(key);
     return typeof value === "string" ? value : "";
   };
-  return { name: text("name"), beginsAt: text("beginsAt"), endsAt: text("endsAt"), maxSeats: text("maxSeats") };
+  return { ...(formData.has("freeCancellationUntilMinutesBeforeStart") ? { freeCancellationUntilMinutesBeforeStart: text("freeCancellationUntilMinutesBeforeStart") } : {}), name: text("name"), beginsAt: text("beginsAt"), endsAt: text("endsAt"), maxSeats: text("maxSeats") };
 }
 
 export function validateEvent(
@@ -33,6 +36,8 @@ export function validateEvent(
   original?: { beginsAt: Date | null; endsAt: Date | null },
 ): { success: true; data: EventInput } | { success: false; errors: EventFieldErrors } {
   const errors: EventFieldErrors = {};
+  const cancellation = cancellationMinutes.safeParse(values.freeCancellationUntilMinutesBeforeStart);
+  if (!cancellation.success) errors.freeCancellationUntilMinutesBeforeStart = cancellation.error.issues[0].message;
   const name = values.name.trim();
   if (!name) errors.name = "Bitte einen Namen eingeben.";
 
@@ -51,5 +56,5 @@ export function validateEvent(
     errors.maxSeats = "Bitte eine ganze Zahl zwischen 1 und 2147483647 eingeben.";
   }
   if (Object.keys(errors).length || !beginsAt || !endsAt) return { success: false, errors };
-  return { success: true, data: { name, beginsAt, endsAt, maxSeats } };
+  return { success: true, data: { name, beginsAt, endsAt, maxSeats, ...(values.freeCancellationUntilMinutesBeforeStart !== undefined && cancellation.success ? { freeCancellationUntilMinutesBeforeStart: cancellation.data } : {}) } };
 }

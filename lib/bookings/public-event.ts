@@ -3,7 +3,7 @@ import { getPrisma } from "@/lib/db/prisma";
 export async function getBookableEvent(slug: string, id: string) {
  const db = getPrisma();
  const event = await db.event.findFirst({ where: { id, status: "PUBLISHED", company: { slug } }, select: {
- id: true, name: true, shortdescription: true, description: true, imageUrl: true, beginsAt: true, endsAt: true, maxSeats: true, ticketPrice: true, currency: true, trainerName: true, trainers: { orderBy: { trainer: { lastName: "asc" } }, select: { trainer: { select: { firstName: true } } } },
+ freeCancellationUntilMinutesBeforeStart: true, id: true, name: true, shortdescription: true, description: true, imageUrl: true, beginsAt: true, endsAt: true, maxSeats: true, ticketPrice: true, currency: true, trainerName: true, trainers: { orderBy: { trainer: { lastName: "asc" } }, select: { trainer: { select: { firstName: true } } } },
  company: { select: { name: true, slug: true } }, eventSeries: { select: { imageUrl: true } },
  venue: { select: { name: true, addressLine1: true, addressLine2: true, postalCode: true, city: true, countryCode: true } },
  } });

@@ -1,3 +1,4 @@
+import { cancellationPolicy, cancellationPolicyText } from "@/lib/cancellations/policy";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getPrisma } from "@/lib/db/prisma";
@@ -28,7 +29,7 @@ export default async function AccountPage() {
       number: true,
       quantity: true,
       status: true,
-      event: { select: { name: true, beginsAt: true } },
+      event: { select: { name: true, beginsAt: true, freeCancellationUntilMinutesBeforeStart: true } },
     },
   });
   const date = new Intl.DateTimeFormat("de-DE", {
@@ -47,6 +48,7 @@ export default async function AccountPage() {
       </div>
       <section className="mt-10">
         <h2 className="text-xl font-semibold">Meine Buchungen</h2>
+        <Link href="/account/bookings" className="mt-2 inline-block text-sm text-primary-700 underline dark:text-primary-300">Stornierungen und Erstattungen verwalten</Link>
         {bookings.length === 0 ? (
           <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">Du hast noch keine Buchungen.</p>
         ) : (
@@ -60,6 +62,7 @@ export default async function AccountPage() {
                   <th scope="col" className="px-4 py-3">Beginn (Europe/Berlin)</th>
                   <th scope="col" className="px-4 py-3">Plätze</th>
                   <th scope="col" className="px-4 py-3">Status</th>
+                  <th scope="col" className="px-4 py-3">Stornierung</th>
                 </tr>
               </thead>
               <tbody>
@@ -70,6 +73,7 @@ export default async function AccountPage() {
                     <td className="whitespace-nowrap px-4 py-3">{booking.event.beginsAt ? date.format(booking.event.beginsAt) : "Noch offen"}</td>
                     <td className="px-4 py-3">{booking.quantity}</td>
                     <td className="px-4 py-3">{({ CONFIRMED: "Bestätigt", CANCELLED: "Storniert", PENDING_PAYMENT: "Zahlung ausstehend", EXPIRED: "Abgelaufen" })[booking.status]}</td>
+                    <td className="px-4 py-3"><p>{cancellationPolicyText(booking.event.freeCancellationUntilMinutesBeforeStart)}</p>{(() => { const policy = cancellationPolicy(booking.event.beginsAt, booking.event.freeCancellationUntilMinutesBeforeStart ?? null); return policy.deadline ? <p>Frist: {date.format(policy.deadline)}</p> : null; })()}<Link href="/account/bookings" className="text-primary-700 underline">Status und Aktionen</Link></td>
                   </tr>
                 ))}
               </tbody>

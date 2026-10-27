@@ -1,4 +1,5 @@
 "use client";
+import { CancellationPolicyField } from "@/components/cancellation-policy-field";
 import { TrainerPicker } from "@/components/trainer-picker";
 import type { TrainerOption } from "@/lib/trainers/validation";
 import { EventStaff } from "./event-staff";
@@ -95,6 +96,7 @@ function EventForm({ slug, row, defaultSeries, series, venues, trainers, onSaved
     <div><label htmlFor="event-venue">Venue<RequiredMark /></label><select id="event-venue" name="venueId" value={values.venueId} onChange={(e) => change("venueId", e.target.value)} className={input}><option value="">Keine Venue</option>{venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>{state.errors?.venueId && <p className="text-xs text-red-700">{state.errors.venueId.join(" ")}</p>}</div>
     <div><label htmlFor="event-description">Beschreibung</label><textarea id="event-description" name="description" value={values.description} onChange={(e) => change("description", e.target.value)} maxLength={20000} rows={4} className={input} />{state.errors?.description && <p className="text-xs text-red-700">{state.errors.description.join(" ")}</p>}</div>
     <TrainerPicker slug={slug} trainers={trainers} name="trainerIds" multiple value={values.trainerIds} onChange={(trainerIds) => setValues((old) => ({ ...old, trainerIds }))} onBusy={setTrainerBusy} errors={state.errors?.trainerIds} legacyName={row?.trainerName} />
+    <CancellationPolicyField name="freeCancellationUntilMinutesBeforeStart" value={values.freeCancellationUntilMinutesBeforeStart ?? ""} onChange={(value) => change("freeCancellationUntilMinutesBeforeStart", value)} error={state.errors?.freeCancellationUntilMinutesBeforeStart} />
     <EventImage imageUrl={row?.imageUrl} seriesImageUrl={row ? undefined : series.find((item) => item.id === values.eventSeriesId)?.imageUrl} onFileChange={setCoverFile} />
     <div className="flex items-center gap-2"><span>Status</span><StatusTag status={row?.status ?? "DRAFT"} /></div>
    </fieldset>

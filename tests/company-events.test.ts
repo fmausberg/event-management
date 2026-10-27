@@ -207,10 +207,14 @@ it.each([ [7, "13 / 20"], [25, "0 / 20"] ])("shows free/total seats from booking
  expect(db.booking.groupBy).toHaveBeenCalledWith({ by: ["eventId"], where: { eventId: { in: ["event-1"] }, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } }, _sum: { quantity: true } });
 });
 it("prefills all supported series fields, preserving schedule and status", () => {
- const series: SeriesRow = { id: "series-1", number: 1, name: "Series", shortdescription: "Short", description: "Long", imageUrl: null, suggestedDuration: null, suggestedMaxSeats: 25, suggestedTicketPrice: "19.50", suggestedCurrency: "USD", suggestedTrainerName: "Ada", suggestedTrainerId: "trainer-1", suggestedVenueId: "venue-1", _count: { events: 0 } };
+ const series: SeriesRow = { id: "series-1", number: 1, name: "Series", shortdescription: "Short", description: "Long", imageUrl: null, suggestedFreeCancellationUntilMinutesBeforeStart: null, suggestedDuration: null, suggestedMaxSeats: 25, suggestedTicketPrice: "19.50", suggestedCurrency: "USD", suggestedTrainerName: "Ada", suggestedTrainerId: "trainer-1", suggestedVenueId: "venue-1", _count: { events: 0 } };
  expect(applySeries(values, series)).toEqual({ ...values, eventSeriesId: "series-1", name: "Series", shortdescription: "Short", description: "Long", trainerIds: ["trainer-1"], venueId: "venue-1", maxSeats: "25", ticketPrice: "19.50", currency: "EUR" });
  const next = applySeries(values, { ...series, suggestedMaxSeats: null, suggestedTicketPrice: null, suggestedTrainerName: null, suggestedTrainerId: null, suggestedVenueId: null });
  expect(next).toMatchObject({ maxSeats: "", ticketPrice: "", trainerIds: [], venueId: "" });
+ const configured = { ...series, suggestedFreeCancellationUntilMinutesBeforeStart: 1440 };
+ const event = applySeries(values, configured);
+ configured.suggestedFreeCancellationUntilMinutesBeforeStart = 2880;
+ expect(event.freeCancellationUntilMinutesBeforeStart).toBe("1440");
 });
 
 it("copies the trusted series image at creation, without changing it on ordinary edits", async () => {
