@@ -10,6 +10,7 @@ import { seriesSchema, type SeriesState } from "@/lib/event-series/validation";
 import { uploadEventImage, deleteEventImage, EventImageError, type UploadedEventImage } from "@/lib/events/images";
 
 function refresh(slug: string) {
+ revalidatePath("/company/[companyKey]/event-series/[seriesId]", "page");
   revalidatePath(`/company/${encodeURIComponent(slug)}/trainers`);
   revalidatePath(`/company/${encodeURIComponent(slug)}/events`);
   revalidatePath(`/company/${encodeURIComponent(slug)}/event-series`);

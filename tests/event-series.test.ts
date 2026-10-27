@@ -16,8 +16,17 @@ vi.mock("@/auth", () => ({ auth }));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: () => { throw new Error("LOGIN"); }, notFound: () => { throw new Error("NOT_FOUND"); } }));
-const values = { name: " Yoga ", shortdescription: "", description: "", imageUrl: "", suggestedMaxSeats: "", suggestedTicketPrice: "12,50", suggestedCurrency: "eur", suggestedTrainerId: "", suggestedVenueId: "" };
+const values = { name: " Yoga ", shortdescription: "", description: "", imageUrl: "", suggestedDuration: "", suggestedMaxSeats: "", suggestedTicketPrice: "12,50", suggestedCurrency: "eur", suggestedTrainerId: "", suggestedVenueId: "" };
 function form(overrides: Record<string,string> = {}) { const data = new FormData(); Object.entries({ ...values, ...overrides }).forEach(([key,value]) => data.set(key,value)); return data; }
+it.each(["0", "-1", "1.5", "abc", "2147483648"])("rejects invalid duration %s", (suggestedDuration) => {
+ expect(seriesSchema.safeParse({ ...values, suggestedDuration }).success).toBe(false);
+});
+it("saves duration as integer minutes and allows clearing it", async () => {
+ expect((await saveSeries("yoga", null, {}, form({ suggestedDuration: "90" }))).success).toBe(true);
+ expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ suggestedDuration: 90 }) });
+ await saveSeries("yoga", "series-1", {}, form({ suggestedDuration: "" }));
+ expect(db.eventSeries.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ suggestedDuration: null }) }));
+});
 beforeEach(() => {
  vi.resetAllMocks(); db.trainer.findMany.mockResolvedValue([]); auth.mockResolvedValue({ user: { id: "actor" } }); db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
  db.company.findUnique.mockResolvedValue({ id: "company-id", slug: "yoga", name: "Yoga" });

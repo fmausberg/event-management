@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { renderToStaticMarkup } from "react-dom/server";
 import { saveEvent, deleteEvent } from "@/app/company/[companyKey]/events/actions";
 import Page from "@/app/company/[companyKey]/events/page";
+import SeriesPage from "@/app/company/[companyKey]/event-series/[seriesId]/page";
 import { applySeries, emptyEvent, eventSchema } from "@/lib/company-events/model";
 import type { SeriesRow } from "@/lib/event-series/validation";
 import { uploadEventImage, deleteEventImage } from "@/lib/events/images";
@@ -19,6 +20,18 @@ vi.mock("@/auth", () => ({ auth }));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect: () => { throw new Error("LOGIN"); }, notFound: () => { throw new Error("NOT_FOUND"); } }));
+it("scopes series events to the company and renders series details and the empty state", async () => {
+ db.eventSeries.findMany.mockResolvedValue([{ id: "series-1", number: 7, name: "Workshopreihe", shortdescription: "Kurztext", description: "Ausführliche Beschreibung", suggestedTicketPrice: null, _count: { events: 0 } }]);
+ const html = renderToStaticMarkup(await SeriesPage({ params: Promise.resolve({ companyKey: "yoga", seriesId: "series-1" }) }));
+ expect(db.event.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { companyId: "company-id", eventSeriesId: "series-1" } }));
+ expect(html).toContain("Workshopreihe");
+ expect(html).toContain("Kurztext");
+ expect(html).toContain("Ausführliche Beschreibung");
+ expect(html).toContain("Dieser Eventserie sind noch keine Events zugeordnet.");
+});
+it("returns not found for a series outside the company", async () => {
+ await expect(SeriesPage({ params: Promise.resolve({ companyKey: "yoga", seriesId: "foreign-series" }) })).rejects.toThrow("NOT_FOUND");
+});
 const values = { ...emptyEvent, name: "Yoga", beginsAt: "2026-10-14T10:00:00+02:00", endsAt: "2026-10-14T11:00:00+02:00", maxSeats: "20", ticketPrice: "12,50" };
 function form(overrides: Record<string, string> = {}) { const data = new FormData(); Object.entries({ ...values, ...overrides }).forEach(([key, value]) => Array.isArray(value) ? value.forEach((id) => data.append(key, id)) : data.set(key, value)); return data; }
 beforeEach(() => {
@@ -194,7 +207,7 @@ it.each([ [7, "13 / 20"], [25, "0 / 20"] ])("shows free/total seats from booking
  expect(db.booking.groupBy).toHaveBeenCalledWith({ by: ["eventId"], where: { eventId: { in: ["event-1"] }, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } }, _sum: { quantity: true } });
 });
 it("prefills all supported series fields, preserving schedule and status", () => {
- const series: SeriesRow = { id: "series-1", number: 1, name: "Series", shortdescription: "Short", description: "Long", imageUrl: null, suggestedMaxSeats: 25, suggestedTicketPrice: "19.50", suggestedCurrency: "USD", suggestedTrainerName: "Ada", suggestedTrainerId: "trainer-1", suggestedVenueId: "venue-1", _count: { events: 0 } };
+ const series: SeriesRow = { id: "series-1", number: 1, name: "Series", shortdescription: "Short", description: "Long", imageUrl: null, suggestedDuration: null, suggestedMaxSeats: 25, suggestedTicketPrice: "19.50", suggestedCurrency: "USD", suggestedTrainerName: "Ada", suggestedTrainerId: "trainer-1", suggestedVenueId: "venue-1", _count: { events: 0 } };
  expect(applySeries(values, series)).toEqual({ ...values, eventSeriesId: "series-1", name: "Series", shortdescription: "Short", description: "Long", trainerIds: ["trainer-1"], venueId: "venue-1", maxSeats: "25", ticketPrice: "19.50", currency: "EUR" });
  const next = applySeries(values, { ...series, suggestedMaxSeats: null, suggestedTicketPrice: null, suggestedTrainerName: null, suggestedTrainerId: null, suggestedVenueId: null });
  expect(next).toMatchObject({ maxSeats: "", ticketPrice: "", trainerIds: [], venueId: "" });

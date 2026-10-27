@@ -7,7 +7,7 @@ import { EventImage } from "./event-image";
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { saveEvent, deleteEvent } from "../actions";
-import { applySeries, emptyEvent, localDateTime, type EventRow, type EventState, type EventValues } from "@/lib/company-events/model";
+import { suggestedEndDate, applySeries, emptyEvent, localDateTime, type EventRow, type EventState, type EventValues } from "@/lib/company-events/model";
 import type { SeriesRow, VenueOption } from "@/lib/event-series/validation";
 const input = "mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700";
 const primary = "rounded-lg bg-primary-600 px-4 py-2 text-sm text-white hover:bg-primary-700 disabled:opacity-50";
@@ -15,9 +15,10 @@ const statuses = { DRAFT: "Entwurf", PUBLISHED: "Veröffentlicht", CANCELLED: "A
 const statusColors = { DRAFT: "bg-yellow-100 text-yellow-800", PUBLISHED: "bg-green-100 text-green-800", CANCELLED: "bg-red-100 text-red-800", COMPLETED: "bg-zinc-200 text-zinc-700" };
 function RequiredMark() { return <><span aria-hidden="true" className="ml-1 text-xs text-red-600 dark:text-red-400">*</span><span className="sr-only"> (zum Veröffentlichen erforderlich)</span></>; }
 function StatusTag({ status }: { status: EventValues["status"] }) { return <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[status]}`}>{statuses[status]}</span>; }
-type Props = { canManage: boolean; company: { name: string; slug: string }; events: EventRow[]; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[] };
-function EventForm({ slug, row, series, venues, trainers, onSaved, onCancel }: { slug: string; row?: EventRow; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[]; onSaved: (message: string) => void; onCancel: () => void }) {
- const [values, setValues] = useState<EventValues>(() => row ? { ...row, maxSeats: row.maxSeats?.toString() ?? "", beginsAt: localDateTime(row.beginsAt), endsAt: localDateTime(row.endsAt) } : { ...emptyEvent });
+type Props = { defaultSeriesId?: string; seriesDetails?: React.ReactNode; canManage: boolean; company: { name: string; slug: string }; events: EventRow[]; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[] };
+function EventForm({ slug, row, defaultSeries, series, venues, trainers, onSaved, onCancel }: { slug: string; row?: EventRow; defaultSeries?: SeriesRow; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[]; onSaved: (message: string) => void; onCancel: () => void }) {
+ const [values, setValues] = useState<EventValues>(() => row ? { ...row, maxSeats: row.maxSeats?.toString() ?? "", beginsAt: localDateTime(row.beginsAt), endsAt: localDateTime(row.endsAt) } : defaultSeries ? applySeries({ ...emptyEvent }, defaultSeries) : { ...emptyEvent });
+ const manualEnd = useRef(false);
  const [trainerBusy, setTrainerBusy] = useState(false);
  const [coverFile, setCoverFile] = useState<File | null>(null);
  const [publishWarnings, setPublishWarnings] = useState<string[] | null>(null);
@@ -29,15 +30,16 @@ function EventForm({ slug, row, series, venues, trainers, onSaved, onCancel }: {
   publishDecision.current = null;
   if (!publish) requestAnimationFrame(() => panel.current?.querySelector<HTMLElement>("#event-description")?.focus());
  }
+ const focusStartDate = !row && !!defaultSeries;
  const panel = useRef<HTMLDialogElement>(null);
  useEffect(() => {
   const dialog = panel.current!;
   const previous = document.activeElement as HTMLElement | null;
   const desktop = window.matchMedia("(min-width: 1280px)");
-  const open = () => { dialog.close(); if (desktop.matches) dialog.show(); else dialog.showModal(); dialog.querySelector<HTMLSelectElement>("select")?.focus(); };
+  const open = () => { dialog.close(); if (desktop.matches) dialog.show(); else dialog.showModal(); dialog.querySelector<HTMLElement>(focusStartDate ? "#event-beginsAt" : "select")?.focus(); };
   open(); desktop.addEventListener("change", open);
   return () => { desktop.removeEventListener("change", open); dialog.close(); previous?.focus(); };
- }, []);
+ }, [focusStartDate]);
  const [state, action, pending] = useActionState<EventState, FormData>(async (previous, data) => {
   // React resets uncontrolled file inputs after an action, including validation errors.
   // Keep the selected File alongside its preview so a retry still uploads that image.
@@ -62,7 +64,15 @@ function EventForm({ slug, row, series, venues, trainers, onSaved, onCancel }: {
   if (result.success) onSaved(result.message!);
   return result;
  }, {});
- function change(key: Exclude<keyof EventValues, "trainerIds">, value: string) { setValues((old) => ({ ...old, [key]: value })); }
+ function change(key: Exclude<keyof EventValues, "trainerIds">, value: string) {
+  if (key === "endsAt") manualEnd.current = !!value;
+  setValues((old) => {
+   const next = { ...old, [key]: value };
+   const duration = series.find((item) => item.id === old.eventSeriesId)?.suggestedDuration;
+   if (!row && key === "beginsAt" && !manualEnd.current && duration) next.endsAt = suggestedEndDate(value, duration);
+   return next;
+  });
+ }
  const fields: { key: Exclude<keyof EventValues, "trainerIds">; label: string; type?: string; required?: boolean; min?: number; step?: string; maxLength?: number }[] = [
   { key: "name", label: "Name", required: true, maxLength: 160 }, { key: "shortdescription", label: "Kurzbeschreibung" },
   { key: "beginsAt", label: "Beginn", type: "datetime-local", required: true }, { key: "endsAt", label: "Ende", type: "datetime-local", required: true },
@@ -75,7 +85,11 @@ function EventForm({ slug, row, series, venues, trainers, onSaved, onCancel }: {
   <form action={action} noValidate onReset={(event) => event.preventDefault()} onSubmit={(e) => { if (trainerBusy) e.preventDefault(); }} className="space-y-4"><header className="flex items-center justify-between"><h2 id="event-form-title" className="font-semibold">{row ? "Event bearbeiten" : "Event erstellen"}</h2><button type="button" disabled={pending || trainerBusy} aria-label="Formular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
    <p className="text-xs text-zinc-500"><span className="text-red-600 dark:text-red-400">*</span> Zum Veröffentlichen erforderlich. Entwürfe dürfen unvollständig sein.</p>
    <fieldset disabled={pending} className="space-y-4">
-    <div><label htmlFor="event-series">Eventreihe</label><select id="event-series" name="eventSeriesId" value={values.eventSeriesId} onChange={(e) => { const selected = series.find((s) => s.id === e.target.value); setValues((old) => selected ? applySeries(old, selected) : { ...old, eventSeriesId: "" }); }} className={input}><option value="">Keine Eventreihe</option>{series.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select><p className="mt-1 text-xs text-zinc-500">Die Auswahl übernimmt die Vorgaben der Reihe und ersetzt die entsprechenden Formularfelder. Datum und Status bleiben erhalten. Alle Werte sind danach bearbeitbar.</p></div>
+    <div><label htmlFor="event-series">Eventreihe</label><select id="event-series" name="eventSeriesId" value={values.eventSeriesId} onChange={(e) => { const selected = series.find((s) => s.id === e.target.value); setValues((old) => {
+     const next = selected ? applySeries(old, selected) : { ...old, eventSeriesId: "" };
+     if (!row && !manualEnd.current) next.endsAt = suggestedEndDate(next.beginsAt, selected?.suggestedDuration);
+     return next;
+    }); }} className={input}><option value="">Keine Eventreihe</option>{series.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select><p className="mt-1 text-xs text-zinc-500">Die Auswahl übernimmt die Vorgaben der Reihe und ersetzt die entsprechenden Formularfelder. Beginn und Status bleiben erhalten. Bei neuen Events wird das Ende anhand der vorgegebenen Dauer berechnet, solange es nicht manuell angepasst wurde. Alle Werte sind danach bearbeitbar.</p></div>
     <div className="grid grid-cols-2 gap-4">{fields.map(({ key, label, ...attributes }) => <div key={key} className={key === "name" || key === "shortdescription" ? "col-span-2 min-w-0" : "min-w-0"}><label htmlFor={`event-${key}`}>{label}<RequiredMark /></label><input {...attributes} id={`event-${key}`} name={key} value={values[key]} onChange={(e) => change(key, e.target.value)} aria-invalid={!!state.errors?.[key]} aria-describedby={state.errors?.[key] ? `error-${key}` : undefined} className={`${input} min-w-0 max-w-full`} />{state.errors?.[key] && <p id={`error-${key}`} className="text-xs text-red-700 dark:text-red-300">{state.errors[key]?.join(" ")}</p>}</div>)}</div>
     <p className="text-xs text-zinc-500">Zeiten in deiner lokalen Zeitzone ({Intl.DateTimeFormat().resolvedOptions().timeZone}).</p>
     <div><label htmlFor="event-venue">Venue<RequiredMark /></label><select id="event-venue" name="venueId" value={values.venueId} onChange={(e) => change("venueId", e.target.value)} className={input}><option value="">Keine Venue</option>{venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>{state.errors?.venueId && <p className="text-xs text-red-700">{state.errors.venueId.join(" ")}</p>}</div>
@@ -103,18 +117,22 @@ function DeleteEvent({ slug, row, onDeleted }: { slug: string; row: EventRow; on
  const [state, action, pending] = useActionState<EventState, FormData>(async (previous, data) => { const result = await deleteEvent(slug, row.id, previous, data); if (result.success) onDeleted(result.message!); return result; }, {});
  return <div className="max-w-64">{confirming ? <form action={action}><p>„{row.name}“ endgültig löschen?</p><input type="hidden" name="confirmed" value="yes" /><div className="mt-2 flex gap-3"><button disabled={pending} className="text-red-700 underline dark:text-red-300">{pending ? "Wird gelöscht …" : "Löschen bestätigen"}</button><button type="button" disabled={pending} onClick={() => setConfirming(false)} className="underline">Abbrechen</button></div></form> : <button type="button" disabled={row._count.bookings > 0 || row._count.platformEvents > 0} title="Löschen nur ohne Buchungen und Plattformzuordnungen" aria-label={`${row.name || "Unbenannter Entwurf"} löschen`} onClick={() => setConfirming(true)} className="rounded-lg px-2 py-0.5 text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-40 dark:text-red-300 dark:hover:bg-red-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5 6l1 14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1l1-14M10 10v7M14 10v7" /></svg></button>}{state.message && <p role="alert" className="text-red-700 dark:text-red-300">{state.message}</p>}</div>;
 }
-export function EventsTable({ company, events, series, venues, trainers, canManage }: Props) {
+export function EventsTable({ company, events, series, venues, trainers, canManage, seriesDetails, defaultSeriesId }: Props) {
  const [editor, setEditor] = useState<{ row?: EventRow } | null>(null);
  const [query, setQuery] = useState(""); const [message, setMessage] = useState("");
  const visible = events.filter((e) => `${e.name} ${e.number}`.toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
  return <main className={`flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black ${editor ? "xl:mr-[28rem]" : ""}`}>
-  <header className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-2xl font-semibold">Events</h1><p className="text-sm text-zinc-500">{company.name}</p></div>{canManage && <button type="button" disabled={!!editor} onClick={() => { setEditor({}); setMessage(""); }} className={primary}>+ Event erstellen</button>}</header>
+  {seriesDetails && <div className="relative flex flex-col gap-6 [&>a]:mr-16 [&>a]:min-h-10 [&>a]:content-center">
+   {seriesDetails}
+   {canManage && <button type="button" title="Event zu dieser Reihe erstellen" aria-label="Event zu dieser Reihe erstellen" disabled={!!editor} onClick={() => { setEditor({}); setMessage(""); }} className={`${primary} absolute right-0 top-0 inline-flex h-10 w-10 items-center justify-center !p-0 text-xl`}><span aria-hidden="true">+</span></button>}
+  </div>}
+  <header className="flex flex-wrap items-center justify-between gap-4"><div>{seriesDetails ? <h2 className="text-2xl font-semibold">Events dieser Reihe</h2> : <h1 className="text-2xl font-semibold">Events</h1>}<p className="text-sm text-zinc-500">{company.name}</p></div>{canManage && !seriesDetails && <button type="button" disabled={!!editor} onClick={() => { setEditor({}); setMessage(""); }} className={primary}>+ Event erstellen</button>}</header>
   {message && <p role="status" className="text-green-700 dark:text-green-300">{message}</p>}
-  {canManage && editor && <EventForm key={editor.row?.id ?? "new"} slug={company.slug} row={editor.row} series={series} venues={venues} trainers={trainers} onCancel={() => setEditor(null)} onSaved={(text) => { setEditor(null); setMessage(text); }} />}
+  {canManage && editor && <EventForm key={editor.row?.id ?? "new"} slug={company.slug} row={editor.row} defaultSeries={series.find((item) => item.id === defaultSeriesId)} series={series} venues={venues} trainers={trainers} onCancel={() => setEditor(null)} onSaved={(text) => { setEditor(null); setMessage(text); }} />}
   <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
    <div className="flex items-center justify-between gap-4 p-4"><label><span className="sr-only">Events durchsuchen</span><input type="search" placeholder="Events durchsuchen …" value={query} onChange={(e) => setQuery(e.target.value)} className={input} /></label><span className="text-sm text-zinc-500">{visible.length} von {events.length} Events</span></div>
    <table className="w-full text-left text-sm"><caption className="sr-only">Events von {company.name}</caption><thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Nr.", "Event", "Beginn (Europe/Berlin)", "Veranstaltungsreihe", "Orte", "Status", "(freie) Plätze", "Preis", "Buchungen", "Aktionen"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label}</th>)}</tr></thead><tbody>{visible.map((row) => <tr key={row.id} className="border-t border-zinc-200 align-top dark:border-zinc-800"><td className="px-4 py-4">{row.number}</td><th scope="row" className="px-4 py-4 font-medium">{row.name || "Unbenannter Entwurf"}</th><td className="whitespace-nowrap px-4 py-4">{row.beginsAt ? new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(row.beginsAt)) : "Noch offen"}</td><td className="px-4 py-4">{(() => { const eventSeries = series.find((s) => s.id === row.eventSeriesId); return eventSeries ? `${eventSeries.name} #${eventSeries.number}` : "—"; })()}</td><td className="px-4 py-4">{venues.find((v) => v.id === row.venueId)?.name ?? "—"}</td><td className="px-4 py-4"><StatusTag status={row.status} /></td><td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}/tickets`} aria-label={`Ticketverwaltung: ${row.remainingSeats} von ${row.maxSeats} Plätzen frei`} className="text-primary-700 underline dark:text-primary-300">{row.remainingSeats ?? "?"} / {row.maxSeats ?? "?"}</Link></td><td className="whitespace-nowrap px-4 py-4">{row.ticketPrice ? `${row.ticketPrice.replace(".", ",")} ${row.currency}` : "Noch offen"}</td><td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}/bookings`} aria-label={`Buchungen für ${row.name || "Unbenannter Entwurf"}: ${row._count.bookings}`} className="text-primary-700 underline dark:text-primary-300">{row._count.bookings}</Link></td><td className="px-4 py-4"><div className="flex items-start gap-2">{canManage && <button type="button" disabled={!!editor} title="Event bearbeiten" aria-label={`${row.name || "Unbenannter Entwurf"} bearbeiten`} onClick={() => { setEditor({ row }); setMessage(""); }} className="rounded-lg px-2 py-0.5 text-primary-700 hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-40 dark:text-primary-300 dark:hover:bg-primary-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 5 5L8 21H3v-5ZM13 6l5 5" /></svg></button>}{canManage && !editor && <DeleteEvent slug={company.slug} row={row} onDeleted={setMessage} />}</div></td></tr>)}</tbody></table>
-   {!visible.length && <p className="p-8 text-center text-sm text-zinc-500">{events.length ? "Keine passenden Events gefunden." : "Noch keine Events vorhanden. Erstelle das erste Event über den Button oben."}</p>}
+   {!visible.length && <p className="p-8 text-center text-sm text-zinc-500">{events.length ? "Keine passenden Events gefunden." : seriesDetails ? "Dieser Eventserie sind noch keine Events zugeordnet." : "Noch keine Events vorhanden. Erstelle das erste Event über den Button oben."}</p>}
   </div>
  </main>;
 }

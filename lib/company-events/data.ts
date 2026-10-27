@@ -2,9 +2,9 @@ import "server-only";
 import { getCompanySeries } from "@/lib/event-series/data";
 import { getPrisma } from "@/lib/db/prisma";
 import { calculateEventCapacity } from "@/lib/events/calculate-event-capacity";
-export async function getCompanyEvents(slug: string) {
+export async function getCompanyEvents(slug: string, seriesId?: string) {
  const options = await getCompanySeries(slug, false);
- const rows = await getPrisma().event.findMany({ where: { companyId: options.company.id }, orderBy: [{ beginsAt: "desc" }, { id: "asc" }], select: {
+ const rows = await getPrisma().event.findMany({ where: { companyId: options.company.id, ...(seriesId ? { eventSeriesId: seriesId } : {}) }, orderBy: [{ beginsAt: "desc" }, { id: "asc" }], select: {
  id: true, number: true, name: true, shortdescription: true, description: true, trainerName: true, imageUrl: true, trainers: { select: { trainerId: true } }, eventSeriesId: true, venueId: true, beginsAt: true, endsAt: true, maxSeats: true, ticketPrice: true, currency: true, status: true, _count: { select: { bookings: true, platformEvents: true } },
  } });
  const totals = rows.length ? await getPrisma().booking.groupBy({

@@ -223,10 +223,11 @@ model EventSeries {
   shortdescription     String?
   description          String?
   imageUrl             String?
+  suggestedDuration    Int?
   suggestedMaxSeats    Int?
   suggestedTicketPrice Decimal? @db.Decimal(10, 2)
   suggestedCurrency    String   @default("EUR") @db.Char(3)
-  suggestedTrainerName String?
+  suggestedTrainerName String? //deprecated
 
   // n:1 Relationen
   companyId          String

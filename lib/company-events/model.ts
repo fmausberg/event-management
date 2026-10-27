@@ -29,3 +29,10 @@ export function localDateTime(iso: string) {
  const pad = (n: number) => String(n).padStart(2, "0");
  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
+
+export function suggestedEndDate(beginsAt: string, duration: number | null | undefined): string {
+ if (!beginsAt || !duration || !Number.isInteger(duration) || duration < 1) return "";
+ const end = new Date(new Date(beginsAt).getTime() + duration * 60_000);
+ if (!Number.isFinite(end.getTime()) || end.getFullYear() > 9999) return "";
+ return localDateTime(end.toISOString());
+}

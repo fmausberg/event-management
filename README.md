@@ -52,6 +52,26 @@ Erstellungszeitpunkt.
 
 ## Datenmodell und Business-Logik
 
+### Vorgeschlagene Eventdauer
+
+`EventSeries.suggestedDuration` speichert optional eine positive ganze Anzahl Minuten.
+Die Migration `20261026163000_event_series_suggested_duration` ergänzt die Spalte
+und einen positiven Wertebereich; bestehende Reihen erhalten `NULL`.
+Vor Verwendung des geänderten Codes die Migration auf die gewünschte Datenbank
+anwenden (`npx prisma migrate deploy`) und den Client mit `npm run db:generate`
+generieren. `migrate deploy` wendet alle ausstehenden Migrationen an.
+
+Die Dauer lässt sich im Serienformular pflegen und erscheint in Übersicht und
+Detailseite. Bei neuen Events aus einer Reihe berechnet das Formular das Ende aus
+Beginn plus Dauer in Minuten, auch über Tagesgrenzen hinweg. Das gilt sowohl für
+den Plus-Button auf der Reihendetailseite als auch für die Reihenauswahl im normalen
+Eventformular. Solange das Ende nicht manuell angepasst wurde, folgt es Änderungen
+am Beginn oder an der gewählten Reihe. Ein manuelles Ende bleibt erhalten; Leeren
+des Endfelds aktiviert die Berechnung bei der nächsten Änderung wieder.
+Die Berechnung verwendet wie das Company-Eventformular die lokale Browserzeitzone.
+Bei bestehenden Events bleiben die Termine unverändert. `Event` erhält kein
+Dauerfeld: Gespeichert werden weiterhin nur Beginn und Ende.
+
 - `Event`: Stammdaten, maximale Kapazität, Zeitstempel und Relationen.
 - `PlatformEvent`: Zuordnung zu einer Plattform und externen Event-ID. Der Schlüssel
   `(platform, externalEventId)` ist global eindeutig: Ein externes Event gehört

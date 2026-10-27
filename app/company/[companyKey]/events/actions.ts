@@ -7,6 +7,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import { eventSchema, publishEventSchema, emptyEvent, type EventState } from "@/lib/company-events/model";
 import { uploadEventImage, deleteEventImage, EventImageError, type UploadedEventImage } from "@/lib/events/images";
 function refresh(slug: string) {
+ revalidatePath("/company/[companyKey]/event-series/[seriesId]", "page");
  revalidatePath("/account/events");
  revalidatePath(`/company/${encodeURIComponent(slug)}/trainers`);
  revalidatePath("/events/[companySlug]/[eventId]", "page");
