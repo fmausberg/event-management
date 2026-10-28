@@ -1,3 +1,4 @@
+import type { SeriesPreview } from "./preview";
 import { cancellationMinutes } from "@/lib/cancellations/policy";
 import { z } from "zod";
 
@@ -16,6 +17,6 @@ export const seriesSchema = z.object({
   suggestedVenueId: optionalText(191),
 });
 export type SeriesValues = z.input<typeof seriesSchema>;
-export type SeriesState = { success?: boolean; message?: string; errors?: Partial<Record<keyof SeriesValues, string[]>> };
+export type SeriesState = { preview?: SeriesPreview; success?: boolean; message?: string; errors?: Partial<Record<keyof SeriesValues, string[]>> };
 export type SeriesRow = { id: string; number: number; name: string; shortdescription: string | null; description: string | null; imageUrl: string | null; suggestedFreeCancellationUntilMinutesBeforeStart: number | null; suggestedDuration: number | null; suggestedMaxSeats: number | null; suggestedTicketPrice: string | null; suggestedCurrency: string; suggestedTrainerName: string | null; suggestedTrainerId: string | null; suggestedVenueId: string | null; _count: { events: number } };
 export type VenueOption = { id: string; name: string };

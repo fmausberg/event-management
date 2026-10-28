@@ -1,5 +1,6 @@
 "use server";
 
+import { SeriesConflict, updateSeriesWithPreview } from "@/lib/event-series/update";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
@@ -10,6 +11,8 @@ import { seriesSchema, type SeriesState } from "@/lib/event-series/validation";
 import { uploadEventImage, deleteEventImage, EventImageError, type UploadedEventImage } from "@/lib/events/images";
 
 function refresh(slug: string) {
+ revalidatePath("/events/[companySlug]/[eventId]", "page");
+  for (const path of ["/events", `/events/${encodeURIComponent(slug)}`, "/account/events", "/account/bookings", "/account", "/admin/events"]) revalidatePath(path);
  revalidatePath("/company/[companyKey]/event-series/[seriesId]", "page");
   revalidatePath(`/company/${encodeURIComponent(slug)}/trainers`);
   revalidatePath(`/company/${encodeURIComponent(slug)}/events`);
@@ -17,6 +20,8 @@ function refresh(slug: string) {
   revalidatePath("/admin/companies");
 }
 function failure(error: unknown): SeriesState {
+  if (error instanceof SeriesConflict) return { message: error.message };
+  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return { message: "Die Daten wurden gleichzeitig geändert. Bitte lade die Seite neu und prüfe die Vorschau erneut." };
   if (error instanceof EventImageError) return { message: error.message };
   if (error instanceof MemberAccessError) return { message: error.message };
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") return { message: "Verknüpfte Datensätze haben sich geändert. Bitte lade die Seite neu." };
@@ -40,19 +45,20 @@ export async function saveSeries(slug: string, id: string | null, _previous: Ser
     if (file !== null && !(file instanceof File)) return { message: "Ungültige Bilddatei." };
     const hasUpload = file instanceof File && file.size > 0;
     if (hasUpload && removeImage) return { message: "Bitte ein Bild auswählen oder das vorhandene entfernen." };
-    if (hasUpload && id !== null && !await db.eventSeries.findFirst({ where: { id, companyId: company.id }, select: { id: true } })) return { message: "Diese Eventserie ist nicht verfügbar." };
+    if (id !== null) {
+      const { imageUrl: ignored, ...fields } = parsed.data;
+      void ignored;
+      const result = await updateSeriesWithPreview(company.id, id, { ...fields, ...(removeImage ? { imageUrl: null } : {}), suggestedTrainerName: null }, hasUpload ? file : null, form);
+      if (result.success) refresh(slug);
+      return result;
+    }
     if (hasUpload) uploaded = await uploadEventImage(company.id, file);
     const { imageUrl: ignoredImageUrl, ...fields } = parsed.data;
     void ignoredImageUrl;
     const data = { ...fields, ...(uploaded ? { imageUrl: uploaded.imageUrl } : removeImage ? { imageUrl: null } : {}), suggestedTrainerName: null };
-    if (id === null) {
-      const session = await auth();
-      if (!session?.user?.id) return { message: "Bitte melde dich erneut an." };
-      await db.eventSeries.create({ data: { ...data, companyId: company.id, createdById: session.user.id } });
-    } else {
-      const result = await db.eventSeries.updateMany({ where: { id, companyId: company.id }, data: { ...data } });
-      if (!result.count) return { message: "Diese Eventserie existiert nicht in dieser Company." };
-    }
+    const session = await auth();
+    if (!session?.user?.id) return { message: "Bitte melde dich erneut an." };
+    await db.eventSeries.create({ data: { ...data, companyId: company.id, createdById: session.user.id } });
     saved = true;
   } catch (error) { return failure(error); }
   finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }

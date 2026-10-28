@@ -7,6 +7,7 @@ import { seriesSchema } from "@/lib/event-series/validation";
 import { uploadEventImage, deleteEventImage } from "@/lib/events/images";
 vi.mock("@/lib/events/images", async (original) => ({ ...await original<typeof import("@/lib/events/images")>(), uploadEventImage: vi.fn(), deleteEventImage: vi.fn() }));
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
+ $transaction: vi.fn(), event: { findMany: vi.fn(), updateMany: vi.fn() }, eventTrainer: { deleteMany: vi.fn(), createMany: vi.fn() },
  trainer: { findMany: vi.fn(), findFirst: vi.fn() },
  user: { findUnique: vi.fn() }, company: { findUnique: vi.fn() }, companyMembership: { findUnique: vi.fn() },
  eventSeries: { findFirst: vi.fn(), findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() }, venue: { findMany: vi.fn(), findFirst: vi.fn() },
@@ -34,7 +35,11 @@ it("saves and clears the optional cancellation policy without touching events", 
  expect(db.eventSeries.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({ suggestedFreeCancellationUntilMinutesBeforeStart: null }) }));
 });
 beforeEach(() => {
- vi.resetAllMocks(); db.trainer.findMany.mockResolvedValue([]); auth.mockResolvedValue({ user: { id: "actor" } }); db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
+ vi.resetAllMocks(); process.env.AUTH_SECRET = "series-test-secret";
+ db.$transaction.mockImplementation(async (fn) => fn(db));
+ db.event.findMany.mockResolvedValue([]);
+ db.event.updateMany.mockResolvedValue({ count: 1 });
+ db.eventSeries.findFirst.mockResolvedValue({ ...seriesSchema.parse(values), id: "series-1", companyId: "company-id", updatedAt: new Date("2026-01-01"), suggestedTrainerName: null }); db.trainer.findMany.mockResolvedValue([]); auth.mockResolvedValue({ user: { id: "actor" } }); db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
  db.company.findUnique.mockResolvedValue({ id: "company-id", slug: "yoga", name: "Yoga" });
  db.eventSeries.findMany.mockResolvedValue([]); db.venue.findMany.mockResolvedValue([]);
  db.eventSeries.updateMany.mockResolvedValue({ count: 1 }); db.eventSeries.deleteMany.mockResolvedValue({ count: 1 });
@@ -45,7 +50,7 @@ it("creates with trusted company and creator, normalizing price and currency", a
 });
 it("scopes updates and deletes to company and preserves events", async () => {
  await saveSeries("yoga", "series-1", {}, form());
- expect(db.eventSeries.updateMany).toHaveBeenCalledWith({ where: { id: "series-1", companyId: "company-id" }, data: expect.any(Object) });
+ expect(db.eventSeries.updateMany).toHaveBeenCalledWith({ where: { id: "series-1", companyId: "company-id", updatedAt: expect.any(Date) }, data: expect.any(Object) });
  await deleteSeries("yoga", "series-1", {}, form({ confirmed: "yes" }));
  expect(db.eventSeries.deleteMany).toHaveBeenCalledWith({ where: { id: "series-1", companyId: "company-id", events: { none: {} } } });
 });
@@ -132,4 +137,98 @@ it("stores EUR when currency is omitted or manipulated", async () => {
  expect(db.eventSeries.create.mock.calls[0][0].data.suggestedCurrency).toBe("EUR");
  await saveSeries("yoga", "existing", {}, form({ suggestedCurrency: "USD" }));
  expect(db.eventSeries.updateMany.mock.calls[0][0].data.suggestedCurrency).toBe("EUR");
+});
+
+function futureEvent(overrides: Record<string, unknown> = {}) {
+ return { id: "event-1", companyId: "company-id", eventSeriesId: "series-1", name: "Individual name", shortdescription: null, description: null, imageUrl: null, imagePublicId: null, beginsAt: new Date("2099-03-29T10:00:00Z"), endsAt: new Date("2099-03-29T11:00:00Z"), updatedAt: new Date("2026-01-01"), status: "DRAFT", maxSeats: 10, ticketPrice: "12.50", currency: "EUR", venueId: null, venue: null, trainers: [], trainerName: null, freeCancellationUntilMinutesBeforeStart: null, ...overrides };
+}
+it("does not preview semantically unchanged prices or whitespace", async () => {
+ db.event.findMany.mockResolvedValue([futureEvent()]);
+ expect((await saveSeries("yoga", "series-1", {}, form({ name: "Yoga ", suggestedTicketPrice: "012.5" }))).success).toBe(true);
+ expect(db.event.updateMany).not.toHaveBeenCalled();
+});
+it("previews actual overrides per changed attribute without writing", async () => {
+ db.event.findMany.mockResolvedValue([futureEvent()]);
+ const result = await saveSeries("yoga", "series-1", {}, form({ name: "New name", suggestedTicketPrice: "20" }));
+ expect(result.preview?.tabs.map((t) => t.key)).toEqual(["name", "suggestedTicketPrice"]);
+ expect(result.preview?.tabs[0].rows[0].before).toBe("Individual name");
+ expect(result.preview?.tabs[1].rows[0].after).toContain("20,00");
+ expect(db.eventSeries.updateMany).not.toHaveBeenCalled();
+ expect(db.event.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { companyId: "company-id", eventSeriesId: "series-1", beginsAt: { gt: expect.any(Date) } } }));
+});
+it("applies only selected fields and events in a serializable transaction", async () => {
+ db.event.findMany.mockResolvedValue([futureEvent(), futureEvent({ id: "event-2" })]);
+ const data = form({ name: "New", suggestedTicketPrice: "20" });
+ const { preview } = await saveSeries("yoga", "series-1", {}, data);
+ data.set("seriesPreviewToken", preview!.token);
+ data.set("seriesSelection", JSON.stringify({ name: [], suggestedTicketPrice: ["event-2"] }));
+ expect((await saveSeries("yoga", "series-1", {}, data)).success).toBe(true);
+ expect(db.event.updateMany).toHaveBeenCalledExactlyOnceWith({ where: expect.objectContaining({ id: "event-2", companyId: "company-id", eventSeriesId: "series-1", beginsAt: { gt: expect.any(Date) } }), data: { ticketPrice: "20" } });
+ expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "Serializable" });
+});
+it.each(["event", "series", "past", "tampered", "foreign", "unchanged"])("rejects %s preview conflicts before any write", async (conflict) => {
+ db.event.findMany.mockResolvedValue([futureEvent()]);
+ const data = form({ name: "New" });
+ const { preview } = await saveSeries("yoga", "series-1", {}, data);
+ data.set("seriesPreviewToken", preview!.token);
+ data.set("seriesSelection", JSON.stringify({ name: ["event-1"] }));
+ if (conflict === "event") db.event.findMany.mockResolvedValue([futureEvent({ name: "Concurrent" })]);
+ if (conflict === "series") db.eventSeries.findFirst.mockResolvedValue({ ...seriesSchema.parse(values), updatedAt: new Date() });
+ if (conflict === "past") db.event.findMany.mockResolvedValue([]);
+ if (conflict === "tampered") data.set("seriesPreviewToken", preview!.token + "x");
+ if (conflict === "foreign") data.set("seriesSelection", JSON.stringify({ name: ["foreign"] }));
+ if (conflict === "unchanged") data.set("seriesSelection", JSON.stringify({ description: ["event-1"] }));
+ expect((await saveSeries("yoga", "series-1", {}, data)).success).toBeUndefined();
+ expect(db.eventSeries.updateMany).not.toHaveBeenCalled();
+ expect(db.event.updateMany).not.toHaveBeenCalled();
+});
+it("shows an empty attribute tab when events already have its new value", async () => {
+ db.event.findMany.mockResolvedValue([futureEvent({ name: "New" })]);
+ const result = await saveSeries("yoga", "series-1", {}, form({ name: "New", suggestedTicketPrice: "20" }));
+ expect(result.preview?.tabs[0].rows).toEqual([]);
+ expect(result.preview?.tabs[1].rows).toHaveLength(1);
+});
+it("defers image uploads until confirmation and binds the file contents", async () => {
+ db.event.findMany.mockResolvedValue([futureEvent()]);
+ const data = form(); data.set("coverImage", new File(["image"], "cover.jpg", { type: "image/jpeg" }));
+ const { preview } = await saveSeries("yoga", "series-1", {}, data);
+ expect(preview?.tabs[0].key).toBe("imageUrl");
+ expect(uploadEventImage).not.toHaveBeenCalled();
+ data.set("seriesPreviewToken", preview!.token); data.set("seriesSelection", JSON.stringify({ imageUrl: ["event-1"] }));
+ data.set("coverImage", new File(["different"], "cover.jpg", { type: "image/jpeg" }));
+ expect((await saveSeries("yoga", "series-1", {}, data)).success).toBeUndefined();
+ expect(uploadEventImage).not.toHaveBeenCalled();
+});
+it("updates duration and trainer relations without changing the start or unrelated fields", async () => {
+ db.trainer.findFirst.mockResolvedValue({ id: "trainer-1", firstName: "Ada", lastName: "Lovelace" });
+ db.event.findMany.mockResolvedValue([futureEvent()]);
+ const data = form({ suggestedDuration: "90", suggestedTrainerId: "trainer-1" });
+ const { preview } = await saveSeries("yoga", "series-1", {}, data);
+ expect(preview?.tabs.find((t) => t.key === "suggestedDuration")?.rows[0].before).toBe("60 Minuten");
+ data.set("seriesPreviewToken", preview!.token);
+ data.set("seriesSelection", JSON.stringify({ suggestedDuration: ["event-1"], suggestedTrainerId: ["event-1"] }));
+ expect((await saveSeries("yoga", "series-1", {}, data)).success).toBe(true);
+ expect(db.event.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: { endsAt: new Date("2099-03-29T11:30:00Z"), trainerName: null } }));
+ expect(db.eventTrainer.createMany).toHaveBeenCalledWith({ data: [{ eventId: "event-1", trainerId: "trainer-1" }] });
+});
+it("rolls back series changes when a selected event write loses a race", async () => {
+ db.event.findMany.mockResolvedValue([futureEvent()]);
+ const data = form({ name: "New" });
+ const { preview } = await saveSeries("yoga", "series-1", {}, data);
+ data.set("seriesPreviewToken", preview!.token); data.set("seriesSelection", JSON.stringify({ name: ["event-1"] }));
+ db.event.updateMany.mockResolvedValue({ count: 0 });
+ const rollback = vi.fn();
+ db.$transaction.mockImplementation(async (fn) => { try { return await fn(db); } catch (error) { rollback(); throw error; } });
+ expect((await saveSeries("yoga", "series-1", {}, data)).success).toBeUndefined();
+ expect(rollback).toHaveBeenCalledOnce();
+});
+it("rejects a replay after the series version changed", async () => {
+ db.event.findMany.mockResolvedValue([futureEvent()]);
+ const data = form({ name: "New" });
+ const { preview } = await saveSeries("yoga", "series-1", {}, data);
+ data.set("seriesPreviewToken", preview!.token); data.set("seriesSelection", JSON.stringify({ name: [] }));
+ expect((await saveSeries("yoga", "series-1", {}, data)).success).toBe(true);
+ db.eventSeries.findFirst.mockResolvedValue({ ...seriesSchema.parse(values), name: "New", updatedAt: new Date() });
+ expect((await saveSeries("yoga", "series-1", {}, data)).success).toBeUndefined();
+ expect(db.eventSeries.updateMany).toHaveBeenCalledOnce();
 });

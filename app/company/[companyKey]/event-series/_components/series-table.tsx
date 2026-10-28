@@ -1,10 +1,12 @@
 "use client";
+import { SeriesPreviewDialog } from "./series-preview-dialog";
+import type { SeriesPreview } from "@/lib/event-series/preview";
 import { CancellationPolicyField } from "@/components/cancellation-policy-field";
 import Link from "next/link";
 import { EventImage } from "../../events/_components/event-image";
 import { TrainerPicker } from "@/components/trainer-picker";
 import type { TrainerOption } from "@/lib/trainers/validation";
-import { useActionState, useEffect, useRef, useState } from "react";
+import { startTransition, useActionState, useEffect, useRef, useState } from "react";
 import { deleteSeries, saveSeries } from "../actions";
 import type { SeriesRow, SeriesState, SeriesValues, VenueOption } from "@/lib/event-series/validation";
 
@@ -31,15 +33,21 @@ function SeriesForm({ slug, row, venues, trainers, onSaved, onCancel }: { slug: 
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [trainerBusy, setTrainerBusy] = useState(false);
   const [selectedTrainer, setSelectedTrainer] = useState(row?.suggestedTrainerId ?? "");
+  const [preview, setPreview] = useState<SeriesPreview | null>(null);
+  const submitted = useRef<FormData | null>(null);
   const [state, action, pending] = useActionState<SeriesState, FormData>(async (previous, form) => {
     if (coverFile) form.set("coverImage", coverFile);
     else form.delete("coverImage");
-    const result = await saveSeries(slug, row?.id ?? null, previous, form);
+    submitted.current = form;
+    let result: SeriesState;
+    try { result = await saveSeries(slug, row?.id ?? null, previous, form); }
+    catch { result = { message: "Die Änderung konnte nicht gespeichert werden. Bitte versuche es erneut." }; }
+    if (result.preview) setPreview(result.preview);
     if (result.success) onSaved(result.message!);
     return result;
   }, {});
   function error(name: keyof SeriesValues) { return state.errors?.[name] && <p id={`error-${name}`} className="mt-1 text-xs text-red-700 dark:text-red-300">{state.errors[name]?.join(" ")}</p>; }
-  return <dialog ref={panel} aria-labelledby="series-form-title" onCancel={(e) => { e.preventDefault(); if (!pending && !trainerBusy) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
+  return <><dialog ref={panel} aria-labelledby="series-form-title" onCancel={(e) => { e.preventDefault(); if (!pending && !trainerBusy) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
     <form action={action} onSubmit={(e) => { if (trainerBusy) e.preventDefault(); }} className="space-y-4">
     <header className="flex items-center justify-between"><h2 id="series-form-title" className="font-semibold">{row ? "Eventserie bearbeiten" : "Eventserie erstellen"}</h2><button type="button" disabled={pending || trainerBusy} aria-label="Formular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
     <fieldset disabled={pending} className="space-y-4">
@@ -50,10 +58,17 @@ function SeriesForm({ slug, row, venues, trainers, onSaved, onCancel }: { slug: 
       <div><label htmlFor="series-venue" className="text-sm">Venue (Vorgabe)</label><select id="series-venue" name="suggestedVenueId" defaultValue={row?.suggestedVenueId ?? ""} className={inputClass}><option value="">Keine Venue</option>{venues.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select>{error("suggestedVenueId")}</div>
       <div className="sm:col-span-2"><label htmlFor="series-description" className="text-sm">Beschreibung</label><textarea id="series-description" name="description" rows={5} maxLength={20000} defaultValue={row?.description ?? ""} className={inputClass} />{error("description")}</div>
     </fieldset>
-    <p className="text-xs text-zinc-500">Vorgaben dienen als Vorlage. Bestehende Events werden durch Änderungen an der Serie nicht verändert.</p>
+    <p className="text-xs text-zinc-500">Vorgaben dienen als Vorlage. Änderungen können beim Speichern einzeln auf zukünftige Events übertragen werden.</p>
     {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
     <div className="flex gap-3"><button disabled={pending || trainerBusy} className={primaryClass}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending || trainerBusy} onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
-  </form></dialog>;
+  </form></dialog>
+    {preview && <SeriesPreviewDialog key={preview.token} preview={preview} pending={pending} message={state.message} onCancel={() => { setPreview(null); submitted.current = null; }} onApply={(selection) => {
+      const form = submitted.current!;
+      form.set("seriesPreviewToken", preview.token);
+      form.set("seriesSelection", JSON.stringify(selection));
+      startTransition(() => action(form));
+    }} />}
+  </>;
 }
 function DeleteSeries({ slug, row, onDeleted }: { slug: string; row: SeriesRow; onDeleted: (message: string) => void }) {
   const [confirm, setConfirm] = useState(false);
