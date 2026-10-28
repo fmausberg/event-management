@@ -55,9 +55,13 @@ requestedById null; seine ursprüngliche ID bleibt im unveränderten Request-Key
 
 `POST /api/payments/reconcile` mit `Authorization: Bearer <PAYMENTS_CRON_SECRET>`
 muss mindestens einmal pro Minute laufen, **auch bei ausschließlich kostenlosen
-Events**. Er bearbeitet bis zu 50 fällige Ticketmails. Stripe-Webhooks und die
-Zahlungsrückkehrseite können zusätzlich den initialen Auftrag sofort zustellen;
-sie verwenden denselben Worker und dieselbe Sperre.
+Events**. Er bearbeitet bis zu 50 fällige Ticketmails als Nachbearbeitung bei
+Versandfehlern oder Prozessabbrüchen. Kostenlose Buchungen versuchen den Versand
+des initialen Auftrags sofort nach erfolgreichem Commit. Ein Versandfehler lässt
+die Buchung erfolgreich und den Auftrag für einen späteren Cron-Versuch bestehen.
+Wiederholte Buchungsrequests erzeugen keinen weiteren Versand. Stripe-Webhooks
+und die Zahlungsrückkehrseite können ebenfalls den initialen Auftrag sofort
+zustellen; alle verwenden denselben Worker und dieselbe Sperre.
 
 Eine atomare Datenbankoperation reserviert den Auftrag für fünf Minuten, erhöht
 attempts und setzt eine zufällige lockToken. Abschluss und Fehlerfreigabe prüfen

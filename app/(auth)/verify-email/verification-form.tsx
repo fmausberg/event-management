@@ -10,9 +10,9 @@ export function VerificationForm() {
   const [sent, resend, sending] = useActionState<{ message?: string }, FormData>(resendVerification, {});
   useEffect(() => {
     const value = window.location.hash.slice(1);
-    // Read the browser-only fragment after hydration before showing either form.
+    // Preserve the first read when Strict Mode replays this effect after URL cleanup.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setToken(value);
+    setToken((current) => current ?? value);
     if (value) {
       // The secret fragment is browser-only: read after hydration, then remove it from the address bar.
       window.history.replaceState(null, "", window.location.pathname);

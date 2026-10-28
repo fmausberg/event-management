@@ -13,7 +13,7 @@ import { ensureCheckout } from "@/lib/payments/checkout";
 vi.mock("@/lib/payments/connect", () => ({ refreshConnectAccount: vi.fn() }));
 vi.mock("@/lib/payments/checkout", () => ({ ensureCheckout: vi.fn() }));
 vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
-const { auth, db, rate } = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn() }, payment: { findUniqueOrThrow: vi.fn() }, ticket: { createMany: vi.fn() }, ticketMail: { create: vi.fn() }, $transaction: vi.fn() } }));
+const { auth, db, rate } = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn() }, payment: { findUniqueOrThrow: vi.fn() }, ticket: { createMany: vi.fn() }, ticketMail: { create: vi.fn(), updateMany: vi.fn(), findFirst: vi.fn() }, $transaction: vi.fn() } }));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
@@ -31,6 +31,9 @@ beforeEach(() => {
  vi.resetAllMocks(); auth.mockResolvedValue(null); vi.stubEnv("AUTH_SECRET", "test-only-booking-secret");
  rate.mockResolvedValue(true); db.event.findFirst.mockResolvedValue(event); db.booking.findUnique.mockResolvedValue(null);
  db.booking.aggregate.mockResolvedValue({ _sum: { quantity: 3 } }); db.booking.create.mockResolvedValue({ number: 42 });
+ db.ticketMail.create.mockImplementation(async ({ data }) => ({ id: "mail-1", ...data }));
+ db.ticketMail.updateMany.mockResolvedValue({ count: 1 });
+ db.ticketMail.findFirst.mockImplementation(async () => ({ ...db.ticketMail.create.mock.calls[0][0].data, attempts: 1 }));
  db.$transaction.mockImplementation(async (callback) => callback(db));
 });
 afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
@@ -79,9 +82,9 @@ it("reuses an existing booking for repeated submission without inserting again",
  expect(db.ticket.createMany).not.toHaveBeenCalled();
  expect(sendMail).not.toHaveBeenCalled();
 });
-it("queues confirmation atomically with free tickets and does not duplicate it on replay", async () => {
+it("queues confirmation atomically, sends after commit and does not duplicate it on replay", async () => {
  const data = form();
- db.$transaction.mockImplementation(async (callback) => {
+ db.$transaction.mockImplementationOnce(async (callback) => {
   const result = await callback(db);
   expect(db.ticketMail.create).toHaveBeenCalledTimes(1);
   expect(sendMail).not.toHaveBeenCalled();
@@ -94,7 +97,8 @@ it("queues confirmation atomically with free tickets and does not duplicate it o
  db.booking.findUnique.mockResolvedValue({ eventId: "event-1", number: 42, status: "CONFIRMED" });
  await bookPublicEvent("yoga", "event-1", {}, data);
  expect(db.ticketMail.create).toHaveBeenCalledTimes(1);
- expect(sendMail).not.toHaveBeenCalled();
+ expect(sendMail).toHaveBeenCalledTimes(1);
+ expect(sendMail).toHaveBeenCalledWith(decryptPaymentMail(queued.encryptedMessage));
 });
 it("sends no confirmation when committing the transaction fails", async () => {
  db.$transaction.mockImplementation(async (callback) => {
@@ -103,6 +107,17 @@ it("sends no confirmation when committing the transaction fails", async () => {
  });
  expect((await bookPublicEvent("yoga", "event-1", {}, form())).success).toBeUndefined();
  expect(sendMail).not.toHaveBeenCalled();
+});
+it("keeps the booking successful and schedules a retry when immediate SMTP delivery fails", async () => {
+ vi.spyOn(console, "error").mockImplementation(() => {});
+ vi.mocked(sendMail).mockRejectedValueOnce(new Error("SMTP unavailable"));
+ expect((await bookPublicEvent("yoga", "event-1", {}, form())).success).toBe(true);
+ expect(sendMail).toHaveBeenCalledTimes(1);
+ expect(db.ticketMail.updateMany).toHaveBeenLastCalledWith(expect.objectContaining({
+  data: expect.objectContaining({ lastError: "DELIVERY_FAILED", availableAt: expect.any(Date), lockedUntil: null }),
+ }));
+ expect(db.ticketMail.updateMany.mock.calls.at(-1)![0].data).not.toHaveProperty("encryptedMessage");
+ expect(revalidatePath).toHaveBeenCalled();
 });
 it("rolls back free booking and tickets if initial outbox insertion fails", async () => {
  let persisted = { bookings: 0, tickets: 0, mails: 0 };
@@ -164,7 +179,7 @@ it("propagates ticket failures out of the transaction and permits a clean retry"
   event: db.event,
   booking: { findUnique: db.booking.findUnique, aggregate: db.booking.aggregate, create: vi.fn() },
   ticket: { createMany: vi.fn() },
-  ticketMail: { create: vi.fn() },
+  ticketMail: { create: vi.fn().mockResolvedValue({ id: "mail-1" }) },
  };
  let rolledBack: unknown;
  let fail = true;
