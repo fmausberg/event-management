@@ -1,0 +1,33 @@
+import { QRCodeSVG } from "qrcode.react";
+import type { ReactNode } from "react";
+import type { TicketViewModel } from "@/lib/tickets/view-model";
+
+type TicketCardProps = {
+  ticket: TicketViewModel;
+  bookingNumber?: number;
+  // The caller supplies its existing credential. This component never creates one.
+  qrCode: { value: string; expiresAt?: string } | null;
+  children?: ReactNode;
+};
+
+export function TicketCard({ ticket, bookingNumber, qrCode, children }: TicketCardProps) {
+  const date = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" });
+  const checkedInDate = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Berlin" });
+  return <section className="space-y-4 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm dark:border-zinc-800 dark:bg-zinc-950">
+    <h1 className="text-2xl font-semibold">Dein Ticket</h1>
+    <p className="text-sm text-zinc-500">Ticket #{ticket.number}{bookingNumber != null && ` · Buchung #${bookingNumber}`}</p>
+    <h2 className="break-words text-xl font-semibold">{ticket.eventName}</h2>
+    <p>{ticket.beginsAt ? `${date.format(new Date(ticket.beginsAt))} Uhr (Berlin)` : "Termin noch offen"}</p>
+    {ticket.venue && <p className="break-words">{ticket.venue}</p>}
+    <p><span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${ticket.status === "Gültig" ? "bg-green-100 text-green-800" : ticket.status === "Storniert" || ticket.status === "Nicht gültig" ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"}`}>{ticket.status}</span></p>
+    {ticket.checkedInAt && <p className="text-sm">Bereits eingelöst am {checkedInDate.format(new Date(ticket.checkedInAt))} Uhr (Berlin)</p>}
+    {qrCode && <figure className="flex flex-col items-center gap-4 rounded-lg bg-white p-4 text-zinc-900">
+      <QRCodeSVG value={qrCode.value} size={260} level="M" marginSize={4} title={`QR-Code für Ticket #${ticket.number}`} className="h-auto max-w-full" />
+      <figcaption className="text-center text-sm">Dein Ticket-QR-Code
+        {ticket.status === "Gültig" && <span className="block">Zeige diesen QR-Code beim Einlass vor.</span>}
+        {qrCode.expiresAt && <span className="block text-xs text-zinc-500">QR-Code gültig bis {date.format(new Date(qrCode.expiresAt))} Uhr (Berlin). Danach diese Seite erneut laden.</span>}
+      </figcaption>
+    </figure>}
+    {children}
+  </section>;
+}

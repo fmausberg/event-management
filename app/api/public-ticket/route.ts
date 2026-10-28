@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
+import { ticketPresentationSelect, toTicketViewModel } from "@/lib/tickets/presentation";
 
 export const runtime = "nodejs";
 const responseHeaders = { "Cache-Control": "private, no-store", "Referrer-Policy": "no-referrer", "X-Robots-Tag": "noindex, nofollow" };
@@ -37,12 +38,10 @@ export async function POST(request: Request) {
     if (!/^[A-Za-z0-9_-]{43}$/.test(body)) return reply({ message: "Ticket nicht verfügbar." }, 404);
     const ticket = await db.ticket.findUnique({
       where: { publicTokenHash: createHash("sha256").update(body).digest("hex") },
-      select: { number: true, status: true, checkedInAt: true, booking: { select: { status: true, event: { select: { name: true, beginsAt: true, status: true, venue: { select: { name: true, city: true } } } } } } },
+      select: ticketPresentationSelect,
     });
     if (!ticket) return reply({ message: "Ticket nicht verfügbar." }, 404);
-    const event = ticket.booking.event;
-    const status = ticket.status === "CANCELLED" || ticket.booking.status === "CANCELLED" || event.status === "CANCELLED" ? "Storniert" : ticket.checkedInAt ? "Bereits eingelöst" : "Gültig";
-    return reply({ number: ticket.number, status, checkedInAt: ticket.checkedInAt?.toISOString() ?? null, eventName: event.name, beginsAt: event.beginsAt?.toISOString() ?? "", venue: event.venue ? [event.venue.name, event.venue.city].filter(Boolean).join(", ") : null });
+    return reply(toTicketViewModel(ticket));
   } catch {
     return reply({ message: "Ticket aktuell nicht verfügbar. Bitte später erneut versuchen." }, 503);
   }
