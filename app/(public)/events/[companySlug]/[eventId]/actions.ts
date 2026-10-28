@@ -14,6 +14,7 @@ import { emailSchema } from "@/lib/auth/validation";
 import { consumeAuthAttempt } from "@/lib/auth/rate-limit";
 import { readBookingToken } from "@/lib/bookings/public-token";
 import { createTicketToken } from "@/lib/tickets/public-token";
+import { TicketCodeError } from "@/lib/tickets/code-encryption";
 import { ticketLink } from "@/lib/tickets/public-link";
 import { sendMail, type MailMessage } from "@/lib/mail";
 import { bookingConfirmation } from "@/lib/mail/templates/booking-confirmation";
@@ -79,10 +80,11 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
    const booking = await tx.booking.create({ data: { id: token.id, eventId, userId, customerName: parsed.data.name, customerEmail: parsed.data.email, quantity: parsed.data.quantity, status: "CONFIRMED", platform: null, externalBookingId: null }, select: { number: true } });
    const ticketTokens = Array.from({ length: parsed.data.quantity }, () => createTicketToken());
    await tx.ticket.createMany({
-    data: ticketTokens.map(({ publicTokenHash }) => ({
+    data: ticketTokens.map(({ publicTokenHash, encryptedPublicToken }) => ({
      bookingId: token.id,
      status: "VALID" as const,
      publicTokenHash,
+     encryptedPublicToken,
     })),
    });
    confirmation = { to: parsed.data.email, ...bookingConfirmation({
@@ -98,6 +100,7 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
    checkoutUrl = session.status === "open" && session.url ? session.url : `/booking/payment/${payment.publicToken}`;
   }
  } catch (error) {
+  if (error instanceof TicketCodeError) console.error("[tickets:create] Code unavailable", error.reason);
   if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2002"].includes(error.code)) return { message: "Eine Buchung wurde gleichzeitig verarbeitet. Bitte klicke erneut auf Buchen; eine bereits gespeicherte Buchung wird nicht doppelt angelegt." };
   return { message: "Die Buchung konnte gerade nicht abgeschlossen werden. Bitte versuche es erneut." };
  }

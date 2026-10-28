@@ -26,7 +26,7 @@ export async function applyCheckoutSession(session: Stripe.Checkout.Session, acc
       if (paid) {
         const booking = payment.booking;
         const tokens = Array.from({ length: booking.quantity }, () => createTicketToken());
-        await tx.ticket.createMany({ data: tokens.map(({ publicTokenHash }) => ({ bookingId: booking.id, publicTokenHash })) });
+        await tx.ticket.createMany({ data: tokens.map(({ publicTokenHash, encryptedPublicToken }) => ({ bookingId: booking.id, publicTokenHash, encryptedPublicToken })) });
         const message = { to: booking.customerEmail!, ...bookingConfirmation({
           customerName: booking.customerName!, bookingNumber: booking.number, eventName: booking.event.name,
           beginsAt: booking.event.beginsAt, quantity: booking.quantity, ticketLinks: tokens.map(({ token }) => ticketLink(token)),

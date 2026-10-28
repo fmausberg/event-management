@@ -1,8 +1,12 @@
 import { createHash } from "node:crypto";
-import { expect, it, vi } from "vitest";
+import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { createTicketToken } from "@/lib/tickets/public-token";
 
 vi.mock("server-only", () => ({}));
+beforeEach(() => {
+  vi.stubEnv("TICKET_CODE_ENCRYPTION_KEYS", JSON.stringify({ active: "k1", keys: { k1: Buffer.alloc(32, 7).toString("base64") } }));
+});
+afterEach(() => vi.unstubAllEnvs());
 
 it("creates a URL-safe token with 32 random bytes and its SHA-256 hash", () => {
  const { token, publicTokenHash } = createTicketToken();

@@ -2,7 +2,8 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { createHash } from "node:crypto";
 import { Prisma } from "@prisma/client";
 import { inspectTicket, redeemTicket } from "@/app/account/scan/actions";
-import { createAccountTicketToken } from "@/lib/tickets/account-token";
+import { createTicketToken } from "@/lib/tickets/public-token";
+import { decryptTicketCode } from "@/lib/tickets/code-encryption";
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: { user: { findUnique: vi.fn(), findMany: vi.fn() }, ticket: { findUnique: vi.fn(), updateMany: vi.fn() }, authRateLimit: { deleteMany: vi.fn(), upsert: vi.fn() }, $transaction: vi.fn() } }));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("server-only", () => ({}));
@@ -32,17 +33,21 @@ it("inspects by hash and never checks in automatically", async () => {
  expect(db.ticket.findUnique.mock.calls[0][0].select.booking.select.event.select.staff.where).toEqual({ userId: "staff-user" });
 });
 
-it("redeems signed account QR codes through the same permission and atomic check-in flow", async () => {
- vi.stubEnv("AUTH_SECRET", "test-account-ticket-secret");
+it("rejects the retired account token format without looking up tickets", async () => {
+ await redeemTicket("account.payload.signature");
+ expect(db.ticket.findUnique).not.toHaveBeenCalled();
+ expect(db.ticket.updateMany).not.toHaveBeenCalled();
+});
+it("finds the stable decrypted profile/email code by hash through the existing check-in flow", async () => {
+ vi.stubEnv("TICKET_CODE_ENCRYPTION_KEYS", JSON.stringify({ active: "k1", keys: { k1: Buffer.alloc(32, 7).toString("base64") } }));
  try {
-  const credential = createAccountTicketToken("ticket");
-  expect((await redeemTicket(credential.token)).ticket?.canRedeem).toBe(false);
-  expect(db.ticket.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "ticket" } }));
+  const record = createTicketToken();
+  const code = decryptTicketCode(record.encryptedPublicToken, record.publicTokenHash);
+  await redeemTicket(code);
+  expect(db.ticket.findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { publicTokenHash: record.publicTokenHash } }));
   expect(db.ticket.updateMany).toHaveBeenCalledTimes(1);
-  db.ticket.updateMany.mockClear();
-  const expired = createAccountTicketToken("ticket", Date.now() - 86400001);
-  expect((await redeemTicket(expired.token)).ticket).toBeUndefined();
-  expect(db.ticket.updateMany).not.toHaveBeenCalled();
+  expect(db.ticket.updateMany.mock.calls[0][0].data).not.toHaveProperty("publicTokenHash");
+  expect(db.ticket.updateMany.mock.calls[0][0].data).not.toHaveProperty("encryptedPublicToken");
  } finally { vi.unstubAllEnvs(); }
 });
 it.each(["event", "venue"])("allows %s staff to redeem and scopes the atomic write", async (type) => {

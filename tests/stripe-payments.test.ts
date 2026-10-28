@@ -6,6 +6,7 @@ import { ensureCheckout } from "@/lib/payments/checkout";
 import { encryptPaymentMail, decryptPaymentMail, deliverPaymentMail } from "@/lib/payments/mail";
 import { euroAmount } from "@/lib/payments/stripe";
 import { POST } from "@/app/api/webhooks/stripe/route";
+import { decryptTicketCode } from "@/lib/tickets/code-encryption";
 
 const { db, stripe, sendMail } = vi.hoisted(() => ({
   db: {
@@ -31,6 +32,8 @@ function session(overrides: Record<string, unknown> = {}) {
   return { id: "cs_1", metadata: { paymentId: "payment-1" }, client_reference_id: "booking-1", amount_total: 2500, currency: "eur", mode: "payment", status: "complete", payment_status: "paid", payment_intent: "pi_1", ...overrides } as unknown as Stripe.Checkout.Session;
 }
 beforeEach(() => {
+  vi.stubEnv("TICKET_CODE_ENCRYPTION_KEYS", JSON.stringify({ active: "k1", keys: { k1: Buffer.alloc(32, 7).toString("base64") } }));
+
   vi.resetAllMocks();
   vi.stubEnv("AUTH_SECRET", "test-encryption-secret");
   vi.stubEnv("AUTH_URL", "https://events.example.com");
@@ -53,6 +56,11 @@ it("confirms paid bookings and persists encrypted ticket mail atomically", async
   const mail = decryptPaymentMail(encrypted);
   expect(mail.text).toContain("https://events.example.com/tickets#");
   expect(mail.to).toBe("ada@example.com");
+  for (const ticket of tickets) {
+    const code = decryptTicketCode(ticket.encryptedPublicToken, ticket.publicTokenHash);
+    expect(mail.text).toContain(`/tickets#${code}`);
+    expect(JSON.stringify(tickets)).not.toContain(code);
+  }
   expect(sendMail).not.toHaveBeenCalled();
   expect(db.stripeWebhookEvent.create).toHaveBeenCalledWith({ data: { id: "evt_1" } });
 });

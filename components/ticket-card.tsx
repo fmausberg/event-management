@@ -6,7 +6,7 @@ type TicketCardProps = {
   ticket: TicketViewModel;
   bookingNumber?: number;
   // The caller supplies its existing credential. This component never creates one.
-  qrCode: { value: string; expiresAt?: string } | null;
+  qrCode: { value: string } | null;
   children?: ReactNode;
 };
 
@@ -25,7 +25,6 @@ export function TicketCard({ ticket, bookingNumber, qrCode, children }: TicketCa
       <QRCodeSVG value={qrCode.value} size={260} level="M" marginSize={4} title={`QR-Code für Ticket #${ticket.number}`} className="h-auto max-w-full" />
       <figcaption className="text-center text-sm">Dein Ticket-QR-Code
         {ticket.status === "Gültig" && <span className="block">Zeige diesen QR-Code beim Einlass vor.</span>}
-        {qrCode.expiresAt && <span className="block text-xs text-zinc-500">QR-Code gültig bis {date.format(new Date(qrCode.expiresAt))} Uhr (Berlin). Danach diese Seite erneut laden.</span>}
       </figcaption>
     </figure>}
     {children}

@@ -24,6 +24,8 @@ function form(token = createBookingToken("event-1", "0.00", "EUR"), overrides: R
  const data = new FormData(); Object.entries({ token, name: " Ada ", email: " ADA@example.com ", quantity: "2", ...overrides }).forEach(([k, v]) => data.set(k, v)); return data;
 }
 beforeEach(() => {
+  vi.stubEnv("TICKET_CODE_ENCRYPTION_KEYS", JSON.stringify({ active: "k1", keys: { k1: Buffer.alloc(32, 7).toString("base64") } }));
+
  vi.stubEnv("AUTH_URL", "https://events.example.com");
  vi.resetAllMocks(); auth.mockResolvedValue(null); vi.stubEnv("AUTH_SECRET", "test-only-booking-secret");
  rate.mockResolvedValue(true); db.event.findFirst.mockResolvedValue(event); db.booking.findUnique.mockResolvedValue(null);
@@ -111,14 +113,14 @@ it("sends no confirmation when committing the transaction fails", async () => {
  expect((await bookPublicEvent("yoga", "event-1", {}, form())).success).toBeUndefined();
  expect(sendMail).not.toHaveBeenCalled();
 });
-it.each([1, 2, 7])("creates exactly %i valid tickets and persists only their hashes", async (quantity) => {
+it.each([1, 2, 7])("creates exactly %i valid tickets and persists their hashes and ciphertexts", async (quantity) => {
  const generated = vi.spyOn(ticketTokens, "createTicketToken");
  const token = createBookingToken("event-1", "0.00", "EUR");
  const result = await bookPublicEvent("yoga", "event-1", {}, form(token, { quantity: String(quantity) }));
  expect(result.success).toBe(true);
  expect(generated).toHaveBeenCalledTimes(quantity);
  expect(db.ticket.createMany).toHaveBeenCalledExactlyOnceWith({ data: generated.mock.results.map(({ value }) => ({
-  bookingId: readBookingToken(token)!.id, status: "VALID", publicTokenHash: value.publicTokenHash,
+  bookingId: readBookingToken(token)!.id, status: "VALID", publicTokenHash: value.publicTokenHash, encryptedPublicToken: value.encryptedPublicToken,
  })) });
  expect(new Set(generated.mock.results.map(({ value }) => value.publicTokenHash)).size).toBe(quantity);
  const persisted = JSON.stringify([db.booking.create.mock.calls, db.ticket.createMany.mock.calls, result]);
@@ -136,6 +138,15 @@ it("does not add tickets when the same successful form is submitted again", asyn
  expect(await bookPublicEvent("yoga", "event-1", {}, data)).toEqual(first);
  expect(db.booking.create).toHaveBeenCalledTimes(1);
  expect(db.ticket.createMany).toHaveBeenCalledTimes(1);
+});
+it("does not issue tickets or send mail if ticket encryption is not configured", async () => {
+ vi.stubEnv("TICKET_CODE_ENCRYPTION_KEYS", "");
+ vi.spyOn(console, "error").mockImplementation(() => {});
+ const result = await bookPublicEvent("yoga", "event-1", {}, form());
+ expect(result.success).toBeUndefined();
+ expect(db.ticket.createMany).not.toHaveBeenCalled();
+ expect(sendMail).not.toHaveBeenCalled();
+ expect(console.error).toHaveBeenCalledWith("[tickets:create] Code unavailable", "CONFIG");
 });
 it("propagates ticket failures out of the transaction and permits a clean retry", async () => {
  // This transaction double commits staged writes only if the callback resolves.

@@ -4,7 +4,6 @@ import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { getPrisma } from "@/lib/db/prisma";
 import { trainerIdentityForUser } from "@/lib/trainers/identity";
-import { readAccountTicketToken } from "@/lib/tickets/account-token";
 
 export type ScanResult = { message?: string; ticket?: {
  number: number; eventName: string; beginsAt: string; venue: string | null;
@@ -15,8 +14,7 @@ async function processTicket(token: string, redeem: boolean): Promise<ScanResult
  const session = await auth();
  const userId = session?.user?.id;
  if (!userId) return { message: "Bitte melde dich an." };
- const accountTicketId = readAccountTicketToken(token);
- if (!accountTicketId && (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token))) return { message: "Ticket nicht verfügbar. Lade einen abgelaufenen Konto-QR-Code erneut." };
+ if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) return { message: "Ticket nicht verfügbar." };
  try {
   const db = getPrisma();
   const now = Date.now();
@@ -30,7 +28,7 @@ async function processTicket(token: string, redeem: boolean): Promise<ScanResult
   const trainerIdentity = await trainerIdentityForUser(user);
   return await db.$transaction(async (tx): Promise<ScanResult> => {
    const ticket = await tx.ticket.findUnique({
-    where: accountTicketId ? { id: accountTicketId } : { publicTokenHash: createHash("sha256").update(token).digest("hex") },
+    where: { publicTokenHash: createHash("sha256").update(token).digest("hex") },
     select: { id: true, number: true, status: true, checkedInAt: true, booking: { select: {
      status: true, event: { select: { name: true, beginsAt: true, status: true,
       staff: { where: { userId }, select: { id: true } },

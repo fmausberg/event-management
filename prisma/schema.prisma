@@ -414,6 +414,7 @@ model Ticket {
 
   // Attribute
   publicTokenHash String       @unique
+  encryptedPublicToken String
   status          TicketStatus @default(VALID)
   checkedInAt     DateTime?
   checkedInById   String?

@@ -61,7 +61,7 @@ Es gibt keine automatischen Retries: Bei einem Verbindungsabbruch kann die Mail
 bereits angenommen worden sein. Ein späterer automatischer Buchungsversand braucht
 eine eigene Zustellstrategie (z. B. Outbox), außerhalb der Buchungstransaktion.
 
-Neue öffentliche Buchungen versenden nach dem Commit eine Bestätigung an die
+Neue kostenlose öffentliche Buchungen versenden nach dem Commit eine Bestätigung an die
 Buchungsadresse (bzw. `MAIL_TEST_RECIPIENT`). Die editierbare Vorlage liegt in
 `lib/mail/templates/booking-confirmation.ts`: Betreff und Text dort bearbeiten;
 HTML wird daraus automatisch mit escapten Werten erzeugt.
@@ -69,17 +69,22 @@ Wiederholtes Absenden derselben Buchung versendet keine weitere Mail.
 Bei Versandfehlern bleibt die Buchung erfolgreich; die Buchungsseite zeigt einen
 Hinweis an. Der Versand ist derzeit ein einmaliger Versuch ohne persistente
 Outbox: Ein Prozessabbruch nach dem Commit kann die Bestätigung verhindern.
-Es gibt noch keinen automatischen Wiederholungsversand oder Verifizierungsversand.
-Bestehende Ticket-Hashes erlauben keine Rekonstruktion der Klartext-Tokens;
-Alte Tickets erhalten daher keine nachträglich rekonstruierten Links.
+Stripe-Buchungen verwenden dagegen die persistente verschlüsselte PaymentMail-Outbox
+mit automatischen Wiederholungsversuchen (siehe `docs/stripe.md`). Eigentümer können
+Ticket-E-Mails im Konto ausdrücklich erneut senden. Dieser Versand verwendet die
+gespeicherten verschlüsselten Ticketcodes, ohne Codes oder Outbox-Einträge zu ersetzen.
+Alte reine Ticket-Hashes erlauben keine Rekonstruktion der Klartext-Tokens; solche
+Testdaten müssen vor der neuen Migration manuell bereinigt werden (siehe
+`docs/ticket-codes.md`). Es gibt keinen automatischen Backfill.
 Tests mocken SMTP und versenden keine echten Nachrichten.
 
 ## Öffentliche Tickets
 
 Neue Buchungsbestätigungen enthalten pro Platz einen eigenen Link. Die URL wird
 aus `AUTH_URL` gebildet: In Produktion ist HTTPS zwingend, lokal ist
-`http://localhost:3000` erlaubt. Die Klartext-Tokens bleiben nur während der
-Buchung und Mailerstellung im Arbeitsspeicher, in der Datenbank stehen nur Hashes.
+`http://localhost:3000` erlaubt. Tickets speichern Hashes und authentifiziert
+verschlüsselte Codes. Klartext wird serverseitig nur zur Erstellung, berechtigten
+Profilanzeige und Mailerstellung verwendet (siehe `docs/ticket-codes.md`).
 
 Die Links haben die Form `/tickets#TOKEN`. Der Fragmentteil gelangt nicht in
 HTTP-Zugriffslogs oder Referer-Header. Die Ticketseite übermittelt ihn per POST-Body
