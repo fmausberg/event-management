@@ -13,9 +13,9 @@ vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ event: { findMany }, boo
 vi.mock("next/navigation", () => ({ usePathname: pathname, notFound: () => { throw new Error("NOT_FOUND"); } }));
 vi.mock("@/app/(auth)/actions", () => ({ logout: vi.fn() }));
 beforeEach(() => { vi.resetAllMocks(); pathname.mockReturnValue("/events"); findMany.mockResolvedValue([]); groupBy.mockResolvedValue([]); });
-it("queries only published events and selects no private data", async () => {
+it("queries only published events that have not ended and selects no private data", async () => {
  await getPublicEvents();
- expect(findMany).toHaveBeenCalledWith({ where: { status: "PUBLISHED" }, orderBy: [{ beginsAt: "asc" }, { id: "asc" }], select: {
+ expect(findMany).toHaveBeenCalledWith({ where: { status: "PUBLISHED", endsAt: { gt: expect.any(Date) } }, orderBy: [{ beginsAt: "asc" }, { id: "asc" }], select: {
   id: true, name: true, shortdescription: true, imageUrl: true, beginsAt: true, ticketPrice: true, currency: true, maxSeats: true, company: { select: { name: true, slug: true } }, venue: { select: { name: true, city: true } }, eventSeries: { select: { imageUrl: true } },
  } });
 });
@@ -23,7 +23,7 @@ it("scopes company listings in the database and renders the shared search and fi
  company.mockResolvedValue({ name: "Event Yoga" });
  const html = renderToStaticMarkup(await CompanyPage({ params: Promise.resolve({ companySlug: "event-yoga" }) }));
  expect(company).toHaveBeenCalledWith({ where: { slug: "event-yoga" }, select: { name: true } });
- expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "PUBLISHED", company: { slug: "event-yoga" } } }));
+ expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "PUBLISHED", endsAt: { gt: expect.any(Date) }, company: { slug: "event-yoga" } } }));
  for (const label of ["Events – Event Yoga", "Name oder Ort", "Alle Städte", "Sortierung", "Noch keine veröffentlichten Events"]) expect(html).toContain(label);
 });
 it("returns not found for unknown company slugs without querying all events", async () => {

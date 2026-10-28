@@ -7,7 +7,11 @@ export async function getMyBookings() {
   const userId = await cancellationActor();
   return getPrisma().booking.findMany({ where: { userId }, orderBy: [{ bookedAt: "desc" }, { id: "asc" }], select: {
     id: true, number: true, quantity: true, status: true,
-    event: { select: { name: true, beginsAt: true, freeCancellationUntilMinutesBeforeStart: true, company: { select: { name: true } } } },
+    event: { select: { id: true, name: true, status: true, beginsAt: true, endsAt: true, freeCancellationUntilMinutesBeforeStart: true,
+      company: { select: { name: true, slug: true } },
+      venue: { select: { name: true, addressLine1: true, addressLine2: true, postalCode: true, city: true, countryCode: true } },
+    } },
+    tickets: { orderBy: { number: "asc" }, select: { id: true, number: true, status: true } },
     payment: { select: { status: true } },
     cancellationRequests: { orderBy: { requestedAt: "desc" }, select: { id: true, status: true, requestedAt: true, decidedAt: true, customerReason: true, refundStatus: true } },
   } });

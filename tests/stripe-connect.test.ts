@@ -2,6 +2,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { connectOnboarding, refreshConnectAccount } from "@/lib/payments/connect";
 import { startStripeOnboarding } from "@/app/company/[companyKey]/settings/actions";
 import { MemberAccessError } from "@/lib/companies/members";
+import { reportConnectError } from "@/lib/payments/connect-error";
 
 const { db, stripe, requireCompanyAdmin } = vi.hoisted(() => ({
   db: { company: { findUniqueOrThrow: vi.fn(), updateMany: vi.fn(), update: vi.fn() } },
@@ -51,4 +52,21 @@ it("explains missing platform setup without exposing Stripe response details", a
   expect(log).toHaveBeenCalledWith("Stripe onboarding failed", { type: "StripeInvalidRequestError", code: "non_connect_platform_accounts_v2_access_blocked", requestId: "req_test" });
   expect(JSON.stringify(log.mock.calls)).not.toContain("secret");
   expect(db.company.updateMany).not.toHaveBeenCalled();
+});
+it.each([
+  { type: "StripePermissionError", code: "forbidden", statusCode: 403 },
+  { type: "StripeInvalidRequestError", code: "not_found", statusCode: 404 },
+  { type: "StripePermissionError", code: "account_invalid", statusCode: 403 },
+])("explains inaccessible stored accounts without replacing them: %j", async (error) => {
+  const log = vi.spyOn(console, "error").mockImplementation(() => {});
+  requireCompanyAdmin.mockResolvedValue({ id: "company-1" });
+  stripe.v2.core.accountLinks.create.mockRejectedValue({ ...error, message: "private details", headers: { authorization: "secret" } });
+  await expect(startStripeOnboarding("studio", new FormData())).rejects.toThrow("/settings?stripe=account_access_denied");
+  expect(stripe.v2.core.accounts.create).not.toHaveBeenCalled();
+  expect(db.company.updateMany).not.toHaveBeenCalled();
+  expect(JSON.stringify(log.mock.calls)).not.toContain("private details");
+  expect(JSON.stringify(log.mock.calls)).not.toContain("secret");
+});
+it("distinguishes invalid credentials from missing account permissions", () => {
+  expect(reportConnectError({ type: "StripeAuthenticationError", statusCode: 401 })).toBe("authentication_error");
 });

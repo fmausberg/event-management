@@ -26,6 +26,18 @@ Das von diesem Listener angezeigte Signing Secret gehört in die lokale `STRIPE_
 
 ## Buchung und Zustände
 
+### Gespeichertes Stripe-Konto nicht zugänglich
+
+`forbidden`/`account_invalid` bzw. `not_found` beim Zugriff auf das gespeicherte
+Connected Account bedeuten, dass der aktuelle API-Schlüssel das Konto nicht öffnen
+kann. Prüfe die Stripe-Plattform, Test-/Live-Modus, die konkrete Sandbox und die
+Schlüsselberechtigungen. Auch ein entferntes Konto kann diese Fehler verursachen.
+Ein gültiger Testschlüssel allein reicht nicht: Er muss Zugriff auf genau dieses
+verbundene Konto haben. Nach einer Änderung von `STRIPE_SECRET_KEY` die Anwendung
+neu starten. Die Anwendung zeigt diesen Fall ausdrücklich an und ersetzt die
+Kontozuordnung nicht automatisch. Vor einem Neuverbinden vorhandene Buchungen und
+Payments prüfen; diese behalten ihre ursprüngliche Stripe-Kontozuordnung.
+
 - Kostenlose Buchungen werden weiterhin sofort bestätigt. Kostenpflichtige Buchungen unterstützen zunächst **EUR, Kartenzahlungen und maximal 100 Tickets**. Der Gesamtbetrag muss zwischen 0,50 und 999.999,99 EUR liegen. Keine zusätzliche Steuerberechnung oder Rabattcodes: Der Eventpreis ist der Checkout-Preis.
 - `PENDING_PAYMENT` reserviert Plätze in einer serialisierbaren Transaktion. Betrag, Währung, Empfängerkonto und Checkout-Parameter werden festgeschrieben. Die Checkout-Session läuft nach 35 Minuten ab.
 - Alle Kapazitätsabfragen berücksichtigen auch ausstehende Zahlungen. Plätze werden **nicht allein nach der lokalen Uhr** freigegeben: Erst ein von Stripe bestätigter Ablauf setzt die Buchung auf `EXPIRED`. Das verhindert Überbuchung bei verspäteten Zahlungs-Webhooks.
