@@ -7,12 +7,13 @@ import { createBookingToken, readBookingToken } from "@/lib/bookings/public-toke
 import * as ticketTokens from "@/lib/tickets/public-token";
 import { revalidatePath } from "next/cache";
 import { sendMail } from "@/lib/mail";
+import { decryptPaymentMail } from "@/lib/payments/mail";
 import { refreshConnectAccount } from "@/lib/payments/connect";
 import { ensureCheckout } from "@/lib/payments/checkout";
 vi.mock("@/lib/payments/connect", () => ({ refreshConnectAccount: vi.fn() }));
 vi.mock("@/lib/payments/checkout", () => ({ ensureCheckout: vi.fn() }));
 vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
-const { auth, db, rate } = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn() }, payment: { findUniqueOrThrow: vi.fn() }, ticket: { createMany: vi.fn() }, $transaction: vi.fn() } }));
+const { auth, db, rate } = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn() }, payment: { findUniqueOrThrow: vi.fn() }, ticket: { createMany: vi.fn() }, ticketMail: { create: vi.fn() }, $transaction: vi.fn() } }));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
@@ -78,32 +79,22 @@ it("reuses an existing booking for repeated submission without inserting again",
  expect(db.ticket.createMany).not.toHaveBeenCalled();
  expect(sendMail).not.toHaveBeenCalled();
 });
-it("sends confirmation to the normalized booking email only after commit", async () => {
- let committed = false;
+it("queues confirmation atomically with free tickets and does not duplicate it on replay", async () => {
+ const data = form();
  db.$transaction.mockImplementation(async (callback) => {
   const result = await callback(db);
+  expect(db.ticketMail.create).toHaveBeenCalledTimes(1);
   expect(sendMail).not.toHaveBeenCalled();
-  committed = true;
   return result;
  });
- vi.mocked(sendMail).mockImplementation(async () => {
-  expect(committed).toBe(true);
-  return { messageId: "test" };
- });
- const data = form();
- await bookPublicEvent("yoga", "event-1", {}, data);
- expect(sendMail).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ to: "ada@example.com", subject: "Deine Buchungsbestätigung #42", text: expect.stringContaining("Event: Yoga"), html: expect.stringContaining("Anzahl Plätze: 2") }));
+ expect((await bookPublicEvent("yoga", "event-1", {}, data)).success).toBe(true);
+ const queued = db.ticketMail.create.mock.calls[0][0].data;
+ expect(queued.requestKey).toBe(`initial:${queued.bookingId}`);
+ expect(decryptPaymentMail(queued.encryptedMessage)).toMatchObject({ to: "ada@example.com", text: expect.stringContaining("Event: Yoga") });
  db.booking.findUnique.mockResolvedValue({ eventId: "event-1", number: 42, status: "CONFIRMED" });
- db.$transaction.mockImplementation(async (callback) => callback(db));
  await bookPublicEvent("yoga", "event-1", {}, data);
- expect(sendMail).toHaveBeenCalledTimes(1);
-});
-it("keeps the booking successful and shows a warning if SMTP fails", async () => {
- vi.mocked(sendMail).mockRejectedValue(new Error("SMTP failed"));
- const result = await bookPublicEvent("yoga", "event-1", {}, form());
- expect(result).toMatchObject({ success: true, number: 42 });
- expect(result.message).toContain("E-Mail konnte nicht versendet");
- expect(revalidatePath).toHaveBeenCalled();
+ expect(db.ticketMail.create).toHaveBeenCalledTimes(1);
+ expect(sendMail).not.toHaveBeenCalled();
 });
 it("sends no confirmation when committing the transaction fails", async () => {
  db.$transaction.mockImplementation(async (callback) => {
@@ -111,6 +102,22 @@ it("sends no confirmation when committing the transaction fails", async () => {
   throw new Error("commit failed");
  });
  expect((await bookPublicEvent("yoga", "event-1", {}, form())).success).toBeUndefined();
+ expect(sendMail).not.toHaveBeenCalled();
+});
+it("rolls back free booking and tickets if initial outbox insertion fails", async () => {
+ let persisted = { bookings: 0, tickets: 0, mails: 0 };
+ db.$transaction.mockImplementation(async (callback) => {
+  const staged = { ...persisted };
+  const tx = { event: db.event, booking: { ...db.booking, create: vi.fn(async () => { staged.bookings++; return { number: 42 }; }) },
+   ticket: { createMany: vi.fn(async ({ data }) => { staged.tickets += data.length; }) },
+   ticketMail: { create: vi.fn(async () => { staged.mails++; throw new Error("outbox write failed"); }) },
+  };
+  const result = await callback(tx);
+  persisted = staged;
+  return result;
+ });
+ expect((await bookPublicEvent("yoga", "event-1", {}, form())).success).toBeUndefined();
+ expect(persisted).toEqual({ bookings: 0, tickets: 0, mails: 0 });
  expect(sendMail).not.toHaveBeenCalled();
 });
 it.each([1, 2, 7])("creates exactly %i valid tickets and persists their hashes and ciphertexts", async (quantity) => {
@@ -125,7 +132,7 @@ it.each([1, 2, 7])("creates exactly %i valid tickets and persists their hashes a
  expect(new Set(generated.mock.results.map(({ value }) => value.publicTokenHash)).size).toBe(quantity);
  const persisted = JSON.stringify([db.booking.create.mock.calls, db.ticket.createMany.mock.calls, result]);
  for (const { value } of generated.mock.results) expect(persisted).not.toContain(value.token);
- const mail = vi.mocked(sendMail).mock.calls[0][0];
+ const mail = decryptPaymentMail(db.ticketMail.create.mock.calls[0][0].data.encryptedMessage);
  for (const { value } of generated.mock.results) {
   expect(mail.text).toContain(`https://events.example.com/tickets#${value.token}`);
   expect(mail.html).toContain(`href="https://events.example.com/tickets#${value.token}"`);
@@ -157,6 +164,7 @@ it("propagates ticket failures out of the transaction and permits a clean retry"
   event: db.event,
   booking: { findUnique: db.booking.findUnique, aggregate: db.booking.aggregate, create: vi.fn() },
   ticket: { createMany: vi.fn() },
+  ticketMail: { create: vi.fn() },
  };
  let rolledBack: unknown;
  let fail = true;

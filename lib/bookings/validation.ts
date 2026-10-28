@@ -7,4 +7,4 @@ export const bookingSchema = z.object({
  status: z.enum(["CONFIRMED", "CANCELLED"]),
 });
 export type BookingState = { success?: boolean; message?: string };
-export type BookingRow = { id: string; number: number; customerName: string | null; customerEmail: string | null; quantity: number; status: "CONFIRMED" | "CANCELLED" | "PENDING_PAYMENT" | "EXPIRED"; payment?: { status: string } | null; bookedAt: string; platform: string | null; externalBookingId: string | null };
+export type BookingRow = { resendUnavailableReason?: string | null; id: string; number: number; customerName: string | null; customerEmail: string | null; quantity: number; status: "CONFIRMED" | "CANCELLED" | "PENDING_PAYMENT" | "EXPIRED"; payment?: { status: string } | null; bookedAt: string; platform: string | null; externalBookingId: string | null };

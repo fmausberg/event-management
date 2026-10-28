@@ -1,7 +1,7 @@
 import "server-only";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
-import { sendMail, type MailMessage } from "@/lib/mail";
+import { type MailMessage } from "@/lib/mail";
 
 function key() {
   if (!process.env.AUTH_SECRET) throw new Error("AUTH_SECRET is required");
@@ -19,18 +19,8 @@ export function decryptPaymentMail(value: string): MailMessage {
   cipher.setAuthTag(tag);
   return JSON.parse(Buffer.concat([cipher.update(body), cipher.final()]).toString("utf8"));
 }
+// Compatibility entry point for webhook/checkout callers; one shared worker.
 export async function deliverPaymentMail(paymentId: string) {
-  const db = getPrisma();
-  const lockedUntil = new Date(Date.now() + 5 * 60_000);
-  const lock = await db.paymentMail.updateMany({ where: { paymentId, sentAt: null, OR: [{ lockedUntil: null }, { lockedUntil: { lt: new Date() } }] }, data: { lockedUntil } });
-  if (!lock.count) return;
-  try {
-    const mail = await db.paymentMail.findUniqueOrThrow({ where: { paymentId } });
-    if (!mail.encryptedMessage) throw new Error("Missing mail payload");
-    await sendMail(decryptPaymentMail(mail.encryptedMessage));
-    await db.paymentMail.update({ where: { paymentId }, data: { sentAt: new Date(), encryptedMessage: null, lockedUntil: null } });
-  } catch (error) {
-    await db.paymentMail.updateMany({ where: { paymentId, lockedUntil }, data: { lockedUntil: null } });
-    throw error;
-  }
+  const mail = await getPrisma().ticketMail.findUnique({ where: { paymentId }, select: { id: true } });
+  if (mail) await (await import("@/lib/tickets/outbox")).deliverTicketMail(mail.id);
 }

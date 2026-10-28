@@ -53,6 +53,7 @@ enum EventStatus {
 }
 
 model User {
+  requestedTicketMails TicketMail[]
   cancellationDecisions CancellationRequest[] @relation("CancellationDecider")
   checkedInTickets Ticket[] @relation("TicketCheckedInBy")
   // ID & number
@@ -299,6 +300,7 @@ model Event {
 }
 
 model Booking {
+  ticketMails TicketMail[]
   // ID & number
   id     String @id @default(cuid())
   number Int    @unique @default(autoincrement())
@@ -357,7 +359,7 @@ model Payment {
   checkoutRequest   Json
   createdAt         DateTime      @default(now())
   updatedAt         DateTime      @updatedAt
-  mail              PaymentMail?
+  mail              TicketMail?
 
   @@index([status, createdAt])
 }
@@ -368,13 +370,25 @@ model StripeWebhookEvent {
 }
 
 // Ticket bearer links are encrypted while awaiting SMTP delivery, then erased.
-model PaymentMail {
-  paymentId        String    @id
-  payment          Payment   @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+model TicketMail {
+  id               String    @id @default(cuid())
+  requestKey       String    @unique
+  bookingId        String
+  booking          Booking   @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  requestedById    String?
+  requestedBy      User?     @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+  paymentId        String?   @unique
+  payment          Payment?  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   encryptedMessage String?
   sentAt           DateTime?
   lockedUntil      DateTime?
+  lockToken        String?
+  attempts         Int       @default(0)
+  availableAt      DateTime  @default(now())
+  lastError        String?
   createdAt        DateTime  @default(now())
+  @@index([sentAt, availableAt, createdAt])
+  @@index([bookingId, createdAt])
 }
 
 model PlatformEvent {

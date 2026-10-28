@@ -1,5 +1,6 @@
 "use client";
 import Link from "next/link";
+import { ResendTicketEmail } from "@/components/resend-ticket-email";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { saveBooking, deleteBooking } from "../actions";
 import type { BookingRow, BookingState } from "@/lib/bookings/validation";
@@ -70,6 +71,7 @@ export function BookingsTable({ company, event, bookings }: { company: { name: s
                         <td className="whitespace-nowrap px-4 py-4">{new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(row.bookedAt))}</td><td className="px-4 py-4">{row.platform ?? "Intern"}{row.externalBookingId && <p className="text-xs text-zinc-500">{row.externalBookingId}</p>}</td>
                         <td className="px-4 py-4">
                             <div className="flex flex-wrap gap-3">
+                                <ResendTicketEmail companySlug={company.slug} eventId={event.id} bookingId={row.id} unavailableReason={row.resendUnavailableReason} />
                                 {row.payment ? <span><Link href={`/company/${encodeURIComponent(company.slug)}/cancellations`} className="underline">Stornierungen</Link> ? Stripe: {row.payment.status} – Erstattungen unter Stornierungen</span> : <>
                                 <button disabled={!!editor} type="button" onClick={() => { setEditor({ row }); setMessage(""); }} className="text-primary-700 underline disabled:opacity-40 dark:text-primary-300">Bearbeiten</button>
                                 {!editor && <RemoveBooking slug={company.slug} eventId={event.id} row={row} onDeleted={setMessage} />}

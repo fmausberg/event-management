@@ -25,10 +25,12 @@ Der frühere signierte Konto-Code wurde entfernt; der Scanner sucht ausschließl
 per SHA-256-Hash und prüft unverändert Status, Staff-/Trainer-Berechtigung und
 atomaren Check-in. Der Besitz eines Codes erteilt keine Einlöseberechtigung.
 
-Auf der Ticketseite kann der Eigentümer die Tickets der Buchung erneut an deren
-gespeicherte E-Mail-Adresse senden. Der Versand liest dieselben gespeicherten
-Codes; es werden keine neuen erzeugt. Fehlgeschlagener erneuter Versand kann
-manuell wiederholt werden. Die initiale Stripe-Mail-Outbox bleibt unverändert.
+Auf der Ticketseite kann der Eigentümer einen erneuten Versand der gültigen,
+noch nicht eingelösten Tickets der bestätigten Buchung beauftragen. Der Empfänger
+ist ausschließlich die gespeicherte Buchungsadresse. Die UI zeigt bei fehlender
+Verfügbarkeit denselben Grund wie die Serverprüfung und meldet nach Einreihen
+„Versand beauftragt“. Alle Ticketmails verwenden die dauerhafte gemeinsame
+[Ticket-Outbox](ticket-outbox.md); SMTP-Fehler werden automatisch wiederholt.
 
 ## Gemeinsame Ticketdarstellung
 

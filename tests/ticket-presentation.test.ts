@@ -19,7 +19,7 @@ vi.mock("@/components/refresh-status-button", () => ({ RefreshStatusButton: () =
 const token = Buffer.alloc(32, 4).toString("base64url");
 const hash = createHash("sha256").update(token).digest("hex");
 const event = { name: "Yoga", beginsAt: new Date("2026-10-25T01:30:00Z"), status: "PUBLISHED", venue: { name: "Studio", addressLine1: "Teststraße 1", addressLine2: "Hof", postalCode: "41460", city: "Neuss" } };
-const ticket = { publicTokenHash: hash, encryptedPublicToken: "", id: "ticket-1", number: 7, status: "VALID", checkedInAt: null, booking: { number: 42, status: "CONFIRMED", event } };
+const ticket = { publicTokenHash: hash, encryptedPublicToken: "", id: "ticket-1", number: 7, status: "VALID", checkedInAt: null, booking: { customerEmail: "owner@example.com", tickets: [{ id: "ticket-1" }], number: 42, status: "CONFIRMED", event } };
 const page = () => MyTicketPage({ params: Promise.resolve({ ticketId: "ticket-1" }) });
 beforeEach(() => {
   vi.stubEnv("TICKET_CODE_ENCRYPTION_KEYS", JSON.stringify({ active: "k1", keys: { k1: Buffer.alloc(32, 7).toString("base64") } }));

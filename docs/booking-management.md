@@ -23,5 +23,18 @@ müssen ihre Kapazitätsregeln separat berücksichtigen. Bei einem Transaktionsk
 wird zum Wiederholen aufgefordert.
 
 Änderungen externer Buchungen gelten lokal; ein späterer Import kann sie
-überschreiben oder gelöschte externe Buchungen erneut anlegen. Es erfolgen weder
-E-Mail-Versand noch Zahlungsaktionen. Es ist keine Schemaänderung erforderlich.
+überschreiben oder gelöschte externe Buchungen erneut anlegen. Manuelles Erstellen/Bearbeiten startet weder Ticket-Mailversand noch Zahlungsaktionen.
+
+## Tickets erneut senden
+
+Die Buchungsübersicht bietet eine eigene Aktion für aktive COMPANY_USER und
+COMPANY_ADMIN der Event-Company. Unbestätigte Buchungen, abgesagte Events,
+fehlende Buchungsadressen oder fehlende gültige, nicht eingelöste Tickets zeigen
+einen deaktivierten Button mit Begründung. Eine globale Adminrolle ohne aktive
+Company-Mitgliedschaft reicht für diese Aktion nicht aus. Manuelle Buchungen ohne
+Tickets erhalten dadurch keine neuen Tickets.
+
+Der Versand verwendet ausschließlich booking.customerEmail; ein Profil-Fallback
+in der Tabelle gilt nicht als gespeicherte Buchungsadresse. Die UI meldet
+„Versand beauftragt“. Regeln, Audit und Migration: [Ticket-Outbox](ticket-outbox.md).
+In der Company-Ticketübersicht gibt es keine zusätzliche Versandaktion.

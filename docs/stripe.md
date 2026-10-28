@@ -44,7 +44,7 @@ Payments prüfen; diese behalten ihre ursprüngliche Stripe-Kontozuordnung.
 - Jeder Checkout-Aufruf verwendet den gespeicherten Request und einen stabilen Idempotency-Key. Nach unsicheren Netzwerkfehlern kann derselbe Request sicher wiederholt werden. Ein lokaler Schreibfehler nach erfolgreicher Stripe-Erstellung lässt sich ebenfalls so reparieren.
 - Webhooks prüfen Signatur, Account, Session, Buchungsreferenz, Betrag und Währung. Erst `status=complete` mit `payment_status=paid` erstellt gültige Tickets. Wiederholungen sind durch Transaktion, Paymentstatus und Event-ID abgesichert. Die Rückkehrseite bestätigt niemals allein anhand ihrer URL; der Button zum Prüfen liest Stripe serverseitig und verwendet dieselbe Freigabelogik.
 - Die Rückkehrseite erlaubt das Fortsetzen oder Abbrechen einer offenen Zahlung. Beim Abbruch wird die Session bei Stripe beendet und erneut geprüft, bevor Plätze freigegeben werden.
-- Ticketmail und Tickets werden gemeinsam gespeichert. Bearer-Links liegen bis zum Versand AES-GCM-verschlüsselt in `PaymentMail`; der Schlüssel wird aus `AUTH_SECRET` abgeleitet. Nach erfolgreichem Versand wird der Inhalt gelöscht. SMTP-Ausfälle werden durch Webhook-Wiederholungen und den Abgleichjob erneut versucht. Nach einem Prozessabbruch unmittelbar nach SMTP-Zustellung ist eine doppelte Mail möglich; Tickets werden nicht doppelt erzeugt. `AUTH_SECRET` nicht wechseln, solange verschlüsselte Mails ausstehen.
+- Ticketmail und Tickets werden gemeinsam gespeichert. Bearer-Links liegen bis zum Versand AES-GCM-verschlüsselt in `TicketMail`; der Schlüssel wird aus `AUTH_SECRET` abgeleitet. Nach erfolgreichem Versand wird der Inhalt gelöscht. SMTP-Ausfälle werden durch Webhook-Wiederholungen und den Abgleichjob erneut versucht. Nach einem Prozessabbruch unmittelbar nach SMTP-Zustellung ist eine doppelte Mail möglich; Tickets werden nicht doppelt erzeugt. `AUTH_SECRET` nicht wechseln, solange verschlüsselte Mails ausstehen.
 
 ## Erstattungen und Betrieb
 
@@ -61,3 +61,5 @@ In einer Stripe-Sandbox zwei Companies onboarden. Je eine echte Checkout-Testzah
 Automatische Tests mocken Stripe/SMTP; sie ersetzen diesen Ende-zu-Ende-Test nicht.
 
 Referenzen: [Direct Charges mit Checkout](https://docs.stripe.com/connect/direct-charges?platform=web&ui=stripe-hosted), [Accounts-v2-Konfiguration](https://docs.stripe.com/connect/accounts-v2/connected-account-configuration), [Checkout-Freigabe](https://docs.stripe.com/checkout/fulfillment?payment-ui=stripe-hosted).
+
+Ticketmails aller Buchungsarten und Neuversand laufen gemeinsam: [Ticket-Outbox](ticket-outbox.md). Vor dem Deployment die dortige Umstellung mit angehaltenen alten Workern beachten.

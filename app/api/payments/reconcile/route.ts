@@ -4,7 +4,7 @@ import { timingSafeEqual } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 import { ensureCheckout } from "@/lib/payments/checkout";
 import { applyCheckoutSession } from "@/lib/payments/fulfillment";
-import { deliverPaymentMail } from "@/lib/payments/mail";
+import { deliverPendingTicketMails } from "@/lib/tickets/outbox";
 
 export const runtime = "nodejs";
 export async function POST(request: Request) {
@@ -23,11 +23,9 @@ export async function POST(request: Request) {
     // Rotate batches; a broken account must not starve later reservations.
     await db.payment.update({ where: { id: payment.id }, data: { updatedAt: new Date() } });
   }
-  const mails = await db.paymentMail.findMany({ where: { sentAt: null }, take: 50, orderBy: { createdAt: "asc" } });
-  for (const mail of mails) {
-    try { await deliverPaymentMail(mail.paymentId); } catch { failures++; }
-  }
+  const mails = await deliverPendingTicketMails();
+  failures += mails.failures;
   let cancellations = 0;
   try { cancellations = await reconcileCancellationRefunds(); failures += await deliverCancellationMails(); } catch { failures++; console.error("Cancellation reconciliation failed"); }
-  return Response.json({ cancellations, checked: pending.length, mails: mails.length, failures }, { status: failures ? 503 : 200 });
+  return Response.json({ cancellations, checked: pending.length, mails: mails.checked, failures }, { status: failures ? 503 : 200 });
 }

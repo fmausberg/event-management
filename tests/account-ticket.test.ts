@@ -26,7 +26,7 @@ it("only fetches the signed-in owner's ticket, without exposing stored tokens", 
 it("returns the same stored code on repeated owner views without database writes", async () => {
  const record = createTicketToken();
  auth.mockResolvedValue({ user: { id: "owner" } });
- findFirst.mockResolvedValue({ id: "ticket-1", number: 7, status: "VALID", checkedInAt: null, ...record, booking: { number: 42, status: "CONFIRMED", event: { name: "Yoga", beginsAt: null, status: "PUBLISHED", venue: null } } });
+ findFirst.mockResolvedValue({ id: "ticket-1", number: 7, status: "VALID", checkedInAt: null, ...record, booking: { customerEmail: "owner@example.com", tickets: [{ id: "ticket-1" }], number: 42, status: "CONFIRMED", event: { name: "Yoga", beginsAt: null, status: "PUBLISHED", venue: null } } });
  const first = await getMyTicket("ticket-1");
  const second = await getMyTicket("ticket-1");
  expect(first!.code).toBe(record.token);

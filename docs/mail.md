@@ -57,25 +57,13 @@ Datei- und URL-Zugriffe für Mailinhalte sind deaktiviert. Fehler werden ohne
 SMTP-Antworten, Zugangsdaten oder Mailinhalte weitergegeben.
 
 Die Rückgabe bestätigt die Annahme durch SMTP, nicht die Zustellung im Posteingang.
-Es gibt keine automatischen Retries: Bei einem Verbindungsabbruch kann die Mail
-bereits angenommen worden sein. Ein späterer automatischer Buchungsversand braucht
-eine eigene Zustellstrategie (z. B. Outbox), außerhalb der Buchungstransaktion.
-
-Neue kostenlose öffentliche Buchungen versenden nach dem Commit eine Bestätigung an die
-Buchungsadresse (bzw. `MAIL_TEST_RECIPIENT`). Die editierbare Vorlage liegt in
-`lib/mail/templates/booking-confirmation.ts`: Betreff und Text dort bearbeiten;
-HTML wird daraus automatisch mit escapten Werten erzeugt.
-Wiederholtes Absenden derselben Buchung versendet keine weitere Mail.
-Bei Versandfehlern bleibt die Buchung erfolgreich; die Buchungsseite zeigt einen
-Hinweis an. Der Versand ist derzeit ein einmaliger Versuch ohne persistente
-Outbox: Ein Prozessabbruch nach dem Commit kann die Bestätigung verhindern.
-Stripe-Buchungen verwenden dagegen die persistente verschlüsselte PaymentMail-Outbox
-mit automatischen Wiederholungsversuchen (siehe `docs/stripe.md`). Eigentümer können
-Ticket-E-Mails im Konto ausdrücklich erneut senden. Dieser Versand verwendet die
-gespeicherten verschlüsselten Ticketcodes, ohne Codes oder Outbox-Einträge zu ersetzen.
-Alte reine Ticket-Hashes erlauben keine Rekonstruktion der Klartext-Tokens; solche
-Testdaten müssen vor der neuen Migration manuell bereinigt werden (siehe
-`docs/ticket-codes.md`). Es gibt keinen automatischen Backfill.
+Der SMTP-Transport selbst wiederholt keine Zustellung. Ticketmails verwenden
+jedoch eine dauerhafte gemeinsame Outbox für kostenlose und bezahlte Buchungen
+sowie expliziten Neuversand. Tickets und initialer Auftrag entstehen atomar.
+Die editierbare Vorlage liegt in `lib/mail/templates/booking-confirmation.ts`.
+Neuversand liest gespeicherte Codes, legt einen eigenen idempotenten Auftrag an
+und meldet nur „Versand beauftragt“. Auswahl, Berechtigungen, automatische Retries,
+Worker-Sperren und Deployment beschreibt [Ticket-Outbox](ticket-outbox.md).
 Tests mocken SMTP und versenden keine echten Nachrichten.
 
 ## Öffentliche Tickets

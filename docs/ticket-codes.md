@@ -53,19 +53,15 @@ SHA-256 hash. The retired `account.*` credential is not supported. Current
 permissions, status checks and atomic check-in updates still determine admission.
 Displaying, resending, cancelling or redeeming does not replace a ticket code.
 
-The owner can explicitly resend all tickets of a confirmed booking from the
-ticket page. The server selects the original booking recipient (no client-supplied
-recipient) and decrypts stored codes. Limit: five requests per user per 15-minute
-window. SMTP failure returns a safe retry message. Like the original free-booking
-mail, explicit resend is synchronous, not a new durable outbox; retry uses the
-same codes. It never resets/overwrites a Stripe outbox lock or sent marker.
+Initial free/paid confirmations and explicit owner/company resends use the common
+persistent `TicketMail` outbox. Resends select only valid, unused stored codes;
+request identity, actor/booking rate limits and auditing prevent duplicate jobs.
+No ticket or code is created by resend. See [Ticket outbox](ticket-outbox.md) for
+permissions, retries, encryption, deployment and the SMTP at-least-once boundary.
 
-The initial Stripe mail remains atomically queued with tickets in `PaymentMail`.
-Its existing encrypted payload and retry/locking behavior are unchanged, including
-the existing AUTH_SECRET-derived *mail* encryption. The new long-lived *ticket*
-encryption is independent. Already queued messages retain their identical links
-during retries and key rotations. The separate outbox AUTH_SECRET rotation rules
-in `docs/stripe.md` continue to apply. No Wallet implementation was found.
+Outbox encryption remains AUTH_SECRET-based and separate from long-lived ticket
+code encryption. Keep the existing mail secret while pending payloads exist.
+No Wallet implementation was found.
 
 ## Migration and disposable old test data
 

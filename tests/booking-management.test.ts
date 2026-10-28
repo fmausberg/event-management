@@ -5,6 +5,7 @@ import { saveBooking, deleteBooking } from "@/app/company/[companyKey]/events/[e
 import Page from "@/app/company/[companyKey]/events/[eventId]/bookings/page";
 import EventsPage from "@/app/company/[companyKey]/events/page";
 import { saveEvent } from "@/app/company/[companyKey]/events/actions";
+import { getEventBookings } from "@/lib/bookings/management";
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
  user: { findUnique: vi.fn() }, company: { findUnique: vi.fn() }, companyMembership: { findUnique: vi.fn() },
  trainer: { findMany: vi.fn() },
@@ -95,4 +96,16 @@ it("renders empty bookings and exposes event management to company users", async
  const events = renderToStaticMarkup(await EventsPage({ params: Promise.resolve({ companyKey: "yoga" }) }));
  expect(events).toContain("+ Event erstellen");
  expect((await saveEvent("yoga", null, {}, form())).success).toBeUndefined();
+});
+it("shows resend availability from stored booking email rather than the profile fallback", async () => {
+ db.event.findFirst.mockResolvedValue({ id: "event-1", name: "Yoga", maxSeats: 10, beginsAt: null, status: "PUBLISHED" });
+ const row = { id: "booking-1", number: 42, customerName: "Ada", customerEmail: null, quantity: 1, status: "CONFIRMED", bookedAt: new Date(), payment: null, platform: null, externalBookingId: null, user: { name: "Ada", email: "profile@example.com" }, tickets: [{ id: "ticket-1" }] };
+ db.booking.findMany.mockResolvedValue([row]);
+ const result = await getEventBookings("yoga", "event-1");
+ expect(result.bookings[0].customerEmail).toBe("profile@example.com");
+ expect(result.bookings[0].resendUnavailableReason).toContain("Empfängeradresse");
+ const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companyKey: "yoga", eventId: "event-1" }) }));
+ expect(html).toContain("Tickets erneut senden"); expect(html).toContain("Empfängeradresse");
+ db.booking.findMany.mockResolvedValue([{ ...row, customerEmail: "booking@example.com" }]);
+ expect((await getEventBookings("yoga", "event-1")).bookings[0].resendUnavailableReason).toBeNull();
 });

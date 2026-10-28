@@ -19,7 +19,7 @@ export default async function MyTicketPage({ params }: { params: Promise<{ ticke
     <div className="mt-6">
       <TicketCard ticket={ticket.ticket} bookingNumber={ticket.bookingNumber} qrCode={ticket.code ? { value: ticket.code } : null}>
         <RefreshStatusButton />
-        {ticket.code && <ResendTicketEmail ticketId={ticket.id} />}
+        <ResendTicketEmail ticketId={ticket.id} unavailableReason={ticket.resendUnavailableReason} />
       </TicketCard>
     </div>
   </main>;

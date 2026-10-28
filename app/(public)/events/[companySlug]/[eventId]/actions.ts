@@ -16,7 +16,7 @@ import { readBookingToken } from "@/lib/bookings/public-token";
 import { createTicketToken } from "@/lib/tickets/public-token";
 import { TicketCodeError } from "@/lib/tickets/code-encryption";
 import { ticketLink } from "@/lib/tickets/public-link";
-import { sendMail, type MailMessage } from "@/lib/mail";
+import { enqueueInitialTicketMail } from "@/lib/tickets/outbox";
 import { bookingConfirmation } from "@/lib/mail/templates/booking-confirmation";
 export type PublicBookingState = { success?: boolean; message?: string; number?: number; paymentId?: string };
 const schema = z.object({
@@ -30,7 +30,6 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
  if (!token || token.eventId !== eventId) return { message: "Das Buchungsformular ist abgelaufen. Bitte lade die Seite neu." };
  if (form.get("website")) return { message: "Die Buchung konnte nicht verarbeitet werden." };
  let result: PublicBookingState;
- let confirmation: MailMessage | undefined;
  let checkoutUrl: string | undefined;
  try {
   if (!await consumeAuthAttempt(parsed.data.email, "public-booking")) return { message: "Zu viele Buchungsversuche. Bitte versuche es in 15 Minuten erneut." };
@@ -87,11 +86,12 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
      encryptedPublicToken,
     })),
    });
-   confirmation = { to: parsed.data.email, ...bookingConfirmation({
+   const confirmation = { to: parsed.data.email, ...bookingConfirmation({
     customerName: parsed.data.name, bookingNumber: booking.number,
     eventName: event.name, beginsAt: event.beginsAt, quantity: parsed.data.quantity,
     ticketLinks: ticketTokens.map(({ token }) => ticketLink(token)),
    }) };
+   await enqueueInitialTicketMail(tx, token.id, confirmation);
    return { success: true, number: booking.number, message: "Deine Buchung wurde bestätigt." };
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   if (result.paymentId) {
@@ -106,14 +106,6 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
  }
  if (checkoutUrl) redirect(checkoutUrl);
  if (result.success) {
-  // Send only for newly created bookings, after the transaction has committed.
-  if (confirmation) {
-   try {
-    await sendMail(confirmation);
-   } catch {
-    result.message = "Deine Buchung wurde bestätigt. Die Bestätigungs-E-Mail konnte nicht versendet werden. Bitte notiere deine Buchungsnummer; eine erneute Buchung ist nicht nötig.";
-   }
-  }
   revalidatePath(`/events/${encodeURIComponent(slug)}/${encodeURIComponent(eventId)}`);
   revalidatePath(`/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}/bookings`);
   revalidatePath(`/company/${encodeURIComponent(slug)}/events`);

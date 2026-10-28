@@ -13,7 +13,7 @@ const { db, stripe, sendMail } = vi.hoisted(() => ({
     $transaction: vi.fn(), payment: { findUnique: vi.fn(), update: vi.fn(), updateMany: vi.fn() }, booking: { update: vi.fn() },
     ticket: { createMany: vi.fn(), updateMany: vi.fn() },
     stripeWebhookEvent: { findUnique: vi.fn(), create: vi.fn() },
-    paymentMail: { create: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn(), update: vi.fn() },
+    ticketMail: { create: vi.fn(), updateMany: vi.fn(), findUniqueOrThrow: vi.fn(), findUnique: vi.fn(), findFirst: vi.fn(), update: vi.fn() },
   },
   stripe: { checkout: { sessions: { create: vi.fn(), retrieve: vi.fn() } }, webhooks: { constructEvent: vi.fn() } },
   sendMail: vi.fn(),
@@ -41,7 +41,7 @@ beforeEach(() => {
   db.$transaction.mockImplementation(async (fn) => fn(db));
   db.payment.findUnique.mockResolvedValue(payment());
   db.stripeWebhookEvent.findUnique.mockResolvedValue(null);
-  db.paymentMail.updateMany.mockResolvedValue({ count: 0 });
+  db.ticketMail.updateMany.mockResolvedValue({ count: 0 });
 });
 afterEach(() => vi.unstubAllEnvs());
 
@@ -51,7 +51,7 @@ it("confirms paid bookings and persists encrypted ticket mail atomically", async
   const tickets = db.ticket.createMany.mock.calls[0][0].data;
   expect(tickets).toHaveLength(2);
   expect(new Set(tickets.map((t: { publicTokenHash: string }) => t.publicTokenHash)).size).toBe(2);
-  const encrypted = db.paymentMail.create.mock.calls[0][0].data.encryptedMessage;
+  const encrypted = db.ticketMail.create.mock.calls[0][0].data.encryptedMessage;
   expect(encrypted).not.toContain("ada@example.com");
   const mail = decryptPaymentMail(encrypted);
   expect(mail.text).toContain("https://events.example.com/tickets#");
@@ -86,6 +86,21 @@ it("handles both duplicate event IDs and different events for an already paid bo
   db.payment.findUnique.mockResolvedValue({ ...payment(), status: "PAID" });
   await applyCheckoutSession(session(), "acct_company", "evt_2");
   expect(db.ticket.createMany).not.toHaveBeenCalled();
+  expect(db.ticketMail.create).not.toHaveBeenCalled();
+});
+it("does not commit paid status or tickets when the initial outbox write fails", async () => {
+  let committed = { paid: false, tickets: 0 };
+  db.$transaction.mockImplementation(async (callback) => {
+    const staged = { ...committed };
+    const tx = { ...db, payment: { ...db.payment, update: vi.fn(async () => { staged.paid = true; }) },
+      ticket: { ...db.ticket, createMany: vi.fn(async ({ data }) => { staged.tickets += data.length; }) },
+      ticketMail: { create: vi.fn(async () => { throw new Error("outbox unavailable"); }) },
+    };
+    const result = await callback(tx); committed = staged; return result;
+  });
+  await expect(applyCheckoutSession(session(), "acct_company", "evt_1")).rejects.toThrow("outbox unavailable");
+  expect(committed).toEqual({ paid: false, tickets: 0 });
+  expect(sendMail).not.toHaveBeenCalled();
 });
 it("only frees reservations after Stripe confirms expiry", async () => {
   await applyCheckoutSession(session({ status: "open", payment_status: "unpaid" }), "acct_company");
@@ -159,16 +174,11 @@ it("retries refunds delivered before checkout fulfillment", async () => {
   await expect(applyRefund(charge, "acct_company", "payment-1", "evt_refund")).rejects.toThrow("pending");
   expect(db.stripeWebhookEvent.create).not.toHaveBeenCalled();
 });
-it("retries failed SMTP delivery using the same encrypted message", async () => {
-  const encryptedMessage = encryptPaymentMail({ to: "ada@example.com", subject: "Tickets", text: "ticket-secret" });
-  db.paymentMail.findUniqueOrThrow.mockResolvedValue({ encryptedMessage });
-  db.paymentMail.updateMany.mockResolvedValue({ count: 1 });
-  sendMail.mockRejectedValueOnce(new Error("SMTP unavailable")).mockResolvedValueOnce({});
-  await expect(deliverPaymentMail("payment-1")).rejects.toThrow("SMTP");
-  expect(db.paymentMail.update).not.toHaveBeenCalled();
-  await deliverPaymentMail("payment-1");
-  expect(sendMail.mock.calls[0]).toEqual(sendMail.mock.calls[1]);
-  expect(db.paymentMail.update).toHaveBeenCalledWith({ where: { paymentId: "payment-1" }, data: { sentAt: expect.any(Date), encryptedMessage: null, lockedUntil: null } });
+it("routes legacy payment delivery calls into the shared outbox", async () => {
+ db.ticketMail.findUnique.mockResolvedValue({ id: "initial-job" });
+ await deliverPaymentMail("payment-1");
+ expect(db.ticketMail.findUnique).toHaveBeenCalledWith({ where: { paymentId: "payment-1" }, select: { id: true } });
+ expect(db.ticketMail.updateMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ id: "initial-job", sentAt: null }) }));
 });
 it("rejects tampered encrypted mail", () => {
   const value = encryptPaymentMail({ to: "a@example.com", subject: "Tickets", text: "secret" });

@@ -5,7 +5,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import { createTicketToken } from "@/lib/tickets/public-token";
 import { ticketLink } from "@/lib/tickets/public-link";
 import { bookingConfirmation } from "@/lib/mail/templates/booking-confirmation";
-import { encryptPaymentMail } from "./mail";
+import { enqueueInitialTicketMail } from "@/lib/tickets/outbox";
 
 export async function applyCheckoutSession(session: Stripe.Checkout.Session, accountId: string, eventId?: string) {
   const paymentId = session.metadata?.paymentId;
@@ -31,7 +31,7 @@ export async function applyCheckoutSession(session: Stripe.Checkout.Session, acc
           customerName: booking.customerName!, bookingNumber: booking.number, eventName: booking.event.name,
           beginsAt: booking.event.beginsAt, quantity: booking.quantity, ticketLinks: tokens.map(({ token }) => ticketLink(token)),
         }) };
-        await tx.paymentMail.create({ data: { paymentId: payment.id, encryptedMessage: encryptPaymentMail(message) } });
+        await enqueueInitialTicketMail(tx, booking.id, message, payment.id);
       }
     }
     if (eventId) await tx.stripeWebhookEvent.create({ data: { id: eventId } });
