@@ -74,7 +74,7 @@ export function TicketScanner() {
   </section>}
   <aside className="mt-8 rounded-xl border border-primary-100 bg-primary-50 p-5 text-sm leading-relaxed text-zinc-700 dark:border-primary-900 dark:bg-primary-950 dark:text-zinc-300">
    <h2 className="font-semibold text-primary-800 dark:text-primary-200">Tickets auch ohne QR-Code einlösen</h2>
-   <p className="mt-2">Öffne <Link href="/account/events" className="font-medium text-primary-700 underline underline-offset-2 dark:text-primary-300">Meine Veranstaltungen</Link> und klicke bei der gewünschten Veranstaltung auf <strong>Ticketverwaltung</strong>. Dort kannst du Tickets anhand der <strong>Ticketnummer</strong> oder der <strong>E-Mail-Adresse des Käufers</strong> suchen und einlösen.</p>
+   <p className="mt-2">Öffne <Link href="/account/events" className="font-medium text-primary-700 underline underline-offset-2 dark:text-primary-300">Check-In Management</Link> und klicke bei der gewünschten Veranstaltung auf <strong>Ticketverwaltung</strong>. Dort kannst du Tickets anhand der <strong>Ticketnummer</strong> oder der <strong>E-Mail-Adresse des Käufers</strong> suchen und einlösen.</p>
   </aside>
  </main>;
 }

@@ -24,7 +24,7 @@ export function buildNavigation(user: NavigationUser, canScanTickets = false): N
     items: [
       { label: "Zu den Veranstaltungen", href: "/events", icon: "calendar" },
       { label: "Meine Buchungen", href: "/account/bookings", icon: "calendar-check" },
-      { label: "Meine Veranstaltungen", href: "/account/events", icon: "calendar-check" },
+      { label: "Check-In Management", href: "/account/events", icon: "calendar-check" },
     ],
   }];
   if (canScanTickets) groups[0].items.push({ label: "Ticket Scannen", href: "/account/scan", icon: "camera" });

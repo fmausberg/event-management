@@ -28,7 +28,7 @@ export function assignmentNotification(data: AssignmentNotification) {
       : "";
   const eventUrl = data.accountStatus === "verified" ? data.eventUrl : undefined;
   const scopeText = data.scope && !venueAssignment ? `Zuordnung: ${data.scope}${eventUrl ? `\n${eventUrl}` : ""}` : "";
-  const eventsHint = "Unter „Meine Veranstaltungen“ findest du alle anstehenden Veranstaltungen, denen du als Venue-Staff zugeordnet bist.";
+  const eventsHint = "Unter „Check-In Management“ findest du alle anstehenden Veranstaltungen, denen du als Venue-Staff zugeordnet bist.";
   const text = [introduction, scopeText, instruction, data.myEventsUrl ? `${eventsHint}\n${data.myEventsUrl}` : ""].filter(Boolean).join("\n\n");
   const buttonUrl = data.accountStatus === "missing" ? data.registrationUrl : data.accountStatus === "unverified" ? data.verificationUrl : undefined;
   const buttonLabel = data.accountStatus === "missing" ? "Konto erstellen" : "E-Mail bestätigen";
@@ -74,7 +74,7 @@ export function assignmentNotification(data: AssignmentNotification) {
         <p>
           <a href="${escapeHtml(data.myEventsUrl)}"
              style="display:inline-block;background:#ff8500;color:#18181b;padding:12px 20px;border-radius:6px;text-decoration:none">
-            Meine Veranstaltungen
+            Check-In Management
           </a>
         </p>
         <p style="font-size:12px;color:#71717a;overflow-wrap:anywhere">
