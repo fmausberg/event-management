@@ -1,196 +1,73 @@
-﻿# Event- und Ticketkapazitätsverwaltung
+# Event- und Ticketverwaltung
 
-Next.js App Router, TypeScript, Prisma 7 und PostgreSQL. Phase 1 stellt die zentrale
-Datenhaltung und Integrationsverträge bereit. Externe APIs sind noch nicht angebunden.
+Webplattform für Companies, Veranstaltungsreihen, Events, Buchungen und Tickets.
+Technik: Next.js App Router, TypeScript, Prisma 7 und PostgreSQL.
+Stripe Connect ermöglicht Direct Charges; SMTP und IMAP übernehmen Mailversand und Versandkopien.
 
 ## Lokal starten
 
-SMTP-Mailversand und STRATO-Konfiguration: siehe [Mailversand](docs/mail.md).
+Node.js 22 (wie im Dockerfile) und PostgreSQL werden benötigt.
 
-Stornofristen, Kundenanfragen, Freigaben und Stripe-Erstattungen:
-siehe [Stornierungen](docs/cancellations.md) einschließlich Migration, Webhook-Events
-und Wiederaufnahme über den bestehenden Zahlungs-Scheduler.
+1. `npm ci` ausführen.
+2. `.env.example` nach `.env.local` kopieren und die Werte eintragen.
+   Mindestens Datenbank, `AUTH_SECRET` und `AUTH_URL` konfigurieren;
+   für Buchungen mit Tickets zusätzlich `TICKET_CODE_ENCRYPTION_KEYS`,
+   für Verifizierungs- und Ticketmails SMTP.
+3. Ziel-Datenbank und vorhandene Migrationen prüfen. Die eingecheckten Migrationen
+   mit `npx prisma migrate deploy` auf die gewünschte Datenbank anwenden.
+4. `npm run dev` starten.
 
-Die Aufteilung der Seiten und ihre URLs sind in der [Projektstruktur](docs/project-structure.md) dokumentiert.
+`npm run dev` und `npm run build` erzeugen den Prisma-Client automatisch,
+migrieren aber keine Datenbank. `npm run db:generate` erzeugt nur den Client.
+Neue Schemaänderungen werden lokal mit `prisma migrate dev` entwickelt;
+Server verwenden die eingecheckten Migrationen mit `prisma migrate deploy`.
+Der tatsächliche Migrationsstand ist je Datenbank zu prüfen und lässt sich
+nicht aus diesem Repository ableiten.
 
-Login, Registrierung und OAuth: siehe [Authentifizierung](docs/authentication.md)
-für Konfiguration, Session-Verhalten und die separat vorzubereitende Schema-Migration.
+Secrets gehören in ignorierte Env-Dateien oder die Serverkonfiguration.
+Für die Prisma-CLI haben Shell-Variablen Vorrang vor `.env.local` und `.env`.
+CLI und Anwendung sollen dieselbe Ziel-Datenbank verwenden.
 
-```bash
-npm install
-npm run dev
-```
+## Dokumentation
 
-`DATABASE_URL` muss auf die gewünschte PostgreSQL-Datenbank zeigen. Secrets gehören
-in die lokale, von Git ignorierte `.env` oder `.env.local`, nicht in den Quellcode.
-Für die Prisma-CLI gilt: Shell-Variable vor `.env.local` vor `.env`. Die URL und ihre
-TLS-Parameter werden unverändert verwendet. Next.js lädt seine Umgebungsvariablen
-selbst; verwende für CLI und Anwendung dieselbe Datenbankkonfiguration.
+| Thema | Anleitung |
+| --- | --- |
+| Routen und Zuständigkeiten | [Projektstruktur](docs/project-structure.md) |
+| Server, Docker, Traefik und Deployment | [Betrieb](docs/docker.md) |
+| Testbefehle, Reichweite und automatische Ausführung | [Prüfungen](docs/testing.md) |
+| Login, Passwörter, OAuth und Sitzungen | [Authentifizierung](docs/authentication.md) |
+| E-Mail-Bestätigung und offene Zuordnungen | [Verifizierung](docs/email-verification.md) |
+| Company-Mitglieder und Rollen | [Mitglieder](docs/company-members.md) |
+| Events, Serienvorgaben und Änderungsvorschau | [Events und Serien](docs/events-and-series.md) |
+| Entwurf, Veröffentlichung und Absage | [Eventstatus](docs/event-status.md) |
+| Trainer und Eventzuordnung | [Trainer](docs/trainers.md) |
+| Titelbilder | [Cloudinary](docs/cloudinary.md) |
+| Buchungen verwalten und Tickets erneut senden | [Buchungsverwaltung](docs/booking-management.md) |
+| Eigene Buchungen und Tickets | [Kundenkonto](docs/account-bookings.md) |
+| Stornierungen und Erstattungen | [Stornierungen](docs/cancellations.md) |
+| Stripe-Onboarding, Checkout, Webhooks und Abgleich | [Stripe](docs/stripe.md) |
+| SMTP, öffentliche Ticketlinks und Check-in | [Mail und Ticketzugänge](docs/mail.md) |
+| Versandkopien im Gesendet-Ordner | [IMAP-Archivierung](docs/mail-sent-archive.md) |
+| Ticketcodes, Verschlüsselung und Schlüsselrotation | [Ticketcodes](docs/ticket-codes.md) |
+| Versandaufträge und automatische Wiederholungen | [Ticket-Outbox](docs/ticket-outbox.md) |
+| Öffentliche Eventlisten einbetten | [Einbettung](docs/embed-events.md) |
+| Kapazität und externe Eventplattformen | [Integrationen](docs/integrations.md) |
 
-`npm run dev` und `npm run build` generieren den Prisma-Client automatisch.
-`npm run db:generate` generiert ihn separat. Keine dieser Aktionen migriert eine DB.
+## Prüfungen
 
-## Ausstehende Migration
-
-Das neue Schema wurde noch nicht auf eine Datenbank angewendet. Prüfe zuerst, dass
-die effektive `DATABASE_URL` eine lokale Entwicklungsdatenbank bezeichnet. Danach
-kannst du selbst ausführen:
-
-```bash
-npx prisma migrate dev --name central_event_capacity
-npm run db:generate
-```
-
-Der Migrationsbefehl verwendet die `datasource.url` aus `prisma.config.ts` und damit
-die oben beschriebene Umgebungsvariable. **Nicht gegen eine Produktions- oder
-Remote-Datenbank ausführen.** Prisma Migrate benötigt außerdem eine lokale
-Shadow-Datenbank bzw. die Berechtigung, diese anzulegen.
-
-`beginsAt` und `endsAt` sind über `@map("Begin")` / `@map("End")` mit den bestehenden
-Spalten verbunden. Dadurch bleiben vorhandene Datumswerte erhalten. Die physische
-Umbenennung dieser Spalten ist nicht notwendig. `Event.id` bleibt kompatibel mit
-der vorhandenen TEXT-Spalte; neue Buchungs- und Mapping-IDs sind PostgreSQL-UUIDs.
-Die Default-Werte für Event-Zeitstempel ermöglichen das Ergänzen bestehender Zeilen;
-deren `createdAt` entspricht dann dem Migrationszeitpunkt, nicht dem ursprünglichen
-Erstellungszeitpunkt.
-
-## Datenmodell und Business-Logik
-
-### Vorgeschlagene Eventdauer
-
-`EventSeries.suggestedDuration` speichert optional eine positive ganze Anzahl Minuten.
-Die Migration `20261026163000_event_series_suggested_duration` ergänzt die Spalte
-und einen positiven Wertebereich; bestehende Reihen erhalten `NULL`.
-Vor Verwendung des geänderten Codes die Migration auf die gewünschte Datenbank
-anwenden (`npx prisma migrate deploy`) und den Client mit `npm run db:generate`
-generieren. `migrate deploy` wendet alle ausstehenden Migrationen an.
-
-Die Dauer lässt sich im Serienformular pflegen und erscheint in Übersicht und
-Detailseite. Bei neuen Events aus einer Reihe berechnet das Formular das Ende aus
-Beginn plus Dauer in Minuten, auch über Tagesgrenzen hinweg. Das gilt sowohl für
-den Plus-Button auf der Reihendetailseite als auch für die Reihenauswahl im normalen
-Eventformular. Solange das Ende nicht manuell angepasst wurde, folgt es Änderungen
-am Beginn oder an der gewählten Reihe. Ein manuelles Ende bleibt erhalten; Leeren
-des Endfelds aktiviert die Berechnung bei der nächsten Änderung wieder.
-Die Berechnung verwendet wie das Company-Eventformular die lokale Browserzeitzone.
-Bei bestehenden Events bleiben die Termine unverändert. `Event` erhält kein
-Dauerfeld: Gespeichert werden weiterhin nur Beginn und Ende.
-
-- `Event`: Stammdaten, maximale Kapazität, Zeitstempel und Relationen.
-- `PlatformEvent`: Zuordnung zu einer Plattform und externen Event-ID. Der Schlüssel
-  `(platform, externalEventId)` ist global eindeutig: Ein externes Event gehört
-  genau einem zentralen Event. Mehrere unterschiedliche externe IDs derselben
-  Plattform können demselben zentralen Event zugeordnet werden.
-- `Booking`: Externe Buchung mit positiver ganzzahliger Menge und Status
-  `CONFIRMED` oder `CANCELLED`. `(platform, externalBookingId)` verhindert Duplikate.
-- Indizes auf `(eventId, status)` bzw. `(eventId, syncStatus)` unterstützen Abfragen.
-  Relationen verwenden `Restrict`, um Buchungshistorie nicht versehentlich zu löschen.
-
-`getEventCapacity(eventId)` summiert ausschließlich bestätigte Buchungen.
-`remainingSeats = Math.max(0, maxSeats - confirmedSeats)`. Überbuchungen bleiben in
-`confirmedSeats` sichtbar; freie Plätze werden nie negativ. Es gibt keine redundant
-gespeicherte Restkapazität. Fehlende Events führen zu einem Fehler, nicht zu
-scheinbar null freien Plätzen.
-
-`upsertExternalBooking(input)` validiert Menge, IDs, Datum, Plattform und Status und
-verwendet einen transaktionalen Upsert. Wiederholte Importe aktualisieren dieselbe
-Buchung. Stornierung und erneute Bestätigung verändern deren Kapazitätsbeitrag.
-Die nachträgliche Zuordnung einer bestehenden Buchung zu einem anderen Event wird
-abgelehnt und die Transaktion zurückgerollt. Der Import führt keinen externen Sync aus.
-
-`/admin/events` ist eine Server Component. Sie lädt Events und aggregierte Buchungen beim
-Seitenaufruf mit einem konsistenten DB-Snapshot und zeigt einen Empty State bei
-leerer Datenbank. Die Seite benötigt das migrierte Schema; der Build benötigt keine
-erreichbare Datenbank. Zeiten werden in `Europe/Berlin` angezeigt.
-
-## Event-Verwaltung (CRUD)
-
-Unter `/admin/events` führt **+ Neues Event** zu `/admin/events/new`. **Bearbeiten** öffnet
-`/admin/events/[id]/edit`; ein unbekanntes Event liefert die Next.js-404-Seite.
-Beide Seiten nutzen dasselbe Formular mit Server Actions. Name, Beginn, Ende und
-maximale Plätze werden serverseitig validiert. Die Event-Nummer bleibt automatisch
-vergeben. Fehler erscheinen am Formular, Eingaben bleiben erhalten. Erfolgreiches
-Anlegen und Bearbeiten revalidieren `/admin/events` und leiten dorthin zurück.
-
-**Löschen** verlangt zunächst eine ausdrückliche Bestätigung in der Tabellenzeile.
-Der DELETE prüft atomar, dass weder Buchungen (auch keine stornierten) noch
-Plattformzuordnungen bestehen. Die vorhandenen Restrict-Fremdschlüssel sichern
-zusätzlich konkurrierende Änderungen ab. Fehlende Event-IDs werden abgelehnt,
-damit kein ungefilterter DELETE möglich ist. Abhängige Daten werden nicht gelöscht.
-
-Die `datetime-local`-Eingaben werden stets als **Europe/Berlin** interpretiert.
-`lib/events/berlin-date-time.ts` ermittelt mit `Intl.DateTimeFormat` die gültigen
-Zeitzonen-Offsets und konvertiert explizit zwischen Berliner Ortszeit und einem
-UTC-Zeitpunkt. Die Browser- bzw. Server-Zeitzone spielt dabei keine Rolle.
-Nicht existierende Uhrzeiten bei der Frühjahrsumstellung werden abgelehnt. Bei
-neuen doppeldeutigen Herbstzeiten gilt das erste Auftreten (Sommerzeit). Beim
-Bearbeiten einer unveränderten Uhrzeit bleibt der ursprüngliche Zeitpunkt erhalten,
-auch wenn er zum zweiten Auftreten gehört. Sekunden und Millisekunden bleiben
-ebenfalls erhalten. Diese Regeln sind durch Tests abgedeckt.
-
-CRUD benötigt keine weitere Schemaänderung oder Migration. Die Datenbank muss
-allerdings das zuvor beschriebene Phase-1-Schema enthalten. Änderungen lösen keine
-externe Synchronisierung aus. Ein Ende-zu-Ende-Test der DB-Schreibvorgänge gegen
-eine lokale Entwicklungsdatenbank steht noch aus; die Action-Tests nutzen DB-Doubles.
-
-## Integrationen und Synchronisierung
-
-`lib/integrations/types.ts` enthält plattformunabhängige Domain-Typen ohne
-Prisma-Abhängigkeit. `PlatformAdapter` definiert `getBookings` und
-`updateAvailability`; `registry.ts` ordnet Plattformen ihren Adaptern zu.
-Neue Adapter werden dort registriert, ohne die Business-Logik anzupassen.
-
-Eventbrite und Rausgegangen enthalten nur ausdrücklich gekennzeichnete Platzhalter.
-Die Client-Factories und Adapter-Operationen werfen `Not implemented`, ohne HTTP
-aufzurufen. Anbieter-Payloads werden erst nach Prüfung der offiziellen Verträge
-ergänzt. `POST /api/webhooks/eventbrite` antwortet mit HTTP 501 und verarbeitet keine
-Daten.
-
-`syncEventCapacity(eventId)` wird nur ausdrücklich aufgerufen:
-
-1. Kapazität berechnen und `ACTIVE`-Zuordnungen laden.
-2. Adapter über die Registry auswählen und Verfügbarkeit übertragen.
-3. Bei Erfolg `lastSyncedAt` setzen und `lastError` löschen.
-4. Bei Fehler `lastError` speichern und mit der nächsten Zuordnung fortfahren.
-
-Die Funktion liefert Kapazität und Einzelresultate zurück. Auch Fehler beim
-Speichern eines Plattformfehlers brechen die Schleife nicht ab; sie erscheinen als
-`errorPersistenceFailed`. Beliebige SDK-Fehlermeldungen werden nicht gespeichert,
-da sie Secrets oder Payloads enthalten können. Bekannte Platzhalter- und
-Registry-Fehler erhalten verständliche Meldungen, andere Fehler eine neutrale Meldung.
-
-Fehlgeschlagene aktive Zuordnungen bleiben `ACTIVE`, damit ein späterer expliziter
-Aufruf erneut versuchen kann. `DISABLED` und `ERROR` werden übersprungen, bis die
-Zuordnung bewusst wieder aktiviert wird. Normale Seitenaufrufe synchronisieren nicht.
-
-## Prüfungen und offene Arbeiten
-
-```bash
+```sh
 npm test
 npm run lint
 npm run build
 ```
 
-Die Tests prüfen Business-Verhalten mit Datenbank-Doubles: Kapazität, Idempotenz,
-Stornierung, Event-Zuordnung, Eingabevalidierung, Sync-Fehlerisolation, Registry,
-Webhook und Client-Singleton. Echte PostgreSQL-Constraints und parallele Upserts
-benötigen nach Freigabe der Migration zusätzliche Integrationstests.
+Testdateien allein starten keine automatische Prüfung. Der aktuelle
+GitHub-Workflow deployt Pushes auf `main` ohne Testschritt.
+Details und Grenzen stehen in [Prüfungen](docs/testing.md).
 
-Offen für spätere Phasen:
+## Dokumentation pflegen
 
-- Migration durch den Betreiber und Laufzeittest gegen eine lokale Datenbank.
-- Verifizierte Anbieter-APIs, DTOs, Authentifizierung und Webhook-Prüfung.
-- Reihenfolge/Versionierung externer Änderungen gegen verspätete Buchungs-Updates.
-- Serialisierung von Sync-Aufrufen pro Event, Wiederholungen und Behandlung von
-  Änderungen während eines laufenden Syncs. Phase 1 liefert einen Snapshot;
-  überlappende Aufrufe müssen vom künftigen Aufrufer verhindert werden.
-- Verteilte Buchungen können gleichzeitig eintreffen und überbuchen. Die aktuelle
-  Kapazitätsberechnung ist keine plattformübergreifende Reservierungsgarantie.
-
-Für die externen Eventplattformen gibt es keine Cronjobs, Queue oder automatische
-Drittanbieter-Event-Erstellung. Ticket-PDFs werden nicht erzeugt.
-
-Stripe Connect mit Direct Charges, Company-Onboarding, Checkout, Zahlungs-Webhooks
-und einer Versandwarteschlange für bezahlte Tickets ist implementiert.
-Einrichtung, regelmäßiger Zahlungsabgleich und Grenzen des ersten Stands:
-[Stripe-Dokumentation](docs/stripe.md).
+Fachregeln und Einrichtung in der jeweils verlinkten Themendatei aktualisieren.
+Die README bleibt der Einstieg; Arbeitsberichte, einmalige Testergebnisse und
+umgebungsabhängige Migrationsstände gehören in Pull Requests bzw. Betriebsprotokolle.
+`AGENTS.md` enthält Hinweise für Coding-Agenten; `CLAUDE.md` verweist darauf.

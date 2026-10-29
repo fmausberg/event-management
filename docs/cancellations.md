@@ -25,8 +25,9 @@ nicht negativen Fristwerte. Der Prisma-Client bleibt auf Version 7.
 
 Die Formulare zeigen Stunden/Tage; gespeichert werden ganze Minuten (0 zulässig,
 leeres Feld = NULL/deaktiviert). Der Serienwert wird bei Auswahl einer Reihe in
-das Eventformular kopiert. Das Event hat anschließend seinen eigenen Wert; Änderungen
-der Reihe aktualisieren keine existierenden Events. Auch die ältere Admin-Eventmaske
+das Eventformular kopiert. Das Event hat anschließend seinen eigenen Wert; Spätere Änderungen
+der Reihe können über die [Serienvorschau](events-and-series.md) für ausgewählte
+zukünftige Events übernommen werden; ohne Auswahl bleiben Eventwerte erhalten. Auch die ältere Admin-Eventmaske
 zeigt und speichert den Eventwert.
 
 Die kostenfreie Grenze ist `beginsAt - Minuten`. Verglichen werden absolute UTC-
@@ -144,5 +145,5 @@ Idempotenzfenster, Connected-Account-Prüfung und SMTP-Wiederaufnahme ab.
 
 Stripe und Datenbankzugriffe werden in Unit-Tests gemockt. Vor Live-Freischaltung
 Migration und Connect-Webhooks in einer Testumgebung prüfen, einschließlich einer
-echten Rückerstattung und zweier paralleler Requests gegen PostgreSQL. Es wurde
-keine Livezahlung, Liveerstattung oder Migration einer bestehenden Datenbank ausgeführt.
+echten Rückerstattung und zweier paralleler Requests gegen PostgreSQL. Der tatsächliche Prüf- und Migrationsstand ist je Umgebung zu ermitteln;
+diese Anleitung dokumentiert keinen erfolgreichen Livebetrieb.

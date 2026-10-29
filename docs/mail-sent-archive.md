@@ -38,10 +38,7 @@ eindeutige bestehende Ordner mit Namen `Sent`, `Gesendet`, `Sent Items` oder
 `IMAP_SENT_FOLDER` kann bei Mehrdeutigkeit einen exakten vorhandenen Pfad vorgeben.
 Es wird niemals ein Ordner angelegt. Falls kein Ziel gefunden wird, im STRATO-Webmail
 den dort vorgesehenen Gesendet-Ordner prüfen und gegebenenfalls dessen IMAP-Pfad
-konfigurieren. Eine schreibgeschützte Prüfung mit der vorhandenen lokalen STRATO-Konfiguration
-war erfolgreich: Der Server meldet `Sent Items` mit `\Sent` als Server-Metadatum.
-Es wurden dabei keine Nachrichten versendet, gelesen oder gespeichert. Andere
-Postfächer werden weiterhin dynamisch ermittelt.
+konfigurieren. Der Zielordner wird für das jeweils konfigurierte Postfach dynamisch ermittelt.
 
 Ein Archivierungsfehler wird separat mit `[mail:archive]` protokolliert, ohne
 Serverantworten, Passwörter, Empfänger oder Mailinhalt. Ein erfolgreicher Versand

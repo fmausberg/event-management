@@ -1,59 +1,53 @@
 # Company-Mitglieder
 
 Unter `/admin/companies` führt die Mitgliederanzahl nach
-`/company/<company-slug>/members`. Diese Seite und ihre Server Action erlauben
-Zugriff ausschließlich für globale `ADMIN`-Benutzer oder eine aktive
-`COMPANY_ADMIN`-Mitgliedschaft in genau dieser Company. Rollen werden bei jedem
-Zugriff aus der Datenbank gelesen.
+`/company/<company-slug>/members`. Globale ADMINs und aktive COMPANY_ADMINs
+dieser Company dürfen Mitglieder hinzufügen, Rollen ändern und nach Bestätigung
+Mitgliedschaften entfernen. Jede Aktion prüft die aktuellen Datenbankrechte.
 
-Mitglieder werden über eine normalisierte E-Mail-Adresse hinzugefügt, stets mit
-der Rolle `COMPANY_USER`. Bestehende Accounts werden direkt zugeordnet. Ohne
-Account entsteht eine Mitgliedschaft mit `email`, ohne `userId` und mit Status
-`ACTIVE`; es wird kein künstlicher Benutzer angelegt und keine E-Mail versendet.
-Die Mitgliederanzahl enthält auch diese vorgemerkten Mitgliedschaften.
+## Hinzufügen und Kontozuordnung
 
-Der angezeigte **Kontostatus** ist vom internen Mitgliedschaftsstatus unabhängig:
+E-Mail-Adressen werden normalisiert. Neue Mitgliedschaften erhalten
+COMPANY_USER und ACTIVE. Bereits verifizierte Accounts werden direkt verknüpft.
+Ohne verifizierten Account bleibt `userId` leer und die Adresse wird an der
+Mitgliedschaft gespeichert; es wird kein künstlicher Benutzer angelegt.
 
-- `no account`: kein zugehöriger Account vorhanden.
-- `not verified`: Account vorhanden, `User.emailVerified` leer.
-- `verified`: Account mit gesetztem `User.emailVerified`.
+Beim Anlegen wird eine Zuordnungsbenachrichtigung versucht. Sie enthält den
+normalen Registrierungslink und gewährt selbst keine Rechte. Ein Mailfehler
+entfernt die Mitgliedschaft nicht. Die Benachrichtigung kann erneut gesendet werden.
 
-Auch nach einer späteren Registrierung wird der Kontostatus anhand der Adresse
-aktuell ermittelt. Die nächste Session-Prüfung ordnet die Mitgliedschaft anhand
-der normalisierten E-Mail dem Account zu, unabhängig von `emailVerified`.
-Bestehende Rollen und gesperrte Mitgliedschaften werden dabei nicht
-überschrieben. Mehrdeutige alte Accounts mit gleicher Adresse in unterschiedlicher
-Schreibweise werden nicht automatisch zugeordnet. Der bisherige Platzhalter für
-die E-Mail-Verifizierung bleibt bestehen; dieses Feature ergänzt keinen Versand
-und keinen Verifizierungsprozess.
+Offene Mitgliedschaften werden erst nach E-Mail-Bestätigung mit dem Account
+verknüpft; dieselbe Prüfung erfolgt bei späteren Session-Prüfungen erneut.
+Mehrdeutige Account-Adressen, bereits fremd verknüpfte Zuordnungen und
+suspendierte Mitgliedschaften werden nicht übernommen. Bestehende Rollen bleiben
+erhalten. Ablauf und weitere Zuordnungstypen: [Verifizierung](email-verification.md).
 
-Diese gewünschte Zuordnung vertraut der registrierten E-Mail-Adresse ohne
-Besitznachweis. Wer sich mit einer bereits zugeordneten fremden Adresse
-registriert, kann dadurch deren Company-Zugriff erhalten.
+## Angezeigter Kontostatus
 
-Die Datenmigration `20261013120000_activate_company_memberships` setzt bisherige
-`INVITED`-Mitgliedschaften auf `ACTIVE`. `SUSPENDED` bleibt unverändert.
-Der alte Enum-Wert bleibt zur Kompatibilität erhalten, wird beim Hinzufügen aber
-nicht mehr verwendet. Der Kontostatus ist nur eine Anzeige, keine Zugriffshürde.
+| Anzeige | Bedeutung |
+| --- | --- |
+| no account | Kein eindeutig zugehöriger Account |
+| not verified | Account vorhanden, E-Mail noch nicht bestätigt |
+| verified | Account mit bestätigter E-Mail |
 
-## Datenbankschema
+Der Kontostatus wird aus den aktuellen Accountdaten ermittelt und ist vom
+Mitgliedschaftsstatus getrennt. ACTIVE allein verschafft einem unbestätigten,
+noch nicht verknüpften Account keinen Zugriff.
 
-`CompanyMembership.userId` und dessen Relation sind nun optional. Das neue
-optionale Feld `email` besitzt einen Unique-Index zusammen mit `companyId`.
-Bestehende Mitgliedschaften behalten ihre Benutzerrelation; deren E-Mail wird
-weiterhin aus dem Benutzerkonto gelesen. Es ist kein Backfill nötig.
+## Datenmodell und URLs
 
-Die Migration `20261012212000_company_members_without_account` ergänzt die
-E-Mail-Spalte und den Unique-Index und macht `userId` optional. Sie wurde nach
-Freigabe auf die lokale Datenbank angewendet; der Prisma Client wurde neu erzeugt.
-In weiteren Umgebungen muss sie vor Nutzung mit `prisma migrate deploy`
-angewendet werden. Bestehende Mitgliedschaften bleiben erhalten.
+`CompanyMembership.userId` ist optional. Für die vorgemerkte Adresse gibt es
+einen Unique-Index zusammen mit `companyId`. Verknüpfte Mitgliedschaften lesen
+die angezeigte Adresse aus dem Benutzerkonto.
 
-Die Tests verwenden Datenbank-Doubles und prüfen unter anderem Zugriffsrechte,
-Normalisierung, doppelte Zuordnungen, Kontostatus und die sichere Übernahme
-vorgemerkter Mitgliedschaften.
+Die Migrationen `20261012212000_company_members_without_account` und
+`20261013120000_activate_company_memberships` sind Teil der eingecheckten
+Migrationshistorie. Letztere setzt historische INVITED-Zuordnungen auf ACTIVE;
+SUSPENDED bleibt erhalten. Den angewendeten Stand je Datenbank prüfen.
 
-Der Routenparameter `companyKey` bezeichnet den eindeutigen `Company.slug`.
-Datenzugriffe und Berechtigungsprüfungen verwenden nach dessen Auflösung die
-interne Company-ID. Änderungen am Slug ändern auch die Verwaltungs-URLs; alte
-URLs werden nicht automatisch weitergeleitet.
+`companyKey` bezeichnet `Company.slug`. Nach dessen Auflösung verwenden
+Datenzugriffe die interne Company-ID. Slug-Änderungen ändern Verwaltungs-URLs;
+alte URLs werden nicht automatisch weitergeleitet.
+
+Tests prüfen Berechtigungen, Normalisierung, doppelte Zuordnungen, Kontostatus
+und die verifizierte Übernahme mit Datenbank-Doubles; siehe [Prüfungen](testing.md).

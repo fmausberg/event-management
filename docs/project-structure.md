@@ -1,141 +1,82 @@
-# Routenstruktur
+# Projektstruktur und Routen
 
-```text
-app/
-├── (auth)/
-│   ├── actions.ts              # Registrierung, Login, OAuth und Logout
-│   ├── login/page.tsx
-│   ├── register/page.tsx
-│   └── verify-email/page.tsx
-├── (public)/
-│   ├── page.tsx
-│   └── events/
-│       ├── page.tsx
-│       └── [companySlug]/
-│           ├── page.tsx
-│           └── [eventId]/page.tsx
-├── admin/
-│   ├── companies/              # Admin-geschützte CRUD-Tabelle
-│   ├── events/                 # Vorhandene Eventverwaltung, inklusive new und [id]/edit
-│   ├── event-series/page.tsx
-│   ├── venues/page.tsx
-│   └── users/page.tsx
-├── company/[companyKey]/
-│   ├── settings/page.tsx
-│   ├── members/page.tsx
-│   ├── venues/page.tsx
-│   └── event-series/page.tsx
-├── account/page.tsx
-├── api/                       # Auth-Endpunkte und Webhooks
-└── layout.tsx
+## Öffentliche Seiten und Kundenkonto
 
-components/                   # Gemeinsame UI neben app
-├── auth-form.tsx
-├── auth-page.tsx
-├── placeholder-page.tsx
-├── navigation-shell.tsx       # Sidebar, mobile Navigation und Kontobereich
-└── navigation-icon.tsx
+| Route | Zweck |
+| --- | --- |
+| `/` | Einstieg |
+| `/login`, `/register`, `/verify-email` | Anmeldung, Registrierung und Bestätigung |
+| `/events` | Öffentliche Eventübersicht |
+| `/events/[companySlug]` | Eventliste einer Company |
+| `/events/[companySlug]/[eventId]` | Eventdetails und Buchung |
+| `/booking/payment/[token]` | Zahlung fortsetzen und Status prüfen |
+| `/tickets#<code>` | Öffentliches Ticket über geheimen Fragment-Link |
+| `/account` | Kontoübersicht |
+| `/account/bookings` | Eigene Buchungen und Stornierungsaktionen |
+| `/account/events` | Persönliche Eventübersicht |
+| `/account/tickets/[ticketId]` | Eigenes Ticket nach Eigentumsprüfung |
+| `/account/scan` | Tickets prüfen und bei Berechtigung einlösen |
 
-lib/                          # Auth-Logik, Datenbank und Fachlogik
-```
+Route Groups `(auth)` und `(public)` erscheinen nicht in der URL.
 
-Route Groups `(auth)` und `(public)` erscheinen nicht in URLs. `/login`,
-`/register` und `/events` bleiben daher unverändert erreichbar. Die Root-Layout-
-Datei gilt für alle Bereiche. Neue Fachseiten und `/verify-email` sind zunächst
-Platzhalter ohne Datenbankzugriff, Buchungs- oder Verifizierungsfunktion.
+## Verwaltung
 
-Gemeinsame Komponenten werden über `@/components/...` importiert.
-Die ausschließlich von der Eventverwaltung genutzten Komponenten bleiben
-bei ihren Seiten in `app/admin/events/_components`.
+Company-Seiten liegen unter `/company/[companyKey]`.
+`companyKey` bezeichnet den eindeutigen **Company-Slug**, keine Datenbank-ID.
+Die Anwendung löst ihn serverseitig zur internen ID auf und prüft die Zugehörigkeit
+der angeforderten Datensätze.
 
-## Navigation für eingeloggte Nutzer
+| Suffix | Zweck |
+| --- | --- |
+| `/settings` | Company-Einstellungen und Stripe-Anbindung |
+| `/members` | Mitglieder und Rollen |
+| `/venues` | Veranstaltungsorte und Staff |
+| `/trainers` | Trainerverwaltung |
+| `/event-series` | Reihen und Vorgaben |
+| `/event-series/[seriesId]` | Reihendetails und zugehörige Events |
+| `/events` | Eventverwaltung |
+| `/events/[eventId]/bookings` | Buchungsverwaltung |
+| `/events/[eventId]/tickets` | Ticketverwaltung |
+| `/cancellations` | Stornierungsanfragen und Erstattungen |
 
-Das Root-Layout lädt über `lib/navigation/get-navigation.ts` die aktuelle
-Session und anschließend nur die benötigten Profildaten, die globale Rolle und
-aktiven Company-Mitgliedschaften aus der Datenbank. Gäste erhalten keine Sidebar.
-`lib/navigation/model.ts` bildet daraus die sichtbaren Gruppen und Links:
+Globale Verwaltungszugänge liegen unter `/admin`, unter anderem Companies,
+Events, Eventserien, Venues, Trainer und User. Einzelne Zugänge führen zur
+Company-Auswahl oder verwenden die Company-Verwaltung; der URL-Präfix allein
+legt keine Berechtigung fest.
 
-- Allgemein: Events unter `/events`.
-- Je aktiver Company-Mitgliedschaft: Companyname, Venues und Event-Series.
-- Bei `COMPANY_ADMIN` zusätzlich Settings und Members der jeweiligen Company.
-- Bei globaler Rolle `ADMIN`: Companies, Venues, Event-Series, Events und User unter `/admin`.
+## Codezuständigkeiten
 
-Company-Gruppen sind nach Namen sortiert und verwenden Company-IDs in den Links.
-Eingeladene und gesperrte Mitgliedschaften erscheinen nicht. Eine globale
-Admin-Rolle verändert die Company-Rolle nicht automatisch. An den Client gehen
-nur die vorbereiteten Links, Anzeigename und E-Mail-Adresse.
+- `app/`: Seiten, Route Handler, Server Actions und seitenspezifische Komponenten.
+- `components/`: gemeinsam verwendete UI.
+- `lib/`: Datenzugriff, Autorisierung und Fachlogik nach Thema.
+- `prisma/schema.prisma` und `prisma/migrations/`: Datenmodell und Migrationen.
+- `tests/`: automatisierte Vitest-Tests.
+- `docs/`: Einrichtung, Fachregeln und Betrieb.
+- `.github/workflows/deploy.yml`: Deployment bei Push auf main.
 
-Die Navigation markiert auch auf Unterseiten den passenden Eintrag, lässt sich
-am Desktop einklappen und bietet mobil ein aufklappbares Menü. Der Kontobereich
-verlinkt `/account` und bietet Logout. Die Navigation wird bei einer neuen
-serverseitigen Layout-Auswertung aktualisiert (z. B. Neuladen); sie ist keine
-Live-Anzeige von Rollenänderungen in anderen Sitzungen.
+Die Navigation wird aus Session, aktueller globaler Rolle und aktiven
+Company-Mitgliedschaften aufgebaut. Company-Links verwenden Slugs.
+Die Sichtbarkeit eines Links ersetzt keine serverseitige Berechtigungsprüfung.
+Rollenänderungen werden bei einer neuen serverseitigen Layout-Auswertung sichtbar.
 
-Die Sichtbarkeit der Links ist keine Zugriffsprüfung für die Zielseiten oder
-Server Actions. Die separat beschriebenen Berechtigungsprüfungen bleiben für
-die spätere fachliche Umsetzung notwendig. `/admin/companies` und dessen
-Server Actions setzen diese Prüfungen bereits um.
+Die globale Company-Verwaltung prüft die aktuelle Rolle ADMIN.
+Die Mitgliederverwaltung benötigt Company-Adminrechte oder eine globale Adminrolle.
+Andere Verwaltungsaktionen haben eigene Regeln; insbesondere unterscheiden sich
+Company-Ticketverwaltung, Kamera-Scanner und Ticket-Neuversand.
+Details stehen in [Mitglieder](company-members.md),
+[Buchungsverwaltung](booking-management.md), [Mail und Check-in](mail.md)
+und [Ticket-Outbox](ticket-outbox.md).
 
-## Companies verwalten
+Slug-Änderungen ändern öffentliche und Verwaltungs-URLs; alte URLs werden nicht
+automatisch weitergeleitet.
 
-`/admin/companies` zeigt alle Companies mit Nummer, Name, URL-Kürzel und Anzahl
-der Mitglieder, Venues, Event-Series und Events. Die Tabelle bietet Suche,
-Anlegen, Bearbeiten und bestätigtes Löschen. Das URL-Kürzel wird beim Anlegen
-aus dem Namen vorgeschlagen und kann manuell geändert werden.
+## API
 
-Der Datenzugriff und jede Mutation prüfen über `lib/auth/require-admin.ts` die
-Session und die aktuelle globale `User.role` in der Datenbank. Eine
-`COMPANY_ADMIN`-Mitgliedschaft reicht nicht aus. Gäste werden beim Seitenaufruf
-zum Login geleitet; normale Nutzer erhalten eine 404-Seite. Direkte Server-Action-
-Aufrufe ohne Berechtigung werden ebenfalls abgewiesen.
+- `/api/auth/[...nextauth]`: Auth.js.
+- `POST /api/public-ticket`: geschützter Abruf öffentlicher Ticketdaten.
+- `POST /api/webhooks/stripe`: signaturgeprüfte Stripe-Events.
+- `POST /api/payments/reconcile`: autorisierter Zahlungs-, Erstattungs- und Mailabgleich.
+- `/api/health`: Datenbank-Erreichbarkeit.
+- `POST /api/webhooks/eventbrite`: nicht implementiert, HTTP 501.
 
-Bearbeitbar sind ausschließlich Name und Slug. Nummer und ID vergibt die
-Datenbank. Der Name wird getrimmt, der Slug zusätzlich kleingeschrieben und als
-URL-Segment validiert. Doppelte Slugs und Datenbankfehler erscheinen als
-verständliche Meldungen. Eine neue Company erhält keine automatischen
-Mitgliedschaften. Änderungen am Slug ändern die öffentliche Event-URL.
-
-Löschen ist nur ohne zugeordnete Mitglieder (unabhängig vom Status), Venues,
-Event-Series und Events möglich. Ein bedingtes DELETE sowie die vorhandenen
-Restrict-Fremdschlüssel schützen die Beziehungen auch bei parallelen Änderungen.
-Mutationen aktualisieren die Tabelle und das gemeinsame Layout, damit geänderte
-Companynamen in der Navigation erscheinen. Es gibt keine Schemaänderung oder
-neue Migration für diese Funktion.
-
-Tests prüfen Berechtigungen, Listenabfrage, Validierung, CRUD, doppelte Slugs,
-fehlende Datensätze und Löschschutz mit Datenbank-Doubles. Sie verändern keine
-echten Companies.
-
-## Company-Routen
-
-Öffentliche Eventseiten und Company-Verwaltung haben getrennte URL-Strukturen:
-
-- `/events`: öffentliche Übersicht aller Events.
-- `/events/meine-company`: `companySlug` wird künftig über `Company.slug` aufgelöst.
-- `/events/meine-company/<event-id>`: Details und Buchung eines Events dieser Company.
-- `/company/<company-slug>/settings` (ebenso members, venues, event-series):
-  `companyKey` wird künftig über `Company.id` aufgelöst.
-
-Die öffentliche Company-Eventseite wurde von `/company/<slug>/events` nach
-`/events/<slug>` verschoben. Da `/events/[eventId]` dieselbe URL-Form hätte,
-liegt der Eventdetail-Platzhalter jetzt unter `/events/[companySlug]/[eventId]`.
-Die tatsächliche Datenauflösung folgt bei Umsetzung der Fachseiten; bei
-Eventdetails ist dann auch die Zugehörigkeit zur angegebenen Company zu prüfen.
-
-Die bestehende Eventverwaltung wurde nach `/admin/events` verschoben; Links,
-Server-Action-Weiterleitungen und Revalidierungspfade wurden angepasst.
-`/events` ist jetzt die öffentliche Platzhalterseite. Die alten leeren Seiten
-unter `/company/[id]/...` wurden in die neue Company-Struktur überführt.
-
-Ordnernamen und Route Groups vergeben keine Berechtigungen. Admin-Rollen sowie
-Company-Mitgliedschaften müssen bei der fachlichen Umsetzung serverseitig an
-den Datenzugriffen und Mutationen geprüft werden. Diese Strukturänderung führt
-keine neuen Berechtigungsregeln ein; auch die bisherige Eventverwaltung erhält
-dadurch noch keinen Admin-Zugriffsschutz. Login, Registrierung, Kontoseite und
-Auth-API bleiben funktional erhalten.
-
-Validierung: Next.js-Routentypen ohne Konflikte erzeugt; alle elf neuen
-Platzhalter und beide Auth-Seiten per HTTP mit Status 200 geprüft.
-99 Tests und ESLint erfolgreich. Der Produktionscode kompiliert; der abschließende
-Typecheck bleibt durch die vorhandenen Schema-Abweichungen in
-`lib/events/event-mutations.ts` und `tests/event-management.test.ts` blockiert.
+Prüfungen und deren Grenzen: [Testing](testing.md).

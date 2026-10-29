@@ -5,7 +5,7 @@ Jede Company bekommt ein verbundenes Konto über Accounts v2 mit vollem Stripe-D
 ## Einrichtung
 
 1. In Stripe eine Connect-Plattform einrichten, zunächst in einer Sandbox. Accounts v2 und die oben genannte Kontokonfiguration müssen für die Plattform verfügbar sein. Branding für das gehostete Onboarding konfigurieren.
-2. Servervariablen setzen: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `PAYMENTS_CRON_SECRET`. `AUTH_URL` muss die öffentliche Basis-URL sein (HTTPS im Produktivbetrieb). Die vorhandenen SMTP-Variablen werden für Tickets verwendet. Es wird kein öffentlicher Stripe-Schlüssel benötigt.
+2. Servervariablen setzen: `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `PAYMENTS_CRON_SECRET`. `AUTH_URL` muss die öffentliche Basis-URL sein (HTTPS im Produktivbetrieb). Die vorhandenen SMTP-Variablen werden für Ticketmails verwendet; für die Ticketcodes ist zusätzlich `TICKET_CODE_ENCRYPTION_KEYS` erforderlich (siehe [Ticketcodes](ticket-codes.md)). Es wird kein öffentlicher Stripe-Schlüssel benötigt.
 3. `npm ci`, `npx prisma migrate deploy`, `npm run build`. Docker übernimmt Migration und Generierung über die vorhandenen Services; die drei neuen Variablen werden in `compose.yaml` weitergegeben.
 4. Einen **Snapshot-Webhook für Connected accounts** auf `https://DEINE-DOMAIN/api/webhooks/stripe` anlegen. Die API-Version auf die Version des installierten Stripe-SDK abstimmen. Folgende Events abonnieren:
    - `checkout.session.completed`
@@ -13,7 +13,10 @@ Jede Company bekommt ein verbundenes Konto über Accounts v2 mit vollem Stripe-D
    - `checkout.session.async_payment_succeeded`
    - `checkout.session.async_payment_failed`
    - `charge.refunded`
-5. Einen Job einrichten, der jede Minute `POST /api/payments/reconcile` mit Header `Authorization: Bearer <PAYMENTS_CRON_SECRET>` ausführt. Der Job prüft pro Aufruf bis zu 50 Zahlungen und 50 ausstehende Mails; bei größerem Volumen entsprechend häufiger aufrufen. Nicht erfolgreiche Antworten überwachen und erneut versuchen.
+   - `refund.created`
+   - `refund.updated`
+   - `refund.failed`
+5. Einen Job einrichten, der jede Minute `POST /api/payments/reconcile` mit Header `Authorization: Bearer <PAYMENTS_CRON_SECRET>` ausführt. Der Job prüft bis zu 50 offene Zahlungen und 50 fällige Ticketmails sowie zusätzlich Erstattungen und Stornierungsmails; bei größerem Volumen entsprechend häufiger aufrufen. Nicht erfolgreiche Antworten überwachen und erneut versuchen.
 6. Als Company-Admin unter **Einstellungen → Ticketzahlungen** das Unternehmensland angeben und **Stripe einrichten** öffnen. Stripe erhebt Unternehmens-, Identitäts- und Bankdaten. Nach Rückkehr werden die aktuellen Fähigkeiten abgefragt. Bezahlen ist erst möglich, wenn Kartenzahlungen und Auszahlungen aktiv sind.
 
 Lokal können Connect-Webhooks mit der Stripe CLI weitergeleitet werden:
@@ -48,7 +51,7 @@ Payments prüfen; diese behalten ihre ursprüngliche Stripe-Kontozuordnung.
 
 ## Erstattungen und Betrieb
 
-Erstattungen werden zunächst im Stripe-Dashboard des verbundenen Kontos ausgelöst. Eine vollständige Erstattung storniert Buchung und Tickets. Eine Teilerstattung ändert den Zahlungsstatus, lässt aber die Tickets gültig; die Zuordnung einer Teilerstattung zu einzelnen Tickets wird noch nicht unterstützt. Stripe-Buchungen können im allgemeinen Buchungseditor weder geändert noch gelöscht werden.
+Vollständige Erstattungen können über den [Stornierungsablauf](cancellations.md) angefordert werden. Zusätzlich werden externe Erstattungen im Stripe-Dashboard des verbundenen Kontos abgeglichen. Eine vollständige Erstattung storniert Buchung und Tickets. Eine Teilerstattung ändert den Zahlungsstatus, lässt aber die Tickets gültig; die Zuordnung einer Teilerstattung zu einzelnen Tickets wird noch nicht unterstützt. Stripe-Buchungen können im allgemeinen Buchungseditor weder geändert noch gelöscht werden.
 
 Bestehende Buchungen werden durch die Migration nicht nachträglich belastet. Das Stornieren eines Events löst keine automatischen Erstattungen aus. Rückbuchungen/Disputes werden im Stripe-Dashboard bearbeitet; eine automatische Ticketsperre für Disputes ist nicht enthalten.
 
