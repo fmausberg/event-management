@@ -1,3 +1,4 @@
+import { voucherHistory, hasVoucher } from "@/lib/vouchers/reversal";
 import { Platform, Prisma } from "@prisma/client";
 import { getPrisma } from "@/lib/db/prisma";
 
@@ -31,8 +32,9 @@ export async function upsertExternalBooking(input: UpsertExternalBookingInput) {
       where: { platform_externalBookingId: { platform, externalBookingId } },
       create: { eventId, platform, externalBookingId, quantity, status, bookedAt },
       update: { quantity, status, bookedAt },
-      include: { cancellationRequests: { where: { status: { in: ["PENDING", "APPROVED"] } }, select: { id: true } } },
+      include: { ...voucherHistory, payment: true, cancellationRequests: { where: { status: { in: ["PENDING", "APPROVED"] } }, select: { id: true } } },
     });
+    if (booking.price || booking.payment || hasVoucher(booking)) throw new Error("External update blocked by financial booking history.");
     if (booking.cancellationRequests?.length) throw new Error("External booking has an active cancellation workflow.");
     if (booking.eventId !== eventId) {
       // Throw inside the transaction so even the update above is rolled back.

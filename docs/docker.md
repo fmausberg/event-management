@@ -22,6 +22,12 @@ außerhalb von Git und Docker-Image. Keine produktiven Secrets als Build-Argumen
 Zusätzlich ist `TICKET_CODE_ENCRYPTION_KEYS` erforderlich. Einen eigenen zufälligen
 32-Byte-Schlüssel erzeugen und als JSON-Keyring eintragen; vollständiges Format und
 Rotation siehe [Ticketcodes](ticket-codes.md). Compose bricht bei fehlendem Wert ab.
+Für die Gutschein-Domänenschicht zusätzlich `VOUCHER_CODE_DIGEST_KEYS` als
+JSON-Schlüsselring konfigurieren; Format, Erzeugung und Rotation siehe
+[Gutscheine](vouchers.md#schlüssel-und-geheimnisse). Compose reicht die Variable
+nur zur Laufzeit an `app` weiter. Fehlende oder ungültige Werte werden beim
+Gutscheinzugriff abgelehnt; sie verhindern nicht den Start anderer App-Funktionen.
+Die Platzhalter in den Env-Beispielen sind absichtlich keine gültigen Schlüssel.
 SMTP für Verifizierung/Tickets und bei Bedarf Stripe/Cloudinary konfigurieren.
 `PAYMENTS_CRON_SECRET` wird für den regelmäßig aufzurufenden Abgleich benötigt.
 

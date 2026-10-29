@@ -62,7 +62,7 @@ it("scopes booking updates and deletes to event and rejects foreign booking IDs"
  db.booking.findFirst.mockResolvedValue(null);
  expect((await saveBooking("yoga", "event-1", "foreign", {}, form())).success).toBeUndefined();
  await deleteBooking("yoga", "event-1", "booking-1", {}, form());
- expect(db.booking.deleteMany).toHaveBeenCalledWith({ where: { id: "booking-1", eventId: "event-1", payment: { is: null }, cancellationRequests: { none: {} } } });
+ expect(db.booking.deleteMany).toHaveBeenCalledWith({ where: { id: "booking-1", eventId: "event-1", payment: { is: null }, price: { is: null }, voucherRedemption: { is: null }, voucherBalanceUses: { none: {} }, cancellationRequests: { none: {} } } });
  db.booking.deleteMany.mockResolvedValue({ count: 0 });
  expect((await deleteBooking("yoga", "event-1", "foreign", {}, form())).success).toBeUndefined();
 });
@@ -118,4 +118,10 @@ it("loads stored payment totals and displays the event revenue above the booking
  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companyKey: "yoga", eventId: "event-1" }) }));
  expect(html).toContain("31,55");
  expect(html.indexOf("Kalkulatorische Event-Umsatzübersicht")).toBeLessThan(html.indexOf("<table"));
+});
+
+it.each([{ price: { bookingId: "booking-1" } }, { voucherRedemption: { id: "redemption" } }, { voucherBalanceUses: [{ id: "use" }] }])("blocks financial history from manual changes %j", async history => {
+ db.booking.findFirst.mockResolvedValue({ id: "booking-1", quantity: 1, status: "CONFIRMED", ...history });
+ expect((await saveBooking("yoga", "event-1", "booking-1", {}, form({ status: "CANCELLED" }))).success).toBeUndefined();
+ expect(db.booking.updateMany).not.toHaveBeenCalled();
 });

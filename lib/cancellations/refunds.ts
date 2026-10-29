@@ -1,3 +1,5 @@
+import { reconcileStripeCharge } from "@/lib/payments/refund-reconciliation";
+import { hasVoucher, reverseBookingVoucher, voucherHistory } from "@/lib/vouchers/reversal";
 import "server-only";
 import type Stripe from "stripe";
 import { getPrisma } from "@/lib/db/prisma";
@@ -6,7 +8,7 @@ import { cancellationTransaction } from "./transaction";
 import { queueCancellationMail } from "./mail";
 import { authorizeCancellation, cancellationActor, CancellationError } from "./service";
 
-const include = { booking: { include: { payment: true, event: true } } } as const;
+const include = { booking: { include: { ...voucherHistory, payment: true, event: true } } } as const;
 const stripeId = (value: string | { id: string } | null) => typeof value === "string" ? value : value?.id;
 
 export async function applyCancellationRefund(refund: Stripe.Refund, accountId: string) {
@@ -26,6 +28,7 @@ export async function applyCancellationRefund(refund: Stripe.Refund, accountId: 
     await tx.cancellationRequest.update({ where: { id: request.id }, data: { stripeRefundId: refund.id, refundStatus: status, refundCheckedAt: new Date(), refundError: status === "FAILED" ? "Stripe hat die Erstattung nicht ausgeführt." : null } });
     if (status === "SUCCEEDED") {
       await tx.payment.update({ where: { id: payment.id }, data: { status: "REFUNDED" } });
+      if (hasVoucher(request.booking)) await reverseBookingVoucher(tx, request.bookingId, { cancellationRequestId: request.id, externalRefundId: refund.id });
       await tx.booking.update({ where: { id: request.bookingId }, data: { status: "CANCELLED" } });
       await tx.ticket.updateMany({ where: { bookingId: request.bookingId }, data: { status: "CANCELLED" } });
       await queueCancellationMail(tx, request.id, "refunded");
@@ -44,24 +47,34 @@ export async function processCancellationRefund(requestId: string) {
     if (!payment?.paymentIntentId) throw new Error("Missing payment intent");
     if (payment.status === "REFUNDED") {
       await cancellationTransaction(async (tx) => {
+        if (hasVoucher(request.booking)) await reverseBookingVoucher(tx, request.bookingId, { cancellationRequestId: requestId });
         const changed = await tx.cancellationRequest.updateMany({ where: { id: requestId, refundStatus: { not: "SUCCEEDED" } }, data: { refundStatus: "SUCCEEDED", refundError: null } });
         if (changed.count) await queueCancellationMail(tx, requestId, "refunded");
       });
       return;
     }
+    if (hasVoucher(request.booking) && payment.status !== "PARTIALLY_REFUNDED") {
+      await cancellationTransaction(tx => reverseBookingVoucher(tx, request.bookingId, { cancellationRequestId: requestId }, true));
+    }
     const stripe = getStripe();
     const options = { stripeAccount: payment.stripeAccountId };
     if (request.stripeRefundId) {
-      await applyCancellationRefund(await stripe.refunds.retrieve(request.stripeRefundId, {}, options), payment.stripeAccountId);
-      return;
+      const known = await stripe.refunds.retrieve(request.stripeRefundId, {}, options);
+      await applyCancellationRefund(known, payment.stripeAccountId);
+      if (known.status !== "failed" && known.status !== "canceled") return;
     }
     // Recover a lost response before attempting another write, including beyond the
     // Stripe idempotency retention window. Inspect every page, never just the first.
     let recovered: Stripe.Refund | undefined;
     let otherActiveRefund = false;
+    let externalChargeId: string | undefined;
     for await (const refund of stripe.refunds.list({ payment_intent: payment.paymentIntentId, limit: 100 }, options)) {
       if (refund.metadata?.cancellationRequestId === requestId && refund.metadata?.attempt === String(request.refundAttempt)) recovered = refund;
-      else if (refund.status !== "failed" && refund.status !== "canceled") otherActiveRefund = true;
+      else if (refund.status !== "failed" && refund.status !== "canceled") { otherActiveRefund = true; externalChargeId = stripeId(refund.charge) ?? externalChargeId; }
+    }
+    if (externalChargeId) {
+      await reconcileStripeCharge(externalChargeId, payment.stripeAccountId);
+      return;
     }
     if (recovered) {
       await applyCancellationRefund(recovered, payment.stripeAccountId);
@@ -107,7 +120,7 @@ export async function retryCancellationRefund(requestId: string) {
 }
 
 export async function reconcileCancellationRefunds() {
-  const rows = await getPrisma().cancellationRequest.findMany({ where: { status: "APPROVED", refundStatus: { in: ["PENDING", "REVIEW"] } }, orderBy: [{ refundCheckedAt: { sort: "asc", nulls: "first" } }, { id: "asc" }], take: 50 });
+  const rows = await getPrisma().cancellationRequest.findMany({ where: { status: "APPROVED", refundStatus: { in: ["PENDING", "REVIEW", "FAILED"] } }, orderBy: [{ refundCheckedAt: { sort: "asc", nulls: "first" } }, { id: "asc" }], take: 50 });
   for (const row of rows) await processCancellationRefund(row.id);
   return rows.length;
 }

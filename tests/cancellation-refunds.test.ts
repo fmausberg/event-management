@@ -1,5 +1,6 @@
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import type Stripe from "stripe";
+import * as refundReconciliation from "@/lib/payments/refund-reconciliation";
 import { applyCancellationRefund, processCancellationRefund, retryCancellationRefund } from "@/lib/cancellations/refunds";
 
 const { db, stripe, auth, queue } = vi.hoisted(() => ({ auth: vi.fn(), queue: vi.fn(), stripe: { refunds: { retrieve: vi.fn(), create: vi.fn(), list: vi.fn() } }, db: {
@@ -133,5 +134,14 @@ it("reconciles a failed request after a full dashboard refund without a new Stri
   await processCancellationRefund("request");
   expect(current.refundStatus).toBe("SUCCEEDED");
   expect(queue).toHaveBeenCalledWith(db, "request", "refunded");
+  expect(stripe.refunds.create).not.toHaveBeenCalled();
+});
+it("checks external refunds even when the saved internal refund failed and its webhook was lost", async () => {
+  current.refundStatus = "FAILED"; current.stripeRefundId = "re_1";
+  stripe.refunds.retrieve.mockResolvedValue(refund("failed"));
+  stripe.refunds.list.mockImplementation(() => list(refund("failed"), refund("succeeded", { id: "re_external", charge: "ch_external", metadata: {} })));
+  const sync = vi.spyOn(refundReconciliation, "reconcileStripeCharge").mockResolvedValue("payment");
+  await processCancellationRefund("request");
+  expect(sync).toHaveBeenCalledWith("ch_external", "acct_1");
   expect(stripe.refunds.create).not.toHaveBeenCalled();
 });

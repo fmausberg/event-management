@@ -1,3 +1,4 @@
+import { hasVoucher, reverseBookingVoucher, voucherHistory } from "@/lib/vouchers/reversal";
 import "server-only";
 import { z } from "zod";
 import type { Prisma } from "@prisma/client";
@@ -42,7 +43,7 @@ export async function requestCancellation(bookingId: string, reason: string, exp
   const customerReason = noteSchema.parse(reason);
   const actor = await cancellationActor();
   return cancellationTransaction(async (tx) => {
-    const booking = await tx.booking.findUnique({ where: { id: bookingId }, include: { event: true, payment: true, cancellationRequests: { where: { status: { in: ["PENDING", "APPROVED"] } } } } });
+    const booking = await tx.booking.findUnique({ where: { id: bookingId }, include: { ...voucherHistory, event: true, payment: true, cancellationRequests: { where: { status: { in: ["PENDING", "APPROVED"] } } } } });
     if (!booking) throw new MemberAccessError("NOT_FOUND");
     await authorizeCancellation(tx, actor, booking, false);
     // Idempotent replay returns the durable request instead of issuing another refund.
@@ -58,7 +59,10 @@ export async function requestCancellation(bookingId: string, reason: string, exp
       decidedAt: automatic ? now : null, decidedById: automatic ? actor : null,
       refundStatus: automatic && booking.payment ? "PENDING" : "NONE",
     } });
-    if (automatic) await cancelBooking(tx, booking.id);
+    if (automatic) {
+      if (hasVoucher(booking)) await reverseBookingVoucher(tx, booking.id, { cancellationRequestId: request.id });
+      await cancelBooking(tx, booking.id);
+    }
     await queueCancellationMail(tx, request.id, automatic ? "approved" : "requested");
     return request;
   });
@@ -69,9 +73,10 @@ export async function decideCancellation(requestId: string, decision: "APPROVED"
   const internalNote = noteSchema.parse(note);
   const actor = await cancellationActor();
   return cancellationTransaction(async (tx) => {
-    const request = await tx.cancellationRequest.findUnique({ where: { id: requestId }, include: { booking: { include: { event: true, payment: true } } } });
+    const request = await tx.cancellationRequest.findUnique({ where: { id: requestId }, include: { booking: { include: { ...voucherHistory, event: true, payment: true } } } });
     if (!request) throw new MemberAccessError("NOT_FOUND");
     await authorizeCancellation(tx, actor, request.booking, decision !== "WITHDRAWN");
+    if (request.status === decision) return requestId;
     if (request.status !== "PENDING") throw new CancellationError("Diese Anfrage wurde bereits entschieden oder zurückgezogen.");
     const now = new Date();
     if (decision === "APPROVED") assertCancellable(request.booking, now);
@@ -81,7 +86,10 @@ export async function decideCancellation(requestId: string, decision: "APPROVED"
       refundStatus: decision === "APPROVED" && request.booking.payment ? "PENDING" : "NONE",
     } });
     if (!changed.count) throw new CancellationError("Diese Anfrage wurde bereits bearbeitet.");
-    if (decision === "APPROVED") await cancelBooking(tx, request.bookingId);
+    if (decision === "APPROVED") {
+      if (hasVoucher(request.booking)) await reverseBookingVoucher(tx, request.bookingId, { cancellationRequestId: requestId });
+      await cancelBooking(tx, request.bookingId);
+    }
     if (decision !== "WITHDRAWN") await queueCancellationMail(tx, requestId, decision === "APPROVED" ? "approved" : "rejected");
     return requestId;
   });

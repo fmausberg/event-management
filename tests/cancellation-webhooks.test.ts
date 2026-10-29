@@ -20,11 +20,11 @@ beforeEach(() => {
 });
 it("never counts pending or failed refunds as settled, even in charge.refunded", async () => {
   stripe.webhooks.constructEvent.mockReturnValue({ id: "evt_1", type: "charge.refunded", account: "acct_1", data: { object: { id: "ch_1" } } });
-  stripe.refunds.list.mockImplementation(async function* () { yield { amount: 1000, status: "succeeded" }; yield { amount: 1000, status: "pending" }; yield { amount: 500, status: "failed" }; });
+  stripe.refunds.list.mockImplementation(async function* () { yield { id: "re_succeeded", amount: 1000, status: "succeeded" }; yield { amount: 1000, status: "pending" }; yield { amount: 500, status: "failed" }; });
   const result = await POST(new Request("https://example.com", { method: "POST", body: "{}" }));
   expect(result.status).toBe(200);
-  expect(applyRefund).toHaveBeenCalledWith(expect.objectContaining({ amount_refunded: 1000 }), "acct_1", "payment", "evt_1");
-  expect(processCancellationRefund).toHaveBeenCalledWith("request");
+  expect(applyRefund).toHaveBeenCalledWith(expect.objectContaining({ amount_refunded: 1000 }), "acct_1", "payment", "evt_1", ["re_succeeded"]);
+  expect(processCancellationRefund).not.toHaveBeenCalled();
 });
 it.each(["refund.created", "refund.updated", "refund.failed"])("retrieves current connected-account state for %s", async (type) => {
   stripe.webhooks.constructEvent.mockReturnValue({ id: "evt_1", type, account: "acct_1", data: { object: { id: "re_1", status: "pending" } } });

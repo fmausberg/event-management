@@ -33,7 +33,7 @@ describe("navigation visibility", () => {
     ]);
     expect(result.groups[2].items.map((item) => item.href)).toEqual([
       "/company/slug-company-b/event-series", "/company/slug-company-b/events",
-      "/company/slug-company-b/venues", "/company/slug-company-b/trainers", "/company/slug-company-b/cancellations", "/company/slug-company-b/settings", "/company/slug-company-b/members",
+      "/company/slug-company-b/venues", "/company/slug-company-b/trainers", "/company/slug-company-b/cancellations", "/company/slug-company-b/vouchers", "/company/slug-company-b/settings", "/company/slug-company-b/members",
     ]);
   });
 
@@ -41,9 +41,9 @@ describe("navigation visibility", () => {
     expect(buildNavigation(user).groups.some((group) => group.id === "admin")).toBe(false);
     const result = buildNavigation({ ...user, role: "ADMIN" });
     expect(result.groups.find((group) => group.id === "admin")?.items.map((item) => item.href)).toEqual([
-      "/admin/companies", "/admin/venues", "/admin/event-series", "/admin/events", "/admin/users", "/admin/trainers",
+      "/admin/companies", "/admin/vouchers", "/admin/venues", "/admin/event-series", "/admin/events", "/admin/users", "/admin/trainers",
     ]);
-    expect(result.groups[1].items).toHaveLength(7);
+    expect(result.groups[1].items).toHaveLength(8);
   });
 
   it("supports users without companies and keeps identical company names separate", () => {

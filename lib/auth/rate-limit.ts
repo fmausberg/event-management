@@ -2,7 +2,7 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 
-export async function consumeAuthAttempt(email: string, kind: "login" | "register" | "public-booking" | "verify-email" | "assignment-mail" | "ticket-mail") {
+export async function consumeAuthAttempt(email: string, kind: "login" | "register" | "public-booking" | "voucher-quote" | "verify-email" | "assignment-mail" | "ticket-mail") {
   const prisma = getPrisma();
   const now = new Date();
   const windowMs = 15 * 60 * 1000;
@@ -16,5 +16,5 @@ export async function consumeAuthAttempt(email: string, kind: "login" | "registe
     create: { key, attempts: 1, expiresAt: new Date((window + 1) * windowMs) },
     update: { attempts: { increment: 1 } },
   });
-  return entry.attempts <= (kind === "login" ? 10 : 5);
+  return entry.attempts <= (kind === "login" || kind === "voucher-quote" ? 10 : 5);
 }
