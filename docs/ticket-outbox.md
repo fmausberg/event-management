@@ -103,6 +103,5 @@ erzeugt. Ausstehende Stripe-Mails werden mit dem vorhandenen AUTH_SECRET gelesen
    lassen bzw. über den bestehenden Zahlungsabgleich nachholen. Bezahlte Buchungen
    und migrierte Initial-Aufträge bleiben idempotent.
 
-Die Migration wurde im Implementierungsschritt nicht gegen eine Datenbank
-ausgeführt. Ein automatischer SMTP-Retry für bereits früher fehlgeschlagene
+Den angewendeten Migrationsstand je Datenbank prüfen. Ein automatischer SMTP-Retry für bereits früher fehlgeschlagene
 Direktmails ist nicht rekonstruierbar; dafür kann jetzt explizit beauftragt werden.

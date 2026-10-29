@@ -42,7 +42,8 @@ Bestehende Dateien werden niemals überschrieben.
 
 Beim Erstellen aus einer Eventserie wird deren Bild-URL in das Event kopiert.
 Ein eigener Upload hat Vorrang. Bestehende Events behalten ihre gespeicherte URL,
-auch wenn das Serienbild ersetzt oder entfernt wird. Die Datenmigration
+solange das neue Serienbild nicht ausdrücklich über die
+[Serienvorschau](events-and-series.md) für das jeweilige Event übernommen wird. Die Datenmigration
 `20261015214000_copy_series_cover_to_events` kopiert bisher nur indirekt angezeigte
 Serienbilder einmalig in bestehende Events. Beim Deployment Migrationen anwenden.
 Nach dem Entfernen einer Event-Bildreferenz erscheint kein Serienbild automatisch.

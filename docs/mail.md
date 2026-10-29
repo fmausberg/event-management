@@ -25,7 +25,8 @@ Quelle: [STRATO: E-Mailserver-Adressen und Ports](https://www.strato.de/faq/mail
 
 Für Testzwecke `MAIL_TEST_RECIPIENT="test@example.com"` setzen: Alle über das
 Modul versendeten Mails gehen ausschließlich an diese Adresse statt an den
-ursprünglichen Empfänger. Inhalt und Betreff bleiben unverändert. Eine leere oder
+ursprünglichen Empfänger. Der Footer nennt den ursprünglich vorgesehenen
+Empfänger; der Betreff bleibt unverändert. Eine leere oder
 nicht gesetzte Variable verwendet die echten Empfänger. Leerzeichen werden
 entfernt; eine ungültige Testadresse blockiert den Versand, statt auf echte
 Empfänger zurückzufallen. Nach Änderungen Server bzw. App-Container neu starten.
@@ -70,9 +71,9 @@ Tests mocken SMTP und versenden keine echten Nachrichten.
 
 Neue Buchungsbestätigungen enthalten pro Platz einen eigenen Link. Die URL wird
 aus `AUTH_URL` gebildet: In Produktion ist HTTPS zwingend, lokal ist
-`http://localhost:3000` erlaubt. Tickets speichern Hashes und authentifiziert
-verschlüsselte Codes. Klartext wird serverseitig nur zur Erstellung, berechtigten
-Profilanzeige und Mailerstellung verwendet (siehe `docs/ticket-codes.md`).
+`http://localhost:3000` erlaubt. Speicherung, Verschlüsselung und Schlüsselrotation beschreibt
+[Ticketcodes](ticket-codes.md); die Kontoansicht steht unter
+[Meine Buchungen](account-bookings.md).
 
 Die Links haben die Form `/tickets#TOKEN`. Der Fragmentteil gelangt nicht in
 HTTP-Zugriffslogs oder Referer-Header. Die Ticketseite übermittelt ihn per POST-Body
@@ -95,8 +96,10 @@ Kamera. Die QR-Auswertung erfolgt lokal; nur der Token wird zur Prüfung gesende
 Nach einem Scan und beim Verlassen der Seite wird die Kamera freigegeben.
 
 Alle angemeldeten Nutzer mit Token sehen dieselben minimalen Ticketdaten wie auf
-der öffentlichen Ticketseite. Einlösen dürfen ausschließlich zugeordnete EventStaff
-oder VenueStaff der aktuellen Event-Venue. Eine Adminrolle allein reicht nicht.
+der öffentlichen Ticketseite. Im Kamera-Scanner einlösen dürfen zugeordnete Trainer, EventStaff
+oder VenueStaff der aktuellen Event-Venue. Eine Company-Mitgliedschaft oder globale Adminrolle allein reicht im Scanner nicht.
+Die Company-Ticketverwaltung verwendet dagegen zusätzlich Mitgliedschafts- und
+Adminrechte (`lib/tickets/access.ts`).
 Die Berechtigung wird bei jedem Aufruf aus der Datenbank gelesen.
 
 Nur der Button „Einlösen“ setzt `Ticket.checkedInAt`. Stornierte Tickets,

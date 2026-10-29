@@ -16,10 +16,9 @@ Prisma-7-Client mit PostgreSQL-Treiberadapter und Next.js App Router.
 4. Beim Anbieter die exakte Callback-URL registrieren:
    - Google: `<AUTH_URL>/api/auth/callback/google`
    - GitHub: `<AUTH_URL>/api/auth/callback/github`
-5. Vor dem Datenbankbetrieb muss die Schema-Erweiterung in einem separaten
-   Schritt geprüft und migriert werden. **Diese Änderung enthält keine neue
-   Migration und führt weder Migrationen noch `db push` aus.** `prisma generate`
-   aktualisiert ausschließlich den Client; es erzeugt keine Datenbanktabellen.
+5. Vor dem Datenbankbetrieb die eingecheckten Migrationen und die Ziel-Datenbank
+   prüfen und mit `npx prisma migrate deploy` anwenden.
+   `prisma generate` erzeugt nur den Client, keine Datenbanktabellen.
 6. Danach `npm run dev` starten und `/register` oder `/login` aufrufen.
 
 Hinter einem vertrauenswürdigen Reverse Proxy kann `AUTH_TRUST_HOST=true` nötig
@@ -47,10 +46,10 @@ Nicht pauschal für beliebige eingehende Hosts aktivieren.
   Es werden keine Company-Mitgliedschaften oder erhöhten Rollen angelegt.
 - `Account`, `Session` und `VerificationToken` entsprechen dem Prisma-Adapter.
   Credentials benötigt bei Auth.js die **JWT-Sessionstrategie**. Auch OAuth nutzt
-  deshalb verschlüsselte JWTs in HttpOnly-/SameSite=Lax-Cookies mit acht Stunden
+  deshalb verschlüsselte JWTs in HttpOnly-/SameSite=Lax-Cookies mit sieben Tagen
   Laufzeit. Unter HTTPS und in Produktion sind Cookies zusätzlich Secure.
   `Account` speichert OAuth-Verknüpfungen; `Session` wird in dieser Strategie
-  nicht befüllt. `VerificationToken` ist für spätere Verifizierungsflows vorbereitet.
+  nicht befüllt. `VerificationToken` speichert die Hashes der E-Mail-Bestätigungstokens.
 - Auth.js schützt seine Endpunkte mit CSRF-Tokens und seine OAuth-Flows mit den
   jeweiligen Anbieterprüfungen. Formulare verwenden Next.js Server Actions mit
   Origin-Prüfung. Login-Ziele sind fest; Auth.js begrenzt Callback-URLs auf dieselbe
@@ -69,12 +68,19 @@ Nicht pauschal für beliebige eingehende Hosts aktivieren.
   Bei `OAuthAccountNotLinked` wird die bisherige Anmeldemethode verlangt. Ein
   vorhandenes OAuth-Konto kann durch erneute Registrierung kein Passwort erhalten.
 
-E-Mail-Verifizierung per Versand, Passwort-Reset und eine Oberfläche zur bewussten
-Kontoverknüpfung sind nicht Teil dieser Integration. Die bestehenden Event- und
-Company-Routen sowie deren Berechtigungsregeln wurden nicht geändert; diese
-Auth-Integration ersetzt keine unternehmensbezogene Autorisierung. Dafür muss
-`auth()` an den jeweiligen Datenzugriffen mit einer Prüfung der Mitgliedschaft
-und Rolle kombiniert werden.
+E-Mail-Verifizierung ist implementiert und Voraussetzung für gültige Sitzungen.
+Details zu Tokenlaufzeit, Bestätigung und Zuordnungen stehen in
+[Verifizierung](email-verification.md). Passwort-Reset und eine Oberfläche zur
+bewussten Kontoverknüpfung sind nicht implementiert.
+
+`components/session-activity.tsx` erneuert aktive Sitzungen über
+`/api/auth/session`: bei Seitenaufruf oder Aktivität im sichtbaren Tab, höchstens
+alle fünf Minuten. Es gibt kein Idle-Polling; eine bereits abgelaufene Sitzung
+wird dadurch nicht wieder gültig. Der Server prüft weiterhin, dass der Benutzer
+existiert und seine E-Mail bestätigt ist.
+
+Unternehmensbezogene Autorisierung erfolgt zusätzlich zum Login an den jeweiligen
+Datenzugriffen und Server Actions anhand aktueller Rollen und Zuordnungen.
 
 ## Prüfung
 
@@ -82,28 +88,15 @@ und Rolle kombiniert werden.
 Adressen, Validierung, Fehlerbehandlung sowie den echten Auth.js-HTTP-Ablauf mit
 Datenbank-Doubles: Login, Session-Cookie, CSRF, Logout, Rate Limit, Redirects und
 Löschung eines Nutzers. Die Tests verändern keine Datenbank. OAuth-Ende-zu-Ende-
-Tests benötigen echte Anbieterzugänge und ein separat aktualisiertes DB-Schema.
+Tests benötigen echte Anbieterzugänge und eine separat migrierte Testdatenbank.
 
 Die Passworttests decken auch Ein-Zeichen-Passwörter, lange Unicode-Eingaben,
 Unterschiede hinter Byte 72, Leerzeichen, Nullbytes und bestehende bcrypt-Hashes ab.
 
-Prüfstand der ursprünglichen Auth-Integration: 90 Tests erfolgreich; ESLint und
-`prisma validate` erfolgreich. HTTP-Smoke-Tests bestätigen die Formulare auf
-`/login` und `/register`, den Session-Endpunkt und die Weiterleitung von `/account`
-ohne Session. Der Produktionscode kompiliert, der vollständige Build/Typecheck
-scheitert jedoch an bereits vorhandenen Baustellen:
-
-- Die ursprünglich leeren Company-Seiten wurden inzwischen durch gültige
-  Platzhalter in der [neuen Projektstruktur](project-structure.md) ersetzt.
-- `lib/events/event-mutations.ts` liefert die inzwischen im vorhandenen Schema
-  benötigten Felder `company`/`companyId` und `ticketPrice` nicht.
-- Ein Booking-Testdatensatz in `tests/event-management.test.ts` entspricht noch
-  nicht dem erweiterten vorhandenen Schema.
-
-`npm audit` meldet außerdem 12 Befunde im bestehenden Abhängigkeitsbaum
-(11 high, 1 critical), darunter die installierte Next.js-Version 16.3.5.
-Ein Update dieser bestehenden Abhängigkeiten wurde nicht mit der Auth-Integration
-vermengt. Vor einem produktiven Einsatz sind die Befunde zu bearbeiten.
+Aktuelle Ergebnisse sind pro Änderung neu zu ermitteln; historische Testzahlen,
+Buildfehler und Audit-Zahlen sind kein Nachweis für den aktuellen Stand.
+Befehle, automatische Ausführung und Grenzen: [Prüfungen](testing.md).
+Abhängigkeiten können separat mit `npm audit` geprüft werden.
 
 Referenzen: [Auth.js Prisma-Adapter](https://authjs.dev/getting-started/adapters/prisma),
 [Credentials](https://authjs.dev/getting-started/providers/credentials),

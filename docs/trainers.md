@@ -9,9 +9,9 @@ Trainer werden pro Company mit Vorname, Nachname und E-Mail-Adresse verwaltet.
 - Die Tabelle lässt sich nach Nummer, Vorname, Nachname und E-Mail durchsuchen. Sie zeigt auch die Anzahl bestehender Event- und Serienzuordnungen.
 - Löschen erfordert eine Bestätigung und ist nur ohne Event- oder Serienzuordnungen möglich. Event-Verknüpfungen sind zusätzlich durch den vorhandenen Foreign Key geschützt.
 
-Dieser erste Schritt nutzt das vorhandene `Trainer`-Modell und die Migration `20261015100202_add_trainer_model`. Trainer können ohne Benutzeraccount angelegt werden. Es werden keine Einladungen versendet und keine automatischen Benutzerverknüpfungen hergestellt.
+Die Verwaltung nutzt das `Trainer`-Modell und die Migration `20261015100202_add_trainer_model`. Trainer können ohne Benutzeraccount angelegt werden. Zuordnungsbenachrichtigungen können versendet werden. Die Verknüpfung mit einem Account setzt dessen bestätigte E-Mail voraus; Ablauf und Neuversand beschreibt [Verifizierung](email-verification.md).
 
-Event- und Serienformulare bieten eine Company-bezogene Trainerauswahl. Events können mehrere Trainer über `EventTrainer` verknüpfen; Serien verwenden `suggestedTrainerId` als einzelne Vorgabe. Bei Auswahl einer Serie wird diese Vorgabe ins Event übernommen. Spätere Serienänderungen verändern bestehende Events nicht.
+Event- und Serienformulare bieten eine Company-bezogene Trainerauswahl. Events können mehrere Trainer über `EventTrainer` verknüpfen; Serien verwenden `suggestedTrainerId` als einzelne Vorgabe. Bei Auswahl einer Serie wird diese Vorgabe ins Event übernommen. Spätere Serienänderungen können ausgewählte Attribute zukünftiger Events über die [Serienvorschau](events-and-series.md) aktualisieren.
 
 Über **Neuen Trainer anlegen** können Vorname, Nachname und E-Mail direkt im Formular erfasst werden. **Anlegen und auswählen** speichert den Trainer sofort und übernimmt ihn in die Auswahl, ohne die übrigen Eingaben zu verlieren. Der neue Trainer bleibt erhalten, wenn das Event- oder Serienformular anschließend abgebrochen wird.
 

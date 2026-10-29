@@ -1,7 +1,8 @@
 # Betrieb mit Docker
 
 Voraussetzungen: Linux-Server mit Docker Engine und Compose v2, Domain und
-HTTPS-Reverse-Proxy (z. B. Nginx oder Caddy). Der App-Port wird ausschließlich an
+HTTPS-Reverse-Proxy. Das Repository enthält ein Traefik-Overlay;
+alternativ kann ein eigener Proxy verwendet werden. Der App-Port wird ausschließlich an
 `127.0.0.1` gebunden; PostgreSQL ist nur im internen Compose-Netz erreichbar.
 
 ## Erster Start
@@ -17,6 +18,12 @@ eintragen. Das Datenbankpasswort muss URL-sicher sein; Hex-Werte erfüllen das.
 `AUTH_URL` auf die echte öffentliche HTTPS-Adresse setzen. `.env.docker` bleibt
 außerhalb von Git und Docker-Image. Keine produktiven Secrets als Build-Argumente
 übergeben. Die Datenbank-URL erzeugt Compose aus dem Passwort und dem Host `db`.
+
+Zusätzlich ist `TICKET_CODE_ENCRYPTION_KEYS` erforderlich. Einen eigenen zufälligen
+32-Byte-Schlüssel erzeugen und als JSON-Keyring eintragen; vollständiges Format und
+Rotation siehe [Ticketcodes](ticket-codes.md). Compose bricht bei fehlendem Wert ab.
+SMTP für Verifizierung/Tickets und bei Bedarf Stripe/Cloudinary konfigurieren.
+`PAYMENTS_CRON_SECRET` wird für den regelmäßig aufzurufenden Abgleich benötigt.
 
 ```sh
 docker compose --env-file .env.docker up -d --build
@@ -108,3 +115,41 @@ führt zur Company-Auswahl. Events werden dort über die vorhandene vollständig
 Company-Eventverwaltung mit Preis und Company-Zuordnung angelegt.
 
 Compose-Startreihenfolge: https://docs.docker.com/compose/how-tos/startup-order/
+
+## Traefik und GitHub-Deployment
+
+`compose.traefik.yaml` verbindet die App mit dem externen Netzwerk `web`.
+Es erwartet einen vorhandenen Traefik mit EntryPoints `web` und `websecure`
+sowie dem Zertifikatsresolver `myresolver`. Die Host-Regel enthält
+`events.mausberg.net`; für eine andere Domain Labels und AUTH_URL anpassen.
+
+```sh
+docker compose --env-file .env.docker -f compose.yaml -f compose.traefik.yaml -p event-management up -d --build
+```
+
+Bei diesem Aufbau dieselben `--env-file`-, `-f`- und `-p`-Optionen auch bei
+den übrigen Compose-Befehlen verwenden.
+
+`.github/workflows/deploy.yml` reagiert auf Pushes nach main. Der Workflow
+verbindet sich per SSH, führt `git pull --ff-only origin main` aus und startet
+Compose mit beiden Dateien. Er verwendet das Secret DEPLOY_SSH_KEY und die
+Repository-Variablen DEPLOY_HOST, DEPLOY_USER und DEPLOY_PATH. Der Env-Dateipfad
+ist dort fest auf `/opt/docker/event-management/.env.docker` gesetzt.
+Der Workflow enthält keine automatischen Tests oder Backup-Schritte;
+[Prüfungen](testing.md) vor einer Freigabe gesondert ausführen.
+
+Der Compose-Migrationsservice wendet ausstehende Migrationen vor dem App-Start an.
+Für Änderungen, die einen koordinierten Stopp benötigen, gelten zusätzlich die
+Wartungsschritte in [Ticket-Outbox](ticket-outbox.md) und
+[Ticketcodes](ticket-codes.md); ein gewöhnlicher Rolling-Parallelbetrieb ist dafür
+nicht ausreichend.
+
+## Regelmäßiger Abgleich
+
+Ein externer Scheduler muss `POST /api/payments/reconcile` mit
+`Authorization: Bearer <PAYMENTS_CRON_SECRET>` regelmäßig (empfohlen jede Minute)
+aufrufen. Compose und der GitHub-Workflow richten diesen Scheduler nicht ein.
+Er verarbeitet offene Zahlungen, Erstattungen, Ticket- und Stornierungsmails.
+Er ist auch für kostenlose Events mit fehlgeschlagenem Mailversand erforderlich.
+Details: [Stripe](stripe.md), [Ticket-Outbox](ticket-outbox.md) und
+[Stornierungen](cancellations.md).

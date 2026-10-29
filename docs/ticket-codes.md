@@ -25,10 +25,10 @@ the keyring in your secret manager and separately protected disaster-recovery
 backup; never commit it, use NEXT_PUBLIC_, or send it to clients. Missing keys
 cannot be recovered from the hash. Both app and background fulfillment workers
 need the same keyring. Configuration is read lazily, so builds need no real key.
-If using the existing Compose setup, the operator must explicitly forward this
-variable into the app container's environment; merely adding it to an env file
-does not extend Compose's environment whitelist. No live deployment settings
-are changed by this patch.
+The existing `compose.yaml` forwards this required variable to the app container
+and rejects missing or empty values. Set it in `.env.docker` and recreate the
+app container; editing an env file alone does not update a running container.
+See [Docker deployment](docker.md).
 
 Ciphertext envelope: `v1.<key-id>.<iv>.<tag>.<ciphertext>`; the last three fields
 are canonical base64url. IV = 12 random bytes, authentication tag = 16 bytes.
@@ -70,7 +70,7 @@ default. It succeeds on an empty Ticket table and intentionally fails if old
 hash-only tickets exist. No codes can be reconstructed for these rows. Neither
 the migration nor application deletes data or invents replacements.
 
-No database was queried, reset or migrated for this change. Before deploying,
+The applied migration state must be checked per environment. Before applying this migration,
 the operator should check ticket count and pending checkout/mail jobs. Old
 confirmed bookings, tickets and sent/pending ticket emails form one disposable
 test dataset: do not delete only ticket rows while retaining confirmed bookings
