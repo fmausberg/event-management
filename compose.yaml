@@ -63,6 +63,7 @@ services:
       IMAP_USER: ${IMAP_USER:-}
       IMAP_PASSWORD: ${IMAP_PASSWORD:-}
       IMAP_SENT_FOLDER: ${IMAP_SENT_FOLDER:-}
+      TICKET_CODE_ENCRYPTION_KEYS: ${TICKET_CODE_ENCRYPTION_KEYS:?Set TICKET_CODE_ENCRYPTION_KEYS in .env.docker}
     depends_on:
       db:
         condition: service_healthy
