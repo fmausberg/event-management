@@ -129,11 +129,11 @@ vorhandenen Rollenmodell übergreifend verwalten. Es gibt **keine allgemeine
 Company-Freigabe, kein Approval-Modell und keine Zustimmungsabhängigkeit**.
 
 **Festgelegt im MVP (E3):** Kampagnenänderung, Codeausgabe und manuelle
-Guthabenkorrekturen nur durch aktive `COMPANY_ADMIN` und globale `ADMIN`;
-dafür ist `requireCompanyAdmin` bereits vorhanden. `COMPANY_USER` darf heute
-Events/Reihen/Venues und Stornierungen verwalten, erhält aber keine
-Gutschein-Verwaltungsrechte. Staff-Zuordnung zu Event oder Venue allein
-erteilt kein neues Kampagnenrecht.
+Guthabenkorrekturen dürfen aktive `COMPANY_ADMIN` und aktive `COMPANY_USER`
+innerhalb ihrer eigenen Company sowie globale `ADMIN` durchführen. Dafür gilt
+eine ausschließlich für Gutscheine verwendete Autorisierung; andere Company-
+Berechtigungen werden dadurch nicht erweitert. Staff-Zuordnung zu Event oder
+Venue allein erteilt kein neues Kampagnenrecht.
 
 Companyübergreifende Kampagnen und Wertgutscheine sind keine Voraussetzung des
 ersten Umsetzungsschritts. Mehrere Ziele jedes unterstützten Typs bleiben Teil
@@ -412,7 +412,7 @@ Einträge unterscheiden entschiedene Regeln von weiterhin offenen Erweiterungen.
 | --- | --- | --- |
 | E1 | Kombination | Im MVP entschieden: insgesamt ein Code pro Gutscheinbuchung, keine Kombination. Erweiterungen sind nicht freigegeben. |
 | E2 | Dynamische Ziele? | Neue Zuordnungen erfassen, entfernte Zuordnungen für neue Versuche ausschließen; bestehende Reservierungen einfrieren. Alternative: feste Eventliste. |
-| E3 | Darf `COMPANY_USER` Gutscheine verwalten? | Im MVP entschieden: nein; nur aktive `COMPANY_ADMIN` der Eigentümer-Company und globale `ADMIN`. |
+| E3 | Darf `COMPANY_USER` Gutscheine verwalten? | Im MVP entschieden: ja; aktive `COMPANY_USER` und `COMPANY_ADMIN` dürfen Gutscheine ausschließlich in ihrer eigenen Company verwalten. Globale `ADMIN` behalten ihre übergreifenden Rechte. |
 | E4 | Inkonsistente Company-Beziehungen / spätere übergreifende Nutzung? | Inkonsistenzen ablehnen und klären; initial companybezogene Nutzung. Übergreifende Zielverwaltung und Guthabenausgleich separat spezifizieren, ohne Approval-System. |
 | E5 | Festbetrag, Rundung, weitere Ticketgrenzen und Null-Effekt? | Festbetrag je Buchung, Prozent auf Gesamtrabattbasis einmal HALF_UP, bei gewöhnlichen Rabatten alle Tickets sofern nicht begrenzt, Null-Effekt verbraucht keinen Code. Freiteilnahme hat festgelegten Standard ein Ticket. |
 | E6 | Restbetrag 1–49 Cent? | Im MVP entschieden: ablehnen, weder Resterlass noch automatische Einsatzreduktion. |
@@ -573,7 +573,7 @@ Webhook- oder Stornoablauf angeschlossen. Es wurde keine Migration angewendet.
 | `service.ts`: `quoteVoucher` | Read-only-Preisvorschau aus aktuellem Eventpreis. Prüfung von Limits ist unverbindlich und reserviert nichts. Nur Preisfelder bzw. sichere Fehler werden zurückgegeben. |
 | `service.ts`: `withVoucherTransaction` | Interne Kompositionsgrenze: bietet der späteren Buchungsintegration `tx` und `reserve(input)` innerhalb einer serialisierbaren Transaktion. Reserviert Rabatt bzw. Guthaben und schreibt den unveränderlichen `BookingPrice`. |
 | `service.ts`: `releaseExpiredVoucherReservation` | Interner Worker-Helfer: gibt ausschließlich offene Reservierungen einer bereits `EXPIRED` gespeicherten Buchung frei; vorhandenes Payment muss ebenfalls `EXPIRED` sein. Keine Stripe-Aufrufe, kein selbstständiges Setzen des Ablaufstatus. |
-| `authorization.ts`: `requireVoucherCampaignAdmin` | Aktuelle DB-Rolle und aktive Mitgliedschaft prüfen. Nur Eigentümer-Company-Admin oder Plattform-Admin; kein `COMPANY_USER`. Kein Verwaltungs- oder Aktivierungsendpunkt. |
+| `authorization.ts`: `requireVoucherCampaignAdmin` | Aktuelle DB-Rolle und aktive Mitgliedschaft prüfen. Aktive `COMPANY_ADMIN` und `COMPANY_USER` der Eigentümer-Company sowie Plattform-Admins sind zugelassen. |
 | `errors.ts` | Stabile Fehlercodes und deutsche Meldungen, ohne übernommene Exceptions, Prisma-Metadaten, Klartextcodes oder Schlüsselmaterial. |
 
 ### Schlüssel und Geheimnisse
@@ -901,18 +901,18 @@ PostgreSQL-Konkurrenztests und Stripe-Sandbox-Ende-zu-Ende-Prüfungen erforderli
 - `/admin/vouchers`: Company-Auswahl für Plattform-Admins. Der vorhandene
   Company-Editor wird wiederverwendet, kein zweites Berechtigungsmodell.
 - `components/voucher-admin-forms.tsx` und `voucher-admin-view.tsx`: Formulare,
-  einmalige Codeanzeige und Auswertungen. Navigation nur für aktive Company-Admins
-  beziehungsweise Plattform-Admins; ausgeblendete Navigation ist kein Zugriffsschutz.
+  einmalige Codeanzeige und Auswertungen. Navigation für aktive `COMPANY_ADMIN`,
+  aktive `COMPANY_USER` und Plattform-Admins; ausgeblendete Navigation ist kein Zugriffsschutz.
 
 Jede Lese- und Schreiboperation verwendet serverseitige Rollenprüfung. Mutationen
-prüfen innerhalb ihrer Serializable-Transaktion die aktuelle DB-Rolle und aktive
-Company-Mitgliedschaft mit `COMPANY_ADMIN`; `COMPANY_USER` ist ausgeschlossen.
-`ADMIN` darf ohne Mitgliedschaft in einer Company arbeiten. Die Kampagne muss zur
+prüfen innerhalb ihrer Serializable-Transaktion die aktuelle DB-Rolle und eine aktive
+Company-Mitgliedschaft als `COMPANY_ADMIN` oder `COMPANY_USER`. `ADMIN` darf ohne
+Mitgliedschaft in einer Company arbeiten. Die Kampagne muss zur
 Company der Route gehören, auch wenn eine fremde Kampagnen-ID manipuliert wird.
-`authorization.ts` enthält dafür den gemeinsamen Company-Admin-Prüfer.
+`authorization.ts` enthält dafür den gemeinsamen Gutschein-Company-Prüfer.
 
 Jede übermittelte Company-, Reihen-, Event- und Venue-ID wird einzeln auf Existenz
-und Zuständigkeit geprüft. Company-Admins dürfen nur eigene Ziele setzen.
+und Zuständigkeit geprüft. Company-Mitglieder dürfen nur eigene Ziele setzen.
 Plattform-Admins dürfen Rabattziele übergreifend wählen; bei Wertguthaben bleiben
 auch sie auf die Aussteller-Company beschränkt. Es entsteht kein Approval-System.
 Ein aktiver Datensatz benötigt mindestens ein Ziel; ebenso ist eine Codeausgabe
@@ -920,13 +920,13 @@ bei leerer Zielauswahl gesperrt. ODER-Verknüpfung und dynamische Ziele bleiben 
 in Abschnitt 4 beschrieben. Auswahllisten sind noch ohne Suche; sehr große
 Zielbestände benötigen künftig eine serverseitige Suchauswahl.
 
-Company-Admins sehen Buchungsreferenzen nur aus Events ihrer Company. Gezeigte
+Company-Mitglieder sehen Buchungsreferenzen nur aus Events ihrer Company. Gezeigte
 Referenzen enthalten keine Kundennamen oder E-Mail-Adressen. Plattform-Admins
 können im Rahmen ihres bestehenden übergreifenden Zugriffs auch fremde
 Buchungsreferenzen sehen. Kampagnenweite Summen und Limits gelten über alle Codes.
-Die optionale Empfängerbindung verwendet eine User-ID: Company-Admins können sie
+Die optionale Empfängerbindung verwendet eine User-ID: Company-Mitglieder können sie
 nur an aktive Mitglieder oder bereits vorhandene Buchungskonten ihrer Company
-binden. Es wird kein globales Benutzerverzeichnis an Company-Admins ausgeliefert.
+binden. Es wird kein globales Benutzerverzeichnis an Company-Mitglieder ausgeliefert.
 
 ### Eingaben, Beschreibungen und Änderungsgrenzen
 
@@ -963,9 +963,11 @@ verlängert, umgebucht oder ausgezahlt.
 ### Codeausgabe, Digest-Rotation und Idempotenz
 
 `admin-service.ts` stellt die Ausgabe ausschließlich als administrative Operation
-bereit. Eine Kampagne kann einen öffentlichen Mehrfachcode und individuelle Codes
-kombinieren. Ein öffentlicher Code pro Kampagne wird auch historisch gezählt;
-Ersetzen eines archivierten öffentlichen Codes benötigt eine neue Kampagne.
+bereit. Eine Kampagne kann mehrere öffentliche Mehrfachcodes und individuelle Codes
+kombinieren. Öffentliche Codes werden einzeln ausgegeben, teilen die Regeln und
+Limits ihrer Kampagne und bleiben über Code, Quelle und Batch getrennt auswertbar.
+Ihr normalisierter Digest ist kampagnenübergreifend eindeutig. Bereits archivierte
+Codes und ihre Historie bleiben unverändert erhalten.
 Individuelle Rabattcodes sind Einmalcodes; individuelle Wertgutscheine behalten
 Teileinsätze und erhalten ohne explizites Code-Limit kein Einmal-Limit.
 

@@ -35,9 +35,21 @@ it("aggregates limits and journal server-side while scoping booking references t
   const selection = JSON.stringify(db.voucherCode.findMany.mock.calls[0][0].select);
   expect(selection).not.toMatch(/codeDigest|digestVersion|email|encrypted/);
 });
-it("denies ordinary company users before any financial history is read", async () => {
+it("allows an active company user to read only their own company voucher administration", async () => {
   db.companyMembership.findUnique.mockResolvedValue({ role: "COMPANY_USER", status: "ACTIVE" });
+  await expect(getVoucherAdministration("studio")).resolves.toMatchObject({ company: { id: "company" }, platformAdmin: false });
+  expect(db.voucherCampaign.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { ownerCompanyId: "company" } }));
+  expect(db.company.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "company" } }));
+});
+it.each(["INVITED", "SUSPENDED"])("denies a %s company user before any voucher data is read", async status => {
+  db.companyMembership.findUnique.mockResolvedValue({ role: "COMPANY_USER", status });
   await expect(getVoucherAdministration("studio")).rejects.toThrow();
+  expect(db.voucherCampaign.findMany).not.toHaveBeenCalled();
+});
+it("denies a company user from another company before any voucher data is read", async () => {
+  db.companyMembership.findUnique.mockResolvedValue(null);
+  await expect(getVoucherAdministration("studio")).rejects.toThrow();
+  expect(db.companyMembership.findUnique).toHaveBeenCalledWith({ where: { companyId_userId: { companyId: "company", userId: "actor" } } });
   expect(db.voucherCampaign.findMany).not.toHaveBeenCalled();
 });
 it("allows platform administrators to inspect cross-company campaign bookings", async () => {

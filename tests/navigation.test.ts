@@ -30,6 +30,7 @@ describe("navigation visibility", () => {
     expect(result.groups[0].items.map((item) => item.href)).toEqual(["/events", "/account/bookings", "/account/events"]);
     expect(result.groups[1].items.map((item) => item.href)).toEqual([
       "/company/slug-company-a/event-series", "/company/slug-company-a/events", "/company/slug-company-a/venues", "/company/slug-company-a/trainers", "/company/slug-company-a/cancellations",
+      "/company/slug-company-a/vouchers",
     ]);
     expect(result.groups[2].items.map((item) => item.href)).toEqual([
       "/company/slug-company-b/event-series", "/company/slug-company-b/events",

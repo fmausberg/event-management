@@ -9,7 +9,7 @@ export async function authorizeVoucherCompany(tx: Prisma.TransactionClient, acto
   if (!user) throw new VoucherError("FORBIDDEN");
   if (user.role !== "ADMIN") {
     const membership = await tx.companyMembership.findUnique({ where: { companyId_userId: { companyId, userId: actorId } } });
-    if (membership?.status !== "ACTIVE" || membership.role !== "COMPANY_ADMIN") throw new VoucherError("FORBIDDEN");
+    if (membership?.status !== "ACTIVE" || !["COMPANY_ADMIN", "COMPANY_USER"].includes(membership.role)) throw new VoucherError("FORBIDDEN");
   }
   return { actorId, companyId, platformAdmin: user.role === "ADMIN" };
 }

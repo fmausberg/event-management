@@ -56,10 +56,23 @@ it.each(["company", "eventSeries", "event", "venue"] as const)("rejects missing 
   await expect(saveVoucherCampaign("studio", null, values({ seriesIds: ["foreign"], eventIds: ["foreign"], venueIds: ["foreign"] }))).rejects.toThrow("Ziel");
   expect(db.voucherCampaign.create).not.toHaveBeenCalled();
 });
-it.each(["COMPANY_USER", "VIEWER"])("rejects non-admin role %s", async role => {
-  db.companyMembership.findUnique.mockResolvedValue({ role, status: "ACTIVE" });
+it("allows an active company user to create campaigns, issue codes, and change campaign and code status", async () => {
+  db.companyMembership.findUnique.mockResolvedValue({ role: "COMPANY_USER", status: "ACTIVE" });
+  await expect(saveVoucherCampaign("studio", null, values())).resolves.toBe("campaign");
+  await expect(issueVoucherCodes("studio", "campaign", issue({ count: 1 }))).resolves.toMatchObject({ replay: false, codes: [expect.any(String)] });
+  await expect(changeVoucherCampaignStatus("studio", "campaign", "PAUSED")).resolves.toBeUndefined();
+  db.voucherCode.findFirst.mockResolvedValue({ status: "ACTIVE" });
+  await expect(changeVoucherCodeStatus("studio", "campaign", "code", "DISABLED")).resolves.toBeUndefined();
+});
+it.each(["INVITED", "SUSPENDED"])("rejects a company user with %s membership", async status => {
+  db.companyMembership.findUnique.mockResolvedValue({ role: "COMPANY_USER", status });
   await expect(issueVoucherCodes("studio", "campaign", issue())).rejects.toThrow();
   expect(db.voucherCode.create).not.toHaveBeenCalled();
+});
+it("rejects writes by a company user who only belongs to another company", async () => {
+  db.companyMembership.findUnique.mockResolvedValue(null);
+  await expect(saveVoucherCampaign("studio", null, values())).rejects.toThrow();
+  expect(db.voucherCampaign.create).not.toHaveBeenCalled();
 });
 it("rejects a foreign campaign even when its ID is posted to an authorized company URL", async () => {
   current.ownerCompanyId = "foreign";
@@ -125,10 +138,24 @@ it("rejects collisions across retained digest versions and blocks missing histor
   vi.stubEnv("VOUCHER_CODE_DIGEST_KEYS", JSON.stringify({ active: 2, keys: { 2: keys[2] } }));
   await expect(issueVoucherCodes("studio", "campaign", issue())).rejects.toThrow("Schlüsselversionen");
 });
-it("blocks a second public code and invalid recipient bindings", async () => {
-  db.voucherCode.count.mockResolvedValue(1);
-  await expect(issueVoucherCodes("studio", "campaign", issue({ mode: "PUBLIC", count: 1 }))).rejects.toThrow("öffentlichen Code");
-  db.voucherCode.count.mockResolvedValue(0); db.user.findFirst.mockResolvedValue(null);
+it("issues multiple distinct public codes for the same campaign with separate tracking", async () => {
+  const felix = await issueVoucherCodes("studio", "campaign", issue({ mode: "PUBLIC", count: 1, publicCode: "YOGAFELIX10", source: "felix" }));
+  const lena = await issueVoucherCodes("studio", "campaign", issue({ mode: "PUBLIC", count: 1, publicCode: "YOGALENA10", source: "lena" }));
+  expect(felix.codes).toEqual(["YOGAFELIX10"]); expect(lena.codes).toEqual(["YOGALENA10"]);
+  expect(saved).toHaveLength(2);
+  expect(db.voucherCode.create).toHaveBeenNthCalledWith(1, { data: expect.objectContaining({ campaignId: "campaign", mode: "PUBLIC", source: "felix" }) });
+  expect(db.voucherCode.create).toHaveBeenNthCalledWith(2, { data: expect.objectContaining({ campaignId: "campaign", mode: "PUBLIC", source: "lena" }) });
+});
+it("rejects the same normalized public code in one or different campaigns", async () => {
+  db.voucherCode.count.mockImplementation(async ({ where }) => where.OR?.some((digest: { codeDigest: string; digestVersion: number }) =>
+    saved.some(row => row.codeDigest === digest.codeDigest && row.digestVersion === digest.digestVersion)) ? 1 : 0);
+  await issueVoucherCodes("studio", "campaign", issue({ mode: "PUBLIC", count: 1, publicCode: "YogaFelix10" }));
+  await expect(issueVoucherCodes("studio", "campaign", issue({ mode: "PUBLIC", count: 1, publicCode: " yogafelix10 " }))).rejects.toThrow("anderen Code");
+  await expect(issueVoucherCodes("studio", "another-campaign", issue({ mode: "PUBLIC", count: 1, publicCode: "YOGAFELIX10" }))).rejects.toThrow("anderen Code");
+  expect(saved).toHaveLength(1);
+});
+it("rejects invalid recipient bindings", async () => {
+  db.user.findFirst.mockResolvedValue(null);
   await expect(issueVoucherCodes("studio", "campaign", issue({ assignedUserId: "foreign" }))).rejects.toThrow("Empfänger");
 });
 it("cannot reactivate archived campaigns or codes and never deletes history", async () => {

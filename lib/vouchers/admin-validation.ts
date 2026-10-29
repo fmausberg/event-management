@@ -28,7 +28,7 @@ export const issueInput = z.object({
   count: z.coerce.number().int().min(1).max(100), publicCode: z.string().trim().max(128),
   maxRedemptions: limit, assignedUserId: optionalText(191), source: optionalText(160), expiresAt: optionalDate,
 }).superRefine((v, ctx) => {
-  if (v.mode === "PUBLIC" && v.count !== 1) ctx.addIssue({ code: "custom", message: "Ein öffentlicher Code pro Ausgabe." });
+  if (v.mode === "PUBLIC" && v.count !== 1) ctx.addIssue({ code: "custom", message: "Pro Ausgabevorgang genau einen öffentlichen Code anlegen." });
   if (v.mode === "INDIVIDUAL" && v.publicCode) ctx.addIssue({ code: "custom", message: "Individuelle Codes werden zufällig erzeugt." });
 });
 export type CampaignInput = z.infer<typeof campaignInput>;

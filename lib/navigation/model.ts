@@ -39,9 +39,9 @@ export function buildNavigation(user: NavigationUser, canScanTickets = false): N
       { label: "Orte", href: `${base}/venues`, icon: "venue" },
       { label: "Trainer", href: `${base}/trainers`, icon: "users" },
       { label: "Stornierungen", href: `${base}/cancellations`, icon: "calendar-check" },
+      { label: "Gutscheine", href: `${base}/vouchers`, icon: "calendar-check" },
     ];
     if (user.role === "ADMIN" || membership.role === "COMPANY_ADMIN") items.push(
-      { label: "Gutscheine", href: `${base}/vouchers`, icon: "calendar-check" },
       { label: "Einstellungen", href: `${base}/settings`, icon: "settings" },
       { label: "Mitglieder", href: `${base}/members`, icon: "users" },
     );

@@ -37,6 +37,14 @@ it("never offers public shared balances in the stored-value issuance form", asyn
   expect(host.querySelector('option[value="PUBLIC"]')).toBeNull();
   expect(host.textContent).toContain("ohne Verkauf oder Zahlung");
 });
+it("explains that a campaign can receive multiple separately issued public codes", async () => {
+  await act(async () => root.render(createElement(VoucherIssueForm, { slug: "studio", campaignId: "campaign", stored: false, requestId: "request" })));
+  expect(host.querySelector('option[value="PUBLIC"]')).not.toBeNull();
+  expect(host.textContent).toContain("Mehrere öffentliche Mehrfachcodes");
+  const info = host.querySelector<HTMLButtonElement>('button[aria-label="Erklärung zu Öffentlicher Wunschcode (optional, mindestens 8 Zeichen)"]')!;
+  await act(async () => info.click());
+  expect(host.textContent).toContain("Weitere öffentliche Codes");
+});
 it("opens and closes an accessible explanation next to a field label", async () => {
   await act(async () => root.render(createElement(VoucherCampaignForm, { slug: "studio", start: "2099-01-01T12:00", options: {
     companies: [], series: [], events: [], venues: [],

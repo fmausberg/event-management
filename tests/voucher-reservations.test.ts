@@ -78,7 +78,7 @@ it("reserves a single campaign use for multiple tickets and persists trusted pri
   expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "Serializable" });
   expect(db.$queryRaw).toHaveBeenCalled();
 });
-it("counts reserved uses campaign-wide across codes and applies code limits in addition", async () => {
+it("shares campaign limits across public codes while applying code limits and tracking separately", async () => {
   code.campaign.maxRedemptions = 1;
   db.voucherRedemption.count.mockResolvedValue(1);
   expect(await reserve()).toMatchObject({ ok: false, error: { code: "LIMIT_REACHED" } });
@@ -87,6 +87,9 @@ it("counts reserved uses campaign-wide across codes and applies code limits in a
   code.campaign.maxRedemptions = null; code.maxRedemptions = 1;
   expect(await reserve()).toMatchObject({ ok: false, error: { code: "LIMIT_REACHED" } });
   expect(db.voucherRedemption.count.mock.lastCall?.[0].where.codeId).toBe("code");
+  db.voucherRedemption.count.mockResolvedValue(0); code.source = "yoga-felix"; code.batchId = "batch-felix";
+  expect((await reserve()).ok).toBe(true);
+  expect(db.voucherRedemption.create).toHaveBeenCalledWith({ data: expect.objectContaining({ codeId: "code", sourceSnapshot: { campaign: "influencer", code: "yoga-felix", batch: "batch-felix" } }) });
 });
 it("applies individual discount-code default and explicit stored-value use limits", async () => {
   code.mode = "INDIVIDUAL";
@@ -185,12 +188,12 @@ it("releases only reserved value once after verified expiry and leaves the price
   expect(db.voucherBalanceEntry.create.mock.lastCall?.[0].data).toMatchObject({ type: "RELEASE", balanceDeltaMinor: 0, reservedDeltaMinor: -4000 });
   expect(db.bookingPrice.create).toHaveBeenCalledOnce();
 });
-it("allows only active owner-company admins or platform admins to manage a campaign", async () => {
+it("allows active owner-company members or platform admins to manage a campaign", async () => {
   auth.mockResolvedValue({ user: { id: "actor" } });
   db.user.findUnique.mockResolvedValue({ role: "USER" });
   db.voucherCampaign.findUnique.mockResolvedValue({ id: "campaign", ownerCompanyId: "company" });
   db.companyMembership.findUnique.mockResolvedValue({ status: "ACTIVE", role: "COMPANY_USER" });
-  await expect(requireVoucherCampaignAdmin("campaign")).rejects.toThrow("nicht verwalten");
+  await expect(requireVoucherCampaignAdmin("campaign")).resolves.toMatchObject({ companyId: "company", platformAdmin: false });
   db.companyMembership.findUnique.mockResolvedValue({ status: "ACTIVE", role: "COMPANY_ADMIN" });
   await expect(requireVoucherCampaignAdmin("campaign")).resolves.toMatchObject({ companyId: "company", platformAdmin: false });
   db.companyMembership.findUnique.mockResolvedValue(null);

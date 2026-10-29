@@ -117,7 +117,6 @@ export async function issueVoucherCodes(slug: string, campaignId: string, raw: u
     if (campaign.kind !== "STORED_VALUE" && input.expiresAt) throw new VoucherAdminError("Ein Guthaben-Ablaufdatum ist nur für Wertgutscheine vorgesehen.");
     if (input.expiresAt && (input.expiresAt <= new Date() || input.expiresAt <= campaign.startsAt)) throw new VoucherAdminError("Das Guthaben-Ablaufdatum muss in der Zukunft und nach Kampagnenbeginn liegen.");
     if (input.mode === "INDIVIDUAL" && campaign.kind !== "STORED_VALUE" && input.maxRedemptions !== null && input.maxRedemptions !== 1) throw new VoucherAdminError("Individuelle Rabattcodes sind Einmalcodes.");
-    if (input.mode === "PUBLIC" && await tx.voucherCode.count({ where: { campaignId, mode: "PUBLIC" } })) throw new VoucherAdminError("Diese Kampagne besitzt bereits einen öffentlichen Code.");
     if (input.assignedUserId) {
       const recipient = await tx.user.findFirst({ where: { id: input.assignedUserId, ...(!scope.platformAdmin ? { OR: [
         { memberships: { some: { companyId: scope.company.id, status: "ACTIVE" } } }, { bookings: { some: { event: { companyId: scope.company.id } } } },
