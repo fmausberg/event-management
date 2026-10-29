@@ -1,5 +1,5 @@
 "use client";
-import { useActionState, useId, useState, type ReactNode } from "react";
+import { useActionState, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { saveCampaign, setCampaignStatus, createCodes, setCodeStatus } from "@/app/company/[companyKey]/vouchers/actions";
 import type { TargetOptions, VoucherAdminState } from "@/lib/vouchers/admin-validation";
@@ -30,13 +30,27 @@ export type CampaignFormValues = { id: string; name: string; description: string
   maxRedemptions: string; maxRedemptionsPerCustomer: string; maxEligibleTicketsPerBooking: string; source: string;
   companyIds: string[]; seriesIds: string[]; eventIds: string[]; venueIds: string[]; locked: boolean; archived: boolean };
 
-export function VoucherCampaignForm({ slug, options, row, start }: { slug: string; options: TargetOptions; row?: CampaignFormValues; start: string }) {
-  const [state, action, pending] = useActionState<VoucherAdminState, FormData>(saveCampaign.bind(null, slug, row?.id ?? null), {});
+export function VoucherCampaignForm({ slug, options, row, start, drawer = false, onSaved, onCancel }: { slug: string; options: TargetOptions; row?: CampaignFormValues; start: string; drawer?: boolean; onSaved?: (message: string) => void; onCancel?: () => void }) {
+  const panel = useRef<HTMLDialogElement>(null);
+  const [state, action, pending] = useActionState<VoucherAdminState, FormData>(async (previous, form) => {
+    const result = await saveCampaign(slug, row?.id ?? null, previous, form);
+    if (result.success) onSaved?.(result.message ?? "Kampagne gespeichert.");
+    return result;
+  }, {});
   const [kind, setKind] = useState(row?.kind ?? "PERCENTAGE");
-  if (state.success && !row) return <div role="status" className="rounded-xl border border-emerald-300 p-5">{state.message} <Link className="underline" href={`/company/${slug}/vouchers/${state.campaignId}`}>Kampagne öffnen und Codes ausgeben</Link></div>;
+  useEffect(() => {
+    if (!drawer) return;
+    const dialog = panel.current!;
+    const previous = document.activeElement as HTMLElement | null;
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const open = () => { dialog.close(); if (desktop.matches) dialog.show(); else dialog.showModal(); dialog.querySelector<HTMLInputElement>('input[name="name"]')?.focus(); };
+    open(); desktop.addEventListener("change", open);
+    return () => { desktop.removeEventListener("change", open); dialog.close(); previous?.focus(); };
+  }, [drawer]);
+  if (state.success && !row && !onSaved) return <div role="status" className="rounded-xl border border-emerald-300 p-5">{state.message} <Link className="underline" href={`/company/${slug}/vouchers/${state.campaignId}`}>Kampagne öffnen und Codes ausgeben</Link></div>;
   const locked = !!row?.locked;
-  return <form action={action} className="space-y-5 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-    <h2 className="text-lg font-semibold">{row ? "Kampagne bearbeiten" : "Neue Kampagne"}</h2>
+  const form = <form action={action} className={drawer ? "space-y-5" : "space-y-5 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950"}>
+    <header className="flex items-center justify-between gap-4"><h2 id={drawer ? "voucher-campaign-form-title" : undefined} className="text-lg font-semibold">{row ? "Kampagne bearbeiten" : "Neue Kampagne"}</h2>{drawer && <button type="button" disabled={pending} aria-label="Formular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button>}</header>
     <fieldset disabled={pending || row?.archived} className="space-y-4">
       <FieldLabel label="Name" help="Der interne Name der Kampagne, zum Beispiel „Sommeraktion 2027“. Er wird nicht als Gutscheincode verwendet."><input className={input} name="name" required maxLength={160} defaultValue={row?.name} /></FieldLabel>
       <FieldLabel label="Interne Beschreibung" help="Notizen für die Verwaltung, etwa Zweck, Zielgruppe oder Ansprechpartner. Diese Beschreibung sehen Buchende nicht."><textarea className={input} name="description" maxLength={2000} defaultValue={row?.description} /></FieldLabel>
@@ -69,10 +83,12 @@ export function VoucherCampaignForm({ slug, options, row, start }: { slug: strin
         </div>
       </fieldset>)}</div>
       <p className="text-sm text-zinc-500">Ziele gelten per ODER; Überschneidungen erhöhen den Rabatt nicht. Company-, Reihen- und Venue-Ziele erfassen auch spätere Zuordnungen. Wertguthaben ist auf die ausstellende Company beschränkt. Ein Entwurf darf ohne Ziel gespeichert, aber nicht aktiviert oder mit Codes ausgestattet werden.</p>
-      <button className={button} disabled={pending || row?.archived}>{pending ? "Wird gespeichert …" : "Kampagne speichern"}</button>
+      <div className="flex gap-3"><button className={button} disabled={pending || row?.archived}>{pending ? "Wird gespeichert …" : "Kampagne speichern"}</button>{drawer && <button type="button" disabled={pending} onClick={onCancel} className="text-sm underline">Abbrechen</button>}</div>
     </fieldset>
     {state.message && <p role="status" className="text-sm">{state.message}</p>}
   </form>;
+  if (!drawer) return form;
+  return <dialog ref={panel} aria-labelledby="voucher-campaign-form-title" onCancel={(event) => { event.preventDefault(); if (!pending) onCancel?.(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-lg overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-[32rem] dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">{form}</dialog>;
 }
 
 export function VoucherStatusForm({ slug, campaignId, status, codeId }: { slug: string; campaignId: string; status: string; codeId?: string }) {

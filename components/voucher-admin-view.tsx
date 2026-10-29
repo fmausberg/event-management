@@ -3,7 +3,8 @@ import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import type { VoucherAdministration } from "@/lib/vouchers/admin-data";
 import { formatBerlinDateTime } from "@/lib/events/berlin-date-time";
-import { VoucherCampaignForm, VoucherIssueForm, VoucherStatusForm } from "./voucher-admin-forms";
+import { VoucherIssueForm, VoucherStatusForm } from "./voucher-admin-forms";
+import { VoucherCampaignsTable } from "./voucher-campaigns-table";
 
 const money = (n: number) => `${(n / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`;
 const date = (d: Date | null) => d ? new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" }).format(d) : "Unbegrenzt";
@@ -31,29 +32,21 @@ export function VoucherAdministrationView({ data, detail = false }: { data: Vouc
   const base = `/company/${encodeURIComponent(data.company.slug)}/vouchers`;
   const row = data.rows[0], c = row?.campaign;
   const panel = "space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950";
+  if (!detail) return <VoucherCampaignsTable data={data} start={formatBerlinDateTime(new Date())} />;
+  if (!row || !c) return <main className="min-w-0 flex-1 p-6 sm:p-10"><h1 className="text-2xl font-semibold">Kampagne nicht gefunden</h1></main>;
   return <main className="min-w-0 flex-1 space-y-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
-    <header><p className="text-sm text-zinc-500">{data.company.name}</p><h1 className="text-2xl font-semibold">{detail ? c.name : "Gutscheine"}</h1>
+    <header><h1 className="text-2xl font-semibold">{c.name}</h1>
       <p className="mt-2 text-sm text-zinc-500">Ein Code pro Buchung · explizite Ziele · alle Zeitangaben in Europe/Berlin</p>
-      {detail && <Link className="mt-2 inline-block underline" href={base}>Zur Kampagnenübersicht</Link>}
-      {data.platformAdmin && <Link className="ml-3 underline" href="/admin/vouchers">Company wechseln</Link>}
+      <Link className="mt-2 inline-block underline" href={base}>Zur Kampagnenübersicht</Link>
     </header>
-    {!data.rows.length && <p>Noch keine Gutscheinkampagnen vorhanden.</p>}
-    {data.rows.map(item => <section key={item.campaign.id} className={panel}>
-      <h2 className="text-xl font-semibold"><Link href={`${base}/${item.campaign.id}`} className="underline">{item.campaign.name}</Link> <span className="text-sm font-normal text-zinc-500">#{item.campaign.number} · {statuses[item.campaign.status]}</span></h2>
-      <p>{item.campaign.kind === "PERCENTAGE" ? `${(item.campaign.percentageBps ?? 0) / 100} % Rabatt` : `${money(item.campaign.amountMinor ?? 0)} ${item.campaign.kind === "STORED_VALUE" ? "Ausgabewert je Gutschein" : "Rabatt"}`}</p>
-      {item.campaign.kind === "STORED_VALUE" && item.campaign._count.codes > 0 && <p className="text-sm text-zinc-500">Ausgegebene Wertgutscheine können pausiert beziehungsweise gesperrt werden. Die endgültige Archivierung ist bis zur Festlegung einer Guthaben-Abschlussregel gesperrt.</p>}
-      <p className="text-sm">{date(item.campaign.startsAt)} – {date(item.campaign.endsAt)}</p>
-      <Targets row={item} data={data} /><Stats row={item} />
-      <VoucherStatusForm slug={data.company.slug} campaignId={item.campaign.id} status={item.campaign.status} />
-    </section>)}
-    <VoucherCampaignForm slug={data.company.slug} options={data.options} start={formatBerlinDateTime(new Date())} row={detail ? {
-      id: c.id, name: c.name, description: textField(c.policy, "adminDescription"), kind: c.kind,
-      value: ((c.percentageBps ?? c.amountMinor ?? 0) / 100).toFixed(2), startsAt: formatBerlinDateTime(c.startsAt), endsAt: c.endsAt ? formatBerlinDateTime(c.endsAt) : "",
-      maxRedemptions: String(c.maxRedemptions ?? ""), maxRedemptionsPerCustomer: String(c.maxRedemptionsPerCustomer ?? ""), maxEligibleTicketsPerBooking: String(c.maxEligibleTicketsPerBooking ?? ""), source: c.source ?? "",
-      companyIds: c.companyTargets.map(t => t.companyId), seriesIds: c.eventSeriesTargets.map(t => t.eventSeriesId), eventIds: c.eventTargets.map(t => t.eventId), venueIds: c.venueTargets.map(t => t.venueId),
-      locked: !!(c._count.codes || c._count.redemptions || c._count.balanceUses), archived: c.status === "ARCHIVED",
-    } : undefined} />
-    {detail && <>
+    <section className={panel}>
+      <h2 className="text-xl font-semibold">Kampagne <span className="text-sm font-normal text-zinc-500">#{c.number} · {statuses[c.status]}</span></h2>
+      <p>{c.kind === "PERCENTAGE" ? `${(c.percentageBps ?? 0) / 100} % Rabatt` : `${money(c.amountMinor ?? 0)} ${c.kind === "STORED_VALUE" ? "Ausgabewert je Gutschein" : "Rabatt"}`}</p>
+      {c.kind === "STORED_VALUE" && c._count.codes > 0 && <p className="text-sm text-zinc-500">Ausgegebene Wertgutscheine können pausiert beziehungsweise gesperrt werden. Die endgültige Archivierung ist bis zur Festlegung einer Guthaben-Abschlussregel gesperrt.</p>}
+      <p className="text-sm">{date(c.startsAt)} – {date(c.endsAt)}</p><Targets row={row} data={data} /><Stats row={row} />
+      <VoucherStatusForm slug={data.company.slug} campaignId={c.id} status={c.status} />
+    </section>
+    <>
       {c.status !== "ARCHIVED" && <VoucherIssueForm slug={data.company.slug} campaignId={c.id} stored={c.kind === "STORED_VALUE"} requestId={randomUUID()} />}
       <section className={panel}><h2 className="text-lg font-semibold">Codes · {data.activeCodes} aktiv / {c._count.codes} erzeugt</h2>
         <p className="text-sm text-zinc-500">Endzeichen dienen nur zur Zuordnung. Ein archivierter Code kann nicht wieder aktiviert werden.</p>
@@ -72,6 +65,6 @@ export function VoucherAdministrationView({ data, detail = false }: { data: Vouc
         </table></div>{!data.redemptions.length && !data.uses.length && <p>Keine Vorgänge auf dieser Seite.</p>}
       </section>
       <nav aria-label="Gutscheinhistorie blättern" className="flex gap-4 text-sm"><span>Seite {data.page} · bis zu 50 Einträge je Liste</span>{data.page > 1 && <Link className="underline" href={`${base}/${c.id}?page=${data.page - 1}`}>Zurück</Link>}{(data.codes.length === 50 || data.redemptions.length === 50 || data.uses.length === 50) && <Link className="underline" href={`${base}/${c.id}?page=${data.page + 1}`}>Weiter</Link>}</nav>
-    </>}
+    </>
   </main>;
 }
