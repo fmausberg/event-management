@@ -1,10 +1,12 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
+import { deliverTicketMail } from "@/lib/tickets/outbox";
 import { Prisma } from "@prisma/client";
 import { resendMyTicketEmail, resendCompanyBookingEmail } from "@/lib/tickets/resend";
 import { createTicketToken } from "@/lib/tickets/public-token";
 import { decryptPaymentMail } from "@/lib/payments/mail";
 import { usableTicketWhere, ticketMailUnavailable } from "@/lib/tickets/mail-policy";
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: { booking: { findFirst: vi.fn() }, companyMembership: { findUnique: vi.fn() }, ticketMail: { findUnique: vi.fn(), create: vi.fn() }, authRateLimit: { upsert: vi.fn() }, $transaction: vi.fn() } }));
+vi.mock("@/lib/tickets/outbox", () => ({ deliverTicketMail: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
@@ -14,6 +16,7 @@ const nextId = "22222222-2222-4222-8222-222222222222";
 const company = () => resendCompanyBookingEmail("yoga", "event-1", "booking-1", requestId);
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.mocked(deliverTicketMail).mockResolvedValue(true);
   vi.spyOn(console, "info").mockImplementation(() => {}); vi.spyOn(console, "error").mockImplementation(() => {});
   vi.stubEnv("TICKET_CODE_ENCRYPTION_KEYS", JSON.stringify({ active: "k1", keys: { k1: Buffer.alloc(32, 7).toString("base64") } }));
   vi.stubEnv("AUTH_SECRET", "outbox-test-key"); vi.stubEnv("AUTH_URL", "https://events.example.com");
@@ -31,7 +34,7 @@ function booking() {
 }
 it.each(["COMPANY_USER", "COMPANY_ADMIN"])("permits active %s scoped to booking, event and company", async (role) => {
   booking(); db.companyMembership.findUnique.mockResolvedValue({ role, status: "ACTIVE" });
-  expect((await company()).message).toContain("Versand beauftragt");
+  expect((await company()).message).toContain("Mailserver");
   expect(db.booking.findFirst.mock.calls[0][0].where).toEqual({ id: "booking-1", eventId: "event-1", event: { company: { slug: "yoga" } } });
   expect(db.companyMembership.findUnique.mock.calls[0][0].where).toEqual({ companyId_userId: { companyId: "company-1", userId: "actor" } });
   expect(db.ticketMail.create.mock.calls[0][0].data).toMatchObject({ requestedById: "actor", bookingId: "booking-1" });
@@ -99,10 +102,38 @@ it("reuses the winning job after a concurrent identical request hits the unique 
   });
   expect((await company()).success).toBe(true);
   expect(db.ticketMail.create).toHaveBeenCalledTimes(1);
-  expect(db.ticketMail.findUnique).toHaveBeenLastCalledWith({ where: { requestKey: `resend:actor:booking-1:${requestId}` }, select: { id: true } });
+  expect(db.ticketMail.findUnique).toHaveBeenLastCalledWith({ where: { requestKey: `resend:actor:booking-1:${requestId}` }, select: { id: true, sentAt: true } });
 });
 it("does not queue unusable ciphertext or accept missing request identity", async () => {
   const record = booking(); record.tickets[0].encryptedPublicToken = "bad";
   expect((await company()).success).toBeUndefined(); expect(db.ticketMail.create).not.toHaveBeenCalled();
   expect((await resendMyTicketEmail("ticket-1", "bad")).message).toContain("Ungültige");
+});
+
+it("awaits immediate delivery only after the queue transaction commits", async () => {
+  booking(); let committed = false;
+  db.$transaction.mockImplementation(async (fn) => { const result = await fn(db); committed = true; return result; });
+  vi.mocked(deliverTicketMail).mockImplementation(async (jobId) => { expect(committed).toBe(true); expect(jobId).toBe("job-1"); return true; });
+  expect((await company()).message).toContain("Mailserver");
+  expect(deliverTicketMail).toHaveBeenCalledOnce();
+});
+it("keeps the persisted job on SMTP failure without retrying the queue transaction", async () => {
+  booking(); vi.mocked(deliverTicketMail).mockRejectedValue(new Error("SMTP failed"));
+  const result = await company();
+  expect(result.success).toBe(true); expect(result.message).toContain("noch nicht");
+  expect(db.$transaction).toHaveBeenCalledOnce(); expect(db.ticketMail.create).toHaveBeenCalledOnce();
+});
+it("does not claim delivery when another worker holds the job or backoff is active", async () => {
+  booking(); vi.mocked(deliverTicketMail).mockResolvedValue(false);
+  expect((await company()).message).toContain("noch nicht");
+});
+it("does not send an already completed request again", async () => {
+  booking(); db.ticketMail.findUnique.mockResolvedValue({ id: "job-1", sentAt: new Date() });
+  expect((await company()).message).toContain("Mailserver");
+  expect(deliverTicketMail).not.toHaveBeenCalled(); expect(db.ticketMail.create).not.toHaveBeenCalled();
+});
+it("attempts delivery of an existing pending request without creating another mail", async () => {
+  booking(); db.ticketMail.findUnique.mockResolvedValue({ id: "pending-job", sentAt: null });
+  expect((await company()).message).toContain("Mailserver");
+  expect(deliverTicketMail).toHaveBeenCalledWith("pending-job"); expect(db.ticketMail.create).not.toHaveBeenCalled();
 });

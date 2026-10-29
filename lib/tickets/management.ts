@@ -8,7 +8,7 @@ export async function getEventTickets(slug: string, eventId: string) {
  const tickets = await db.ticket.findMany({
   where: { booking: { eventId, event: { companyId: company.id } } },
   orderBy: [{ number: "asc" }],
-  select: { id: true, number: true, status: true, checkedInAt: true, checkedInBy: { select: { email: true } }, booking: { select: { number: true, status: true, customerEmail: true } } },
+  select: { id: true, number: true, status: true, checkedInAt: true, checkedInBy: { select: { email: true } }, booking: { select: { number: true, status: true, customerName: true, customerEmail: true } } },
  });
  return { company, event, tickets };
 }

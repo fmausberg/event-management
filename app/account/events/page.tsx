@@ -9,7 +9,7 @@ export default async function MyEventsPage() {
   const events = await getMyEvents();
   const date = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" });
   return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
-    <header><h1 className="text-2xl font-semibold">Check-In Management</h1><p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Veranstaltungen, denen du als Event-Staff oder Venue-Staff zugeordnet bist – einschließlich vergangener Veranstaltungen.</p></header>
+    <header><h1 className="text-2xl font-semibold">Check-In Management</h1><p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Veranstaltungen, denen du als Event-Staff, Venue-Staff oder Trainer zugeordnet bist – einschließlich vergangener Veranstaltungen.</p></header>
     <Link href="/account/bookings" className="self-start text-primary-700 underline dark:text-primary-300">Deine eigenen Buchungen und Tickets findest du unter „Meine Buchungen“.</Link>
     <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       <table className="w-full text-left text-sm">
@@ -25,7 +25,7 @@ export default async function MyEventsPage() {
           <td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(event.company.slug)}/events/${encodeURIComponent(event.id)}/tickets`} className="inline-block whitespace-nowrap rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700">Ticketverwaltung</Link></td>
         </tr>)}</tbody>
       </table>
-      {!events.length && <div className="p-8 text-center"><p className="text-sm text-zinc-500">Hier erscheinen Veranstaltungen, denen du als Event-Staff oder Venue-Staff zugeordnet bist, sobald sie veröffentlicht sind. Abgesagte und abgeschlossene Veranstaltungen bleiben sichtbar.</p></div>}
+      {!events.length && <div className="p-8 text-center"><p className="text-sm text-zinc-500">Hier erscheinen Veranstaltungen, denen du als Event-Staff, Venue-Staff oder Trainer zugeordnet bist, sobald sie veröffentlicht sind. Abgesagte und abgeschlossene Veranstaltungen bleiben sichtbar.</p></div>}
     </div>
   </main>;
 }

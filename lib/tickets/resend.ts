@@ -8,6 +8,7 @@ import { encryptPaymentMail } from "@/lib/payments/mail";
 import { decryptTicketCode, TicketCodeError } from "./code-encryption";
 import { ticketLink } from "./public-link";
 import { ticketMailUnavailable, usableTicketWhere } from "./mail-policy";
+import { deliverTicketMail } from "./outbox";
 
 export type TicketMailState = { success?: boolean; message?: string };
 type Access = { ticketId: string } | { bookingId: string; eventId: string; companySlug: string };
@@ -39,8 +40,8 @@ async function queueResend(access: Access, requestId: string): Promise<TicketMai
             if (!member || member.status !== "ACTIVE" || !["COMPANY_USER", "COMPANY_ADMIN"].includes(member.role)) throw new MailRuleError("Buchung nicht verfügbar oder keine Berechtigung.");
           }
           const requestKey = `resend:${actorId}:${booking.id}:${requestId}`;
-          const existing = await tx.ticketMail.findUnique({ where: { requestKey }, select: { id: true } });
-          if (existing) return { created: false, bookingId: booking.id, jobId: existing.id };
+          const existing = await tx.ticketMail.findUnique({ where: { requestKey }, select: { id: true, sentAt: true } });
+          if (existing) return { created: false, bookingId: booking.id, jobId: existing.id, sent: !!existing.sentAt };
           const reason = ticketMailUnavailable(booking);
           if (reason) throw new MailRuleError(reason);
           const now = Date.now(), window = Math.floor(now / 900_000);
@@ -55,10 +56,19 @@ async function queueResend(access: Access, requestId: string): Promise<TicketMai
             beginsAt: booking.event.beginsAt, quantity: ticketLinks.length, ticketLinks,
           }) });
           const job = await tx.ticketMail.create({ data: { requestKey, bookingId: booking.id, requestedById: actorId, encryptedMessage }, select: { id: true } });
-          return { created: true, bookingId: booking.id, jobId: job.id };
+          return { created: true, bookingId: booking.id, jobId: job.id, sent: false };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
         if (result.created) console.info("[tickets:resend] Queued", { actorId, bookingId: result.bookingId, jobId: result.jobId });
-        return { success: true, message: "Versand beauftragt. Die Tickets werden an die gespeicherte E-Mail-Adresse der Buchung gesendet." };
+        // Send only after commit, through the same lease-protected outbox as the
+        // background worker. SMTP failures must never rerun the queue transaction.
+        let sent = result.sent;
+        if (!sent) {
+          try { sent = await deliverTicketMail(result.jobId); }
+          catch { /* The persisted job remains available for background retries. */ }
+        }
+        return { success: true, message: sent
+          ? "Die Ticket-E-Mail wurde an den Mailserver übergeben."
+          : "Der Versandauftrag ist gespeichert, aber der Versand ist noch nicht bestätigt. Der Hintergrundversand versucht es erneut." };
       } catch (error) {
         if (attempt < 2 && error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2002"].includes(error.code)) continue;
         throw error;

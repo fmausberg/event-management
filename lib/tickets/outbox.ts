@@ -18,7 +18,7 @@ export async function deliverTicketMail(id: string) {
     where: { id, sentAt: null, availableAt: { lte: now }, OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }] },
     data: { lockToken, lockedUntil: new Date(now.getTime() + 5 * 60_000), attempts: { increment: 1 } },
   });
-  if (!lock.count) return;
+  if (!lock.count) return false;
   let attempts = 1;
   try {
     const mail = await db.ticketMail.findFirst({ where: { id, lockToken, sentAt: null } });
@@ -28,6 +28,7 @@ export async function deliverTicketMail(id: string) {
     const saved = await db.ticketMail.updateMany({ where: { id, lockToken, sentAt: null },
       data: { sentAt: new Date(), encryptedMessage: null, lockedUntil: null, lockToken: null, lastError: null } });
     if (!saved.count) throw new Error("Lease lost");
+    return true;
   } catch {
     await db.ticketMail.updateMany({ where: { id, lockToken, sentAt: null }, data: {
       lockedUntil: null, lockToken: null, lastError: "DELIVERY_FAILED",

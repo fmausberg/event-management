@@ -1,5 +1,7 @@
 "use client";
 import Link from "next/link";
+import { EventRevenueSummary } from "./event-revenue";
+import type { EventRevenue } from "@/lib/bookings/revenue";
 import { ResendTicketEmail } from "@/components/resend-ticket-email";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { saveBooking, deleteBooking } from "../actions";
@@ -36,7 +38,7 @@ function RemoveBooking({ slug, eventId, row, onDeleted }: { slug: string; eventI
     const [state, action, pending] = useActionState<BookingState, FormData>(async (previous, form) => { const result = await deleteBooking(slug, eventId, row.id, previous, form); if (result.success) onDeleted(result.message!); return result; }, {});
     return <div className="max-w-64">{confirm ? <form action={action}><p>Buchung #{row.number} endgültig löschen?</p>{row.platform && <p className="text-xs">Ein Plattformimport kann die Buchung erneut anlegen.</p>}<input type="hidden" name="confirmed" value="yes" /><div className="mt-2 flex gap-3"><button disabled={pending} className="text-red-700 underline dark:text-red-300">{pending ? "Wird gelöscht …" : "Löschen bestätigen"}</button><button type="button" disabled={pending} onClick={() => setConfirm(false)} className="underline">Abbrechen</button></div></form> : <button type="button" onClick={() => setConfirm(true)} aria-label={`Buchung ${row.number} löschen`} className="text-red-700 underline dark:text-red-300">Löschen</button>}{state.message && <p role="alert" className="text-red-700 dark:text-red-300">{state.message}</p>}</div>;
 }
-export function BookingsTable({ company, event, bookings }: { company: { name: string; slug: string }; event: { id: string; name: string; maxSeats: number | null; beginsAt: string }; bookings: BookingRow[] }) {
+export function BookingsTable({ company, event, bookings, revenue }: { revenue: EventRevenue; company: { name: string; slug: string }; event: { id: string; name: string; maxSeats: number | null; beginsAt: string }; bookings: BookingRow[] }) {
     const [editor, setEditor] = useState<{ row?: BookingRow } | null>(null);
     const [query, setQuery] = useState(""); const [message, setMessage] = useState("");
     const visible = bookings.filter((b) => [b.number, b.customerName, b.customerEmail, b.externalBookingId, b.platform].join(" ").toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
@@ -50,6 +52,7 @@ export function BookingsTable({ company, event, bookings }: { company: { name: s
             </div>
             <button type="button" disabled={!!editor} onClick={() => { setEditor({}); setMessage(""); }} className={primary}>+ Buchung erstellen</button>
         </header>
+        <EventRevenueSummary revenue={revenue} />
         {message && <p role="status" className="text-green-700 dark:text-green-300">{message}</p>}
         {editor && <BookingForm key={editor.row?.id ?? "new"} slug={company.slug} eventId={event.id} row={editor.row} onCancel={() => setEditor(null)} onSaved={(text) => { setEditor(null); setMessage(text); }} />}
         <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950"><div className="flex flex-wrap items-center justify-between gap-3 p-4"><label><span className="sr-only">Buchungen durchsuchen</span><input type="search" placeholder="Buchungen durchsuchen …" value={query} onChange={(e) => setQuery(e.target.value)} className={input} /></label><span className="text-sm text-zinc-500">{visible.length} von {bookings.length} Buchungen</span></div>

@@ -17,7 +17,7 @@ export function ResendTicketEmail(props: Props) {
   }, {});
   return <form action={action} className="space-y-2">
     {"ticketId" in props && <input type="hidden" name="ticketId" value={props.ticketId} />}
-    <button disabled={pending || !!props.unavailableReason || (!!state.success && !another)} className="rounded-lg border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-zinc-700">{pending ? "Wird beauftragt …" : "Tickets erneut senden"}</button>
+    <button disabled={pending || !!props.unavailableReason || (!!state.success && !another)} className="rounded-lg border border-zinc-300 px-3 py-2 text-sm disabled:opacity-50 dark:border-zinc-700">{pending ? "Wird gesendet …" : "Tickets erneut senden"}</button>
     {props.unavailableReason && <p className="text-xs text-zinc-500">{props.unavailableReason}</p>}
     {state.message && <p role="status" className="text-sm">{state.message}</p>}
     {state.success && !pending && !another && !props.unavailableReason && <button type="button" className="text-xs underline" onClick={() => { requestId.current = null; setAnother(true); }}>Weiteren Versand vorbereiten</button>}

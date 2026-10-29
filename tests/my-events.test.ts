@@ -9,7 +9,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
 vi.mock("next/navigation", () => ({ redirect: () => { throw new Error("LOGIN"); } }));
-const event = { id: "event-1", name: "Yoga", beginsAt: new Date("2026-10-15T10:00:00Z"), endsAt: new Date("2026-10-15T11:00:00Z"), status: "PUBLISHED", company: { name: "Studio", slug: "studio" }, venue: null, staff: [] };
+const event = { id: "event-1", name: "Yoga", beginsAt: new Date("2026-10-15T10:00:00Z"), endsAt: new Date("2026-10-15T11:00:00Z"), status: "PUBLISHED", company: { name: "Studio", slug: "studio" }, venue: null, staff: [], trainers: [] };
 beforeEach(() => {
   vi.resetAllMocks(); auth.mockResolvedValue({ user: { id: "me" } });
   db.user.findUnique.mockResolvedValue({ id: "me", email: "ada@example.com" }); db.event.findMany.mockResolvedValue([]);
@@ -24,19 +24,21 @@ it("redirects guests and deleted accounts before querying events", async () => {
   auth.mockResolvedValue({ user: { id: "deleted" } }); db.user.findUnique.mockResolvedValue(null);
   await expect(getMyEvents()).rejects.toThrow("LOGIN"); expect(db.event.findMany).not.toHaveBeenCalled();
 });
-it("limits the query to own event or venue staff assignments, never bookings or trainers", async () => {
+it("limits the query to own staff or linked trainer assignments, never bookings", async () => {
   await getMyEvents();
   const query = db.event.findMany.mock.calls[0][0];
   expect(query.where).toEqual({ status: { in: ["PUBLISHED", "CANCELLED", "COMPLETED"] }, OR: [
     { staff: { some: { userId: "me" } } }, { venue: { staff: { some: { userId: "me" } } } },
+    { trainers: { some: { trainer: { OR: [{ userId: "me" }] } } } },
   ] });
   expect(query.select.staff).toEqual({ where: { userId: "me" }, select: { id: true }, take: 1 });
   expect(query.select.venue).toEqual({ select: { name: true, staff: { where: { userId: "me" }, select: { id: true }, take: 1 } } });
   expect(query.select).not.toHaveProperty("bookings");
-  expect(query.select).not.toHaveProperty("trainers");
+  expect(query.select.trainers).toEqual({ where: { trainer: { OR: [{ userId: "me" }] } }, select: { id: true }, take: 1 });
 });
 it.each([
   [{ staff: [{ id: "private-staff" }] }, "Event-Staff"],
+  [{ trainers: [{ id: "private-trainer" }] }, "Trainer"],
   [{ venue: { name: "Hall", staff: [{ id: "private-staff" }] } }, "Venue-Staff"],
 ])("shows staff role and ticket management for %j", async (relations, role) => {
   db.event.findMany.mockResolvedValue([{ ...event, ...relations }]);
@@ -44,11 +46,13 @@ it.each([
   const html = renderToStaticMarkup(await Page());
   expect(html).toContain('href="/company/studio/events/event-1/tickets"');
   expect(html).not.toContain("private-staff");
+  expect(html).not.toContain("private-trainer");
+  expect(html).toContain(role);
   expect(html).not.toContain("Teilnehmer");
 });
-it("combines both staff roles in a single row", async () => {
-  db.event.findMany.mockResolvedValue([{ ...event, staff: [{ id: "s" }], venue: { name: "Hall", staff: [{ id: "v" }] } }]);
-  expect((await getMyEvents())[0].roles).toEqual(["Event-Staff", "Venue-Staff"]);
+it("combines staff and trainer roles in a single row", async () => {
+  db.event.findMany.mockResolvedValue([{ ...event, staff: [{ id: "s" }], trainers: [{ id: "t" }], venue: { name: "Hall", staff: [{ id: "v" }] } }]);
+  expect((await getMyEvents())[0].roles).toEqual(["Event-Staff", "Venue-Staff", "Trainer"]);
   const html = renderToStaticMarkup(await Page());
   expect(html.match(/<tr/g)).toHaveLength(2);
   expect(html).toContain('href="/events/studio/event-1"');
@@ -56,7 +60,7 @@ it("combines both staff roles in a single row", async () => {
 it("renders a staff-specific empty state and links personal bookings separately", async () => {
   const html = renderToStaticMarkup(await Page());
   expect(html).toContain("Check-In Management");
-  expect(html).toContain("als Event-Staff oder Venue-Staff zugeordnet");
+  expect(html).toContain("als Event-Staff, Venue-Staff oder Trainer zugeordnet");
   expect(html).toContain('href="/account/bookings"');
   expect(html).not.toContain("Ticketverwaltung");
 });

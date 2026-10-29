@@ -109,3 +109,13 @@ it("shows resend availability from stored booking email rather than the profile 
  db.booking.findMany.mockResolvedValue([{ ...row, customerEmail: "booking@example.com" }]);
  expect((await getEventBookings("yoga", "event-1")).bookings[0].resendUnavailableReason).toBeNull();
 });
+
+it("loads stored payment totals and displays the event revenue above the bookings table", async () => {
+ db.booking.findMany.mockResolvedValue([{ id: "paid", number: 1, customerName: "Ada", customerEmail: "ada@example.com", quantity: 2, status: "CONFIRMED", bookedAt: new Date(), payment: { status: "PAID", amount: 4000, currency: "EUR" }, platform: null, externalBookingId: null, user: null, tickets: [] }]);
+ const result = await getEventBookings("yoga", "event-1");
+ expect(result.revenue).toMatchObject({ gross: "40.00", vat: "7.60", stripeFees: "0.85", net: "31.55", bookingCount: 1 });
+ expect(db.booking.findMany.mock.calls[0][0].select.payment).toEqual({ select: { status: true, amount: true, currency: true } });
+ const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companyKey: "yoga", eventId: "event-1" }) }));
+ expect(html).toContain("31,55");
+ expect(html.indexOf("Kalkulatorische Event-Umsatzübersicht")).toBeLessThan(html.indexOf("<table"));
+});
