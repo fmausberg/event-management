@@ -34,8 +34,14 @@ export async function POST(request: Request) {
       await deliverCancellationMails();
     }
     return Response.json({ received: true });
-  } catch {
-    console.error("Stripe webhook processing failed", { eventId: event.id, type: event.type });
+  } catch (error) {
+    console.error("Stripe webhook processing failed", {
+      eventId: event.id,
+      type: event.type,
+      error: error instanceof Error
+        ? { name: error.name, message: error.message, stack: error.stack }
+        : String(error),
+    });
     return new Response("Processing failed; retry", { status: 500 });
   }
 }
