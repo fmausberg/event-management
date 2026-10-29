@@ -41,7 +41,7 @@ neu starten. Die Anwendung zeigt diesen Fall ausdrücklich an und ersetzt die
 Kontozuordnung nicht automatisch. Vor einem Neuverbinden vorhandene Buchungen und
 Payments prüfen; diese behalten ihre ursprüngliche Stripe-Kontozuordnung.
 
-- Kostenlose Buchungen werden weiterhin sofort bestätigt. Kostenpflichtige Buchungen unterstützen zunächst **EUR, Kartenzahlungen und maximal 100 Tickets**. Der Gesamtbetrag muss zwischen 0,50 und 999.999,99 EUR liegen. Keine zusätzliche Steuerberechnung oder Rabattcodes: Der Eventpreis ist der Checkout-Preis.
+- Kostenlose Buchungen werden weiterhin sofort bestätigt. Kostenpflichtige Buchungen unterstützen zunächst **EUR, Kartenzahlungen und maximal 100 Tickets**. Der Gesamtbetrag muss zwischen 0,50 und 999.999,99 EUR liegen. Keine zusätzliche Steuerberechnung. Bei Gutscheinen erhält Stripe nur den serverseitig berechneten Restbetrag aus dem Buchungspreisnachweis. Vollständig gedeckte Buchungen benötigen keinen Stripe-Checkout. Details und Storno-Grenzen: [Gutscheine](vouchers.md).
 - `PENDING_PAYMENT` reserviert Plätze in einer serialisierbaren Transaktion. Betrag, Währung, Empfängerkonto und Checkout-Parameter werden festgeschrieben. Die Checkout-Session läuft nach 35 Minuten ab.
 - Alle Kapazitätsabfragen berücksichtigen auch ausstehende Zahlungen. Plätze werden **nicht allein nach der lokalen Uhr** freigegeben: Erst ein von Stripe bestätigter Ablauf setzt die Buchung auf `EXPIRED`. Das verhindert Überbuchung bei verspäteten Zahlungs-Webhooks.
 - Jeder Checkout-Aufruf verwendet den gespeicherten Request und einen stabilen Idempotency-Key. Nach unsicheren Netzwerkfehlern kann derselbe Request sicher wiederholt werden. Ein lokaler Schreibfehler nach erfolgreicher Stripe-Erstellung lässt sich ebenfalls so reparieren.
@@ -66,3 +66,12 @@ Automatische Tests mocken Stripe/SMTP; sie ersetzen diesen Ende-zu-Ende-Test nic
 Referenzen: [Direct Charges mit Checkout](https://docs.stripe.com/connect/direct-charges?platform=web&ui=stripe-hosted), [Accounts-v2-Konfiguration](https://docs.stripe.com/connect/accounts-v2/connected-account-configuration), [Checkout-Freigabe](https://docs.stripe.com/checkout/fulfillment?payment-ui=stripe-hosted).
 
 Ticketmails aller Buchungsarten und Neuversand laufen gemeinsam: [Ticket-Outbox](ticket-outbox.md). Vor dem Deployment die dortige Umstellung mit angehaltenen alten Workern beachten.
+
+
+Vollständige Gutschein-Stornos sind integriert: Bei Genehmigung werden Rabattlimits
+und eingesetztes Wertguthaben einmalig zurückgegeben; die Stripe-Erstattung betrifft
+nur den gespeicherten Restbetrag und bleibt bis zur Bestätigung offen. Externe
+Teilrefunds lösen keine anteilige Gutscheinrückgabe aus. Reconciliation prüft auch
+verlorene externe Refund-Ereignisse bei Gutscheinbuchungen. Ablaufdatum und
+Guthabenstatus bleiben unverändert. Details, Grenzen und Prüfungen:
+[Gutschein-Vollstorno](vouchers.md#14-vollstorno-und-erstattung).

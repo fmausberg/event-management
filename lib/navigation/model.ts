@@ -39,6 +39,7 @@ export function buildNavigation(user: NavigationUser, canScanTickets = false): N
       { label: "Orte", href: `${base}/venues`, icon: "venue" },
       { label: "Trainer", href: `${base}/trainers`, icon: "users" },
       { label: "Stornierungen", href: `${base}/cancellations`, icon: "calendar-check" },
+      { label: "Gutscheine", href: `${base}/vouchers`, icon: "calendar-check" },
     ];
     if (user.role === "ADMIN" || membership.role === "COMPANY_ADMIN") items.push(
       { label: "Einstellungen", href: `${base}/settings`, icon: "settings" },
@@ -51,6 +52,7 @@ export function buildNavigation(user: NavigationUser, canScanTickets = false): N
     id: "admin", label: "Administration",
     items: [
       { label: "Companies", href: "/admin/companies", icon: "company" },
+      { label: "Gutscheine", href: "/admin/vouchers", icon: "calendar-check" },
       { label: "Orte", href: "/admin/venues", icon: "venue" },
       { label: "Veranstaltungsreihen", href: "/admin/event-series", icon: "series" },
       { label: "Veranstaltungen", href: "/admin/events", icon: "calendar" },

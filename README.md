@@ -45,6 +45,7 @@ CLI und Anwendung sollen dieselbe Ziel-Datenbank verwenden.
 | Buchungen verwalten und Tickets erneut senden | [Buchungsverwaltung](docs/booking-management.md) |
 | Eigene Buchungen und Tickets | [Kundenkonto](docs/account-bookings.md) |
 | Stornierungen und Erstattungen | [Stornierungen](docs/cancellations.md) |
+| Gutschein-Fachregeln und Zustandsübergänge (noch nicht implementiert) | [Gutscheinkonzept](docs/vouchers.md) |
 | Stripe-Onboarding, Checkout, Webhooks und Abgleich | [Stripe](docs/stripe.md) |
 | SMTP, öffentliche Ticketlinks und Check-in | [Mail und Ticketzugänge](docs/mail.md) |
 | Versandkopien im Gesendet-Ordner | [IMAP-Archivierung](docs/mail-sent-archive.md) |

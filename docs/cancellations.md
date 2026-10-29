@@ -147,3 +147,12 @@ Stripe und Datenbankzugriffe werden in Unit-Tests gemockt. Vor Live-Freischaltun
 Migration und Connect-Webhooks in einer Testumgebung prüfen, einschließlich einer
 echten Rückerstattung und zweier paralleler Requests gegen PostgreSQL. Der tatsächliche Prüf- und Migrationsstand ist je Umgebung zu ermitteln;
 diese Anleitung dokumentiert keinen erfolgreichen Livebetrieb.
+
+
+Vollständige Gutschein-Stornos sind integriert: Bei Genehmigung werden Rabattlimits
+und eingesetztes Wertguthaben einmalig zurückgegeben; die Stripe-Erstattung betrifft
+nur den gespeicherten Restbetrag und bleibt bis zur Bestätigung offen. Externe
+Teilrefunds lösen keine anteilige Gutscheinrückgabe aus. Reconciliation prüft auch
+verlorene externe Refund-Ereignisse bei Gutscheinbuchungen. Ablaufdatum und
+Guthabenstatus bleiben unverändert. Details, Grenzen und Prüfungen:
+[Gutschein-Vollstorno](vouchers.md#14-vollstorno-und-erstattung).

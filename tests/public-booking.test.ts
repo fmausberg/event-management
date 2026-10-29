@@ -1,7 +1,9 @@
+import * as voucherService from "@/lib/vouchers/service";
+import * as voucherSettlement from "@/lib/vouchers/settlement";
 import { beforeEach, afterEach, expect, it, vi } from "vitest";
 import { Prisma } from "@prisma/client";
 import { renderToStaticMarkup } from "react-dom/server";
-import { bookPublicEvent } from "@/app/(public)/events/[companySlug]/[eventId]/actions";
+import { bookPublicEvent, previewPublicVoucher } from "@/app/(public)/events/[companySlug]/[eventId]/actions";
 import Page from "@/app/(public)/events/[companySlug]/[eventId]/page";
 import { createBookingToken, readBookingToken } from "@/lib/bookings/public-token";
 import * as ticketTokens from "@/lib/tickets/public-token";
@@ -13,14 +15,15 @@ import { ensureCheckout } from "@/lib/payments/checkout";
 vi.mock("@/lib/payments/connect", () => ({ refreshConnectAccount: vi.fn() }));
 vi.mock("@/lib/payments/checkout", () => ({ ensureCheckout: vi.fn() }));
 vi.mock("@/lib/mail", () => ({ sendMail: vi.fn() }));
-const { auth, db, rate } = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn() }, payment: { findUniqueOrThrow: vi.fn() }, ticket: { createMany: vi.fn() }, ticketMail: { create: vi.fn(), updateMany: vi.fn(), findFirst: vi.fn() }, $transaction: vi.fn() } }));
+const { auth, db, rate } = vi.hoisted(() => ({ auth: vi.fn(), rate: vi.fn(), db: { event: { findFirst: vi.fn() }, booking: { findUnique: vi.fn(), aggregate: vi.fn(), create: vi.fn(), update: vi.fn() }, bookingPrice: { create: vi.fn() }, payment: { findUniqueOrThrow: vi.fn(), create: vi.fn() }, ticket: { createMany: vi.fn() }, ticketMail: { create: vi.fn(), updateMany: vi.fn(), findFirst: vi.fn() }, $transaction: vi.fn() } }));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
 vi.mock("@/lib/auth/rate-limit", () => ({ consumeAuthAttempt: rate }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); }, redirect: (url: string) => { throw new Error(`REDIRECT:${url}`); } }));
-const event = { id: "event-1", name: "Yoga", shortdescription: "Yoga session", description: "Bring a mat.", trainerName: "Ada", status: "PUBLISHED", beginsAt: new Date("2099-10-16T08:00:00Z"), endsAt: new Date("2099-10-16T09:00:00Z"), maxSeats: 10, ticketPrice: { toFixed: () => "0.00" }, currency: "EUR", company: { slug: "yoga", name: "Studio" }, venue: null, eventSeries: null };
+const event = { id: "event-1", companyId: "company-1", name: "Yoga", shortdescription: "Yoga session", description: "Bring a mat.", trainerName: "Ada", status: "PUBLISHED", beginsAt: new Date("2099-10-16T08:00:00Z"), endsAt: new Date("2099-10-16T09:00:00Z"), maxSeats: 10, ticketPrice: { toFixed: () => "0.00" }, currency: "EUR", company: { slug: "yoga", name: "Studio" }, venue: null, eventSeries: null };
+function confirmedBooking(number = 42) { return { eventId: "event-1", number, status: "CONFIRMED", quantity: 2, userId: null, customerName: "Ada", customerEmail: "ada@example.com", voucherRedemption: null, voucherBalanceUses: [] }; }
 function form(token = createBookingToken("event-1", "0.00", "EUR"), overrides: Record<string, string> = {}) {
  const data = new FormData(); Object.entries({ token, name: " Ada ", email: " ADA@example.com ", quantity: "2", ...overrides }).forEach(([k, v]) => data.set(k, v)); return data;
 }
@@ -40,7 +43,7 @@ afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 it("creates a guest booking with normalized contact details, trusted status and event", async () => {
  const token = createBookingToken("event-1", "0.00", "EUR");
  expect(await bookPublicEvent("yoga", "event-1", {}, form(token, { userId: "foreign", status: "CANCELLED", ticketPrice: "0" }))).toMatchObject({ success: true, number: 42 });
- expect(db.booking.create).toHaveBeenCalledWith({ data: { id: readBookingToken(token)!.id, eventId: "event-1", userId: null, customerName: "Ada", customerEmail: "ada@example.com", quantity: 2, status: "CONFIRMED", platform: null, externalBookingId: null }, select: { number: true } });
+ expect(db.booking.create).toHaveBeenCalledWith({ data: { id: readBookingToken(token)!.id, eventId: "event-1", userId: null, customerName: "Ada", customerEmail: "ada@example.com", quantity: 2, status: "PENDING_PAYMENT", reservedUntil: expect.any(Date), platform: null, externalBookingId: null }, select: { number: true } });
  expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
  expect(db.event.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "event-1", company: { slug: "yoga" } } }));
 });
@@ -52,7 +55,8 @@ it("reserves paid tickets at the trusted price and redirects without issuing tic
  vi.mocked(ensureCheckout).mockResolvedValue({ status: "open", url: "https://checkout.stripe.com/test" } as Awaited<ReturnType<typeof ensureCheckout>>);
  await expect(bookPublicEvent("yoga", "event-1", {}, form(createBookingToken("event-1", "12.50", "EUR"), { ticketPrice: "0.01", stripeAccountId: "acct_attacker" }))).rejects.toThrow("REDIRECT:https://checkout.stripe.com/test");
  const data = db.booking.create.mock.calls[0][0].data;
- expect(data).toMatchObject({ status: "PENDING_PAYMENT", reservedUntil: expect.any(Date), quantity: 2, payment: { create: { amount: 2500, currency: "EUR", stripeAccountId: "acct_studio", checkoutRequest: { allowed_payment_method_types: ["card"], line_items: [{ price_data: { unit_amount: 1250 }, quantity: 2 }] } } } });
+ expect(data).toMatchObject({ status: "PENDING_PAYMENT", reservedUntil: expect.any(Date), quantity: 2 });
+ expect(db.payment.create).toHaveBeenCalledWith({ data: expect.objectContaining({ amount: 2500, currency: "EUR", stripeAccountId: "acct_studio", checkoutRequest: expect.objectContaining({ allowed_payment_method_types: ["card"], line_items: [{ price_data: { currency: "eur", unit_amount: 2500, product_data: { name: "Yoga (2 Tickets)" } }, quantity: 1 }] }) }) });
  expect(db.booking.aggregate).toHaveBeenCalledWith({ where: { eventId: "event-1", status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } }, _sum: { quantity: true } });
  expect(db.ticket.createMany).not.toHaveBeenCalled();
  expect(sendMail).not.toHaveBeenCalled();
@@ -61,7 +65,8 @@ it("refuses paid bookings until the connected account can charge and pay out", a
  db.event.findFirst.mockResolvedValue({ ...event, companyId: "company-1", ticketPrice: { toFixed: () => "12.50" } });
  vi.mocked(refreshConnectAccount).mockResolvedValue({ stripeAccountId: "acct_studio", stripeChargesEnabled: false, stripePayoutsEnabled: false } as Awaited<ReturnType<typeof refreshConnectAccount>>);
  expect((await bookPublicEvent("yoga", "event-1", {}, form(createBookingToken("event-1", "12.50", "EUR")))).message).toContain("nicht freigeschaltet");
- expect(db.booking.create).not.toHaveBeenCalled();
+ expect(db.payment.create).not.toHaveBeenCalled();
+ expect(db.ticket.createMany).not.toHaveBeenCalled();
  expect(ensureCheckout).not.toHaveBeenCalled();
 });
 it("does not turn an expired or cancelled booking into a confirmation", async () => {
@@ -76,7 +81,7 @@ it("associates public bookings with the authenticated user", async () => {
  expect(db.booking.create).toHaveBeenCalledWith({ data: expect.objectContaining({ userId: "user-1" }), select: { number: true } });
 });
 it("reuses an existing booking for repeated submission without inserting again", async () => {
- db.booking.findUnique.mockResolvedValue({ eventId: "event-1", number: 42, status: "CONFIRMED" });
+ db.booking.findUnique.mockResolvedValue(confirmedBooking());
  expect((await bookPublicEvent("yoga", "event-1", {}, form())).number).toBe(42);
  expect(db.booking.create).not.toHaveBeenCalled();
  expect(db.ticket.createMany).not.toHaveBeenCalled();
@@ -94,7 +99,7 @@ it("queues confirmation atomically, sends after commit and does not duplicate it
  const queued = db.ticketMail.create.mock.calls[0][0].data;
  expect(queued.requestKey).toBe(`initial:${queued.bookingId}`);
  expect(decryptPaymentMail(queued.encryptedMessage)).toMatchObject({ to: "ada@example.com", text: expect.stringContaining("Event: Yoga") });
- db.booking.findUnique.mockResolvedValue({ eventId: "event-1", number: 42, status: "CONFIRMED" });
+ db.booking.findUnique.mockResolvedValue(confirmedBooking());
  await bookPublicEvent("yoga", "event-1", {}, data);
  expect(db.ticketMail.create).toHaveBeenCalledTimes(1);
  expect(sendMail).toHaveBeenCalledTimes(1);
@@ -123,7 +128,7 @@ it("rolls back free booking and tickets if initial outbox insertion fails", asyn
  let persisted = { bookings: 0, tickets: 0, mails: 0 };
  db.$transaction.mockImplementation(async (callback) => {
   const staged = { ...persisted };
-  const tx = { event: db.event, booking: { ...db.booking, create: vi.fn(async () => { staged.bookings++; return { number: 42 }; }) },
+  const tx = { bookingPrice: db.bookingPrice, event: db.event, booking: { ...db.booking, create: vi.fn(async () => { staged.bookings++; return { number: 42 }; }) },
    ticket: { createMany: vi.fn(async ({ data }) => { staged.tickets += data.length; }) },
    ticketMail: { create: vi.fn(async () => { staged.mails++; throw new Error("outbox write failed"); }) },
   };
@@ -156,7 +161,7 @@ it.each([1, 2, 7])("creates exactly %i valid tickets and persists their hashes a
 it("does not add tickets when the same successful form is submitted again", async () => {
  const data = form();
  const first = await bookPublicEvent("yoga", "event-1", {}, data);
- db.booking.findUnique.mockResolvedValue({ eventId: "event-1", number: first.number, status: "CONFIRMED" });
+ db.booking.findUnique.mockResolvedValue(confirmedBooking(first.number));
  expect(await bookPublicEvent("yoga", "event-1", {}, data)).toEqual(first);
  expect(db.booking.create).toHaveBeenCalledTimes(1);
  expect(db.ticket.createMany).toHaveBeenCalledTimes(1);
@@ -176,8 +181,8 @@ it("propagates ticket failures out of the transaction and permits a clean retry"
  let committed: { booking: boolean; tickets: number } = { booking: false, tickets: 0 };
  const failure = new Error("ticket insert failed");
  const tx = {
-  event: db.event,
-  booking: { findUnique: db.booking.findUnique, aggregate: db.booking.aggregate, create: vi.fn() },
+  event: db.event, bookingPrice: db.bookingPrice,
+  booking: { update: db.booking.update, findUnique: db.booking.findUnique, aggregate: db.booking.aggregate, create: vi.fn() },
   ticket: { createMany: vi.fn() },
   ticketMail: { create: vi.fn().mockResolvedValue({ id: "mail-1" }) },
  };
@@ -265,4 +270,47 @@ it("uses the event cover image on the booking page", async () => {
  db.event.findFirst.mockResolvedValue({ ...event, imageUrl: "https://res.cloudinary.com/test/image/upload/cover.jpg", eventSeries: { imageUrl: "https://images.example/series.jpg" } });
  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companySlug: "yoga", eventId: "event-1" }) }));
  expect(html).toContain('src="https://res.cloudinary.com/test/image/upload/cover.jpg"'); expect(html).not.toContain('src="https://images.example/series.jpg"');
+});
+
+it("previews only server-calculated prices without reserving or creating a booking", async () => {
+ const quote = vi.spyOn(voucherService, "quoteVoucher").mockResolvedValue({ ok: true, value: voucherPrice(500, 0, 2000) });
+ const result = await previewPublicVoucher("yoga", "event-1", form(undefined, { code: "PROMO" }));
+ expect(result.price?.payableAmountMinor).toBe(2000);
+ expect(quote).toHaveBeenCalledWith({ eventId: "event-1", email: "ada@example.com", quantity: 2, code: "PROMO" });
+ expect(db.booking.create).not.toHaveBeenCalled();
+ expect(db.$transaction).not.toHaveBeenCalled();
+});
+function voucherPrice(discount: number, voucher: number, payable: number) {
+ return { currency: "EUR" as const, unitPriceMinor: 1250, quantity: 2, originalAmountMinor: 2500,
+  discountAmountMinor: discount, voucherAmountMinor: voucher, payableAmountMinor: payable,
+  eligibleQuantity: 2, eligibleAmountMinor: 2500, requiresCheckout: payable > 0 };
+}
+it.each([[500, 0, 2000], [0, 1001, 1499]])("uses the recalculated voucher remainder in Stripe (%i discount, %i balance)", async (discount, balance, payable) => {
+ const company = { stripeAccountId: "acct_studio", stripeChargesEnabled: true, stripePayoutsEnabled: true };
+ db.event.findFirst.mockResolvedValue({ ...event, company, ticketPrice: { toFixed: () => "12.50" } });
+ vi.mocked(refreshConnectAccount).mockResolvedValue(company as Awaited<ReturnType<typeof refreshConnectAccount>>);
+ const reserve = vi.spyOn(voucherService, "reserveVoucherInTransaction").mockResolvedValue({ bookingId: "booking", replay: false, price: voucherPrice(discount, balance, payable) });
+ db.payment.findUniqueOrThrow.mockResolvedValue({ id: "payment" });
+ vi.mocked(ensureCheckout).mockResolvedValue({ status: "open", url: "https://checkout.stripe.com/test" } as Awaited<ReturnType<typeof ensureCheckout>>);
+ await expect(bookPublicEvent("yoga", "event-1", {}, form(createBookingToken("event-1", "12.50", "EUR"), { code: "PROMO", payableAmountMinor: "0" }))).rejects.toThrow("REDIRECT:");
+ expect(reserve).toHaveBeenCalledWith(db, expect.objectContaining({ code: "PROMO", quantity: 2 }), null);
+ expect(db.payment.create.mock.calls[0][0].data.amount).toBe(payable);
+ expect(db.payment.create.mock.calls[0][0].data.checkoutRequest.line_items[0]).toMatchObject({ quantity: 1, price_data: { unit_amount: payable } });
+ expect(db.ticket.createMany).not.toHaveBeenCalled();
+});
+it.each([[2500, 0], [0, 2500]])("settles zero-payment vouchers atomically before issuing tickets (%i/%i)", async (discount, balance) => {
+ db.event.findFirst.mockResolvedValue({ ...event, ticketPrice: { toFixed: () => "12.50" } });
+ vi.spyOn(voucherService, "reserveVoucherInTransaction").mockResolvedValue({ bookingId: "booking", replay: false, price: voucherPrice(discount, balance, 0) });
+ const commit = vi.spyOn(voucherSettlement, "commitVoucherInTransaction").mockImplementation(async tx => {
+  expect(tx).toBe(db); expect(db.ticket.createMany).not.toHaveBeenCalled(); expect(sendMail).not.toHaveBeenCalled();
+ });
+ expect(await bookPublicEvent("yoga", "event-1", {}, form(createBookingToken("event-1", "12.50", "EUR"), { code: "PROMO" }))).toMatchObject({ success: true });
+ expect(commit).toHaveBeenCalledOnce(); expect(db.ticket.createMany).toHaveBeenCalledOnce();
+ expect(db.booking.update).toHaveBeenCalledWith({ where: expect.any(Object), data: { status: "CONFIRMED", reservedUntil: null } });
+ expect(db.payment.create).not.toHaveBeenCalled(); expect(ensureCheckout).not.toHaveBeenCalled(); expect(refreshConnectAccount).not.toHaveBeenCalled();
+});
+it.each<Record<string, string>>([{ quantity: "3" }, { code: "PROMO" }])("rejects replay changes %j", async changes => {
+ db.booking.findUnique.mockResolvedValue(confirmedBooking());
+ expect((await bookPublicEvent("yoga", "event-1", {}, form(undefined, changes))).success).toBeUndefined();
+ expect(db.ticket.createMany).not.toHaveBeenCalled(); expect(db.booking.create).not.toHaveBeenCalled();
 });

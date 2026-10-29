@@ -1,3 +1,4 @@
+import { VoucherCancellationStatus } from "@/components/voucher-cancellation-status";
 import Link from "next/link";
 import { redirect } from "next/navigation";
 import { MemberAccessError } from "@/lib/companies/members";
@@ -53,6 +54,7 @@ export default async function MyBookingsPage() {
                 <div className="mt-2 flex flex-wrap gap-2">{booking.tickets.map((ticket) => <Link key={ticket.id} href={`/account/tickets/${ticket.id}`} className="rounded-lg border border-zinc-200 px-3 py-2 text-sm hover:bg-zinc-50 dark:border-zinc-700 dark:hover:bg-zinc-900">Ticket #{ticket.number}{ticket.status === "CANCELLED" ? " · Storniert" : ""}</Link>)}</div>
                 {!booking.tickets.length && <p className="mt-2 text-sm text-zinc-500">{booking.status === "PENDING_PAYMENT" ? "Tickets werden nach erfolgreicher Zahlung bereitgestellt." : "Keine Tickets vorhanden."}</p>}
               </div>
+              <VoucherCancellationStatus booking={booking} />
               {booking.payment && <p className="text-xs text-zinc-500">Zahlung: {({ PAID: "Bezahlt", PENDING: "Ausstehend", EXPIRED: "Abgelaufen", REFUNDED: "Vollständig erstattet", PARTIALLY_REFUNDED: "Teilweise erstattet – bitte Veranstalter kontaktieren" })[booking.payment.status]}</p>}
             </div>
             <div className="space-y-4 border-t border-zinc-200 p-5 sm:p-6 dark:border-zinc-800">

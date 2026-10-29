@@ -110,7 +110,8 @@ it("allows only the owner to withdraw an undecided request", async () => {
 it.each(["APPROVED", "REJECTED", "WITHDRAWN"])("cannot decide a %s request again", async (status) => {
   db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
   db.cancellationRequest.findUnique.mockResolvedValue({ ...request(), status });
-  await expect(decideCancellation("request", "APPROVED")).rejects.toThrow("bereits");
+  if (status === "APPROVED") await expect(decideCancellation("request", "APPROVED")).resolves.toBe("request");
+  else await expect(decideCancellation("request", "APPROVED")).rejects.toThrow("bereits");
   expect(db.booking.update).not.toHaveBeenCalled();
 });
 it("returns an existing active request on repeat clicks", async () => {

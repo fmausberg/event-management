@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+vi.mock("server-only", () => ({}));
 import type { Booking, BookingStatus } from "@prisma/client";
 import { getEventCapacity } from "@/lib/events/get-event-capacity";
 import { getEventsWithCapacity } from "@/lib/events/get-events-with-capacity";
@@ -202,4 +203,11 @@ describe("integration placeholders", () => {
     expect(await response.json()).toEqual({ error: "Not implemented" });
     expect(db.$transaction).not.toHaveBeenCalled();
   });
+});
+
+it("rolls back external updates to a voucher booking", async () => {
+ await upsertExternalBooking(input);
+ Object.assign(state.bookings[0], { voucherBalanceUses: [{ id: "use" }] });
+ await expect(upsertExternalBooking({ ...input, quantity: 7, status: "CANCELLED" })).rejects.toThrow("financial booking history");
+ expect(state.bookings[0].quantity).toBe(1); expect(state.bookings[0].status).toBe("CONFIRMED");
 });

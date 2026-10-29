@@ -53,6 +53,11 @@ enum EventStatus {
 }
 
 model User {
+  createdVoucherCampaigns VoucherCampaign[]     @relation("VoucherCampaignCreator")
+  assignedVoucherCodes    VoucherCode[]         @relation("VoucherCodeRecipient")
+  voucherRedemptions      VoucherRedemption[]
+  voucherBalanceUses      VoucherBalanceUse[]
+  voucherBalanceEntries   VoucherBalanceEntry[] @relation("VoucherBalanceEntryActor")
   requestedTicketMails TicketMail[]
   cancellationDecisions CancellationRequest[] @relation("CancellationDecider")
   checkedInTickets Ticket[] @relation("TicketCheckedInBy")
@@ -135,6 +140,10 @@ model AuthRateLimit {
 }
 
 model Company {
+  ownedVoucherCampaigns  VoucherCampaign[]        @relation("VoucherCampaignOwner")
+  voucherCampaignTargets VoucherCampaignCompany[]
+  issuedVoucherBalances  VoucherBalance[]         @relation("VoucherBalanceIssuer")
+  bookingPrices          BookingPrice[]
   // ID & number
   id     String @id @default(cuid())
   number Int    @unique @default(autoincrement())
@@ -186,6 +195,7 @@ model CompanyMembership {
 }
 
 model Venue {
+  voucherCampaignTargets VoucherCampaignVenue[]
   // ID & number
   id     String @id @default(cuid())
   number Int    @unique @default(autoincrement())
@@ -216,6 +226,7 @@ model Venue {
 }
 
 model EventSeries {
+  voucherCampaignTargets VoucherCampaignEventSeries[]
   // ID & number
   id     String @id @default(cuid())
   number Int    @unique @default(autoincrement())
@@ -254,6 +265,8 @@ model EventSeries {
 }
 
 model Event {
+  voucherCampaignTargets VoucherCampaignEvent[]
+  bookingPrices          BookingPrice[]
   // ID & number
   id     String @id @default(cuid())
   number Int    @unique @default(autoincrement())
@@ -300,6 +313,9 @@ model Event {
 }
 
 model Booking {
+  price              BookingPrice?
+  voucherRedemption  VoucherRedemption?
+  voucherBalanceUses VoucherBalanceUse[]
   ticketMails TicketMail[]
   // ID & number
   id     String @id @default(cuid())
@@ -560,6 +576,7 @@ enum CancellationRefundStatus {
 }
 
 model CancellationRequest {
+  voucherBalanceEntries VoucherBalanceEntry[]
   id String @id @default(cuid())
   bookingId String
   booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
@@ -593,4 +610,326 @@ model CancellationMail {
   lockedUntil DateTime?
   createdAt DateTime @default(now())
   @@index([sentAt, createdAt])
+}
+
+// Voucher data only. Runtime authorization, targeting and settlement are not implemented.
+// SQL-only CHECK constraints and append-only triggers live in the voucher migration.
+enum VoucherKind {
+  PERCENTAGE
+  FIXED_AMOUNT
+  STORED_VALUE
+}
+
+enum VoucherCampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum VoucherCodeMode {
+  PUBLIC
+  INDIVIDUAL
+}
+
+enum VoucherCodeStatus {
+  ACTIVE
+  DISABLED
+  ARCHIVED
+}
+
+enum VoucherRedemptionStatus {
+  RESERVED
+  COMMITTED
+  RELEASED
+  REVERSED
+}
+
+enum VoucherBalanceStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum VoucherBalanceUseStatus {
+  RESERVED
+  COMMITTED
+  RELEASED
+  PARTIALLY_REVERSED
+  REVERSED
+}
+
+enum VoucherBalanceEntryType {
+  ISSUE
+  RESERVE
+  RELEASE
+  SPEND
+  RESTORE
+  ADJUST
+}
+
+model VoucherCampaign {
+  id                           String                       @id @default(cuid())
+  number                       Int                          @unique @default(autoincrement())
+  name                         String
+  kind                         VoucherKind
+  status                       VoucherCampaignStatus        @default(DRAFT)
+  percentageBps                Int?
+  // Fixed discount or initial issued value, depending on kind. Never a shared balance.
+  amountMinor                  Int?
+  currency                     String                       @default("EUR") @db.Char(3)
+  startsAt                     DateTime
+  endsAt                       DateTime?
+  maxRedemptions               Int?
+  maxRedemptionsPerCustomer    Int?
+  maxEligibleTicketsPerBooking Int?
+  ruleVersion                  Int                          @default(1)
+  // Explicit policy choices remain optional until the future activation validator.
+  policy                       Json?
+  source                       String?
+  ownerCompanyId               String
+  ownerCompany                 Company                      @relation("VoucherCampaignOwner", fields: [ownerCompanyId], references: [id], onDelete: Restrict)
+  createdById                  String
+  createdBy                    User                         @relation("VoucherCampaignCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  companyTargets               VoucherCampaignCompany[]
+  eventSeriesTargets           VoucherCampaignEventSeries[]
+  eventTargets                 VoucherCampaignEvent[]
+  venueTargets                 VoucherCampaignVenue[]
+  codes                        VoucherCode[]
+  redemptions                  VoucherRedemption[]
+  balanceUses                  VoucherBalanceUse[]
+  createdAt                    DateTime                     @default(now())
+  updatedAt                    DateTime                     @updatedAt
+
+  @@index([ownerCompanyId, status])
+  @@index([createdById])
+}
+
+model VoucherCampaignCompany {
+  campaignId String
+  campaign   VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  companyId  String
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@id([campaignId, companyId])
+  @@index([companyId])
+}
+
+model VoucherCampaignEventSeries {
+  campaignId    String
+  campaign      VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  eventSeriesId String
+  eventSeries   EventSeries     @relation(fields: [eventSeriesId], references: [id], onDelete: Restrict)
+
+  @@id([campaignId, eventSeriesId])
+  @@index([eventSeriesId])
+}
+
+model VoucherCampaignEvent {
+  campaignId String
+  campaign   VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  eventId    String
+  event      Event           @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@id([campaignId, eventId])
+  @@index([eventId])
+}
+
+model VoucherCampaignVenue {
+  campaignId String
+  campaign   VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  venueId    String
+  venue      Venue           @relation(fields: [venueId], references: [id], onDelete: Restrict)
+
+  @@id([campaignId, venueId])
+  @@index([venueId])
+}
+
+model VoucherCode {
+  id             String              @id @default(cuid())
+  campaignId     String
+  campaign       VoucherCampaign     @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  // Versioned keyed digest of a normalized code; never store the complete bearer code.
+  codeDigest     String              @unique @db.VarChar(128)
+  digestVersion  Int
+  codeSuffix     String?             @db.VarChar(4)
+  mode           VoucherCodeMode
+  status         VoucherCodeStatus   @default(ACTIVE)
+  maxRedemptions Int?
+  startsAt       DateTime?
+  endsAt         DateTime?
+  assignedUserId String?
+  assignedUser   User?               @relation("VoucherCodeRecipient", fields: [assignedUserId], references: [id], onDelete: Restrict)
+  source         String?
+  batchId        String?
+  balance        VoucherBalance?
+  redemptions    VoucherRedemption[]
+  balanceUses    VoucherBalanceUse[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  // Composite reference prevents attributing a code to another campaign.
+  @@unique([id, campaignId])
+  @@index([campaignId, status])
+  @@index([assignedUserId])
+  @@index([campaignId, batchId])
+}
+
+// Exactly one discount-code application per Booking, separate from stored value.
+model VoucherRedemption {
+  id                  String                  @id @default(cuid())
+  bookingId           String                  @unique
+  booking             Booking                 @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  campaignId          String
+  campaign            VoucherCampaign         @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  codeId              String
+  code                VoucherCode             @relation(fields: [codeId, campaignId], references: [id, campaignId], onDelete: Restrict)
+  userId              String?
+  user                User?                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  requestKey          String                  @unique
+  status              VoucherRedemptionStatus @default(RESERVED)
+  reservedUntil       DateTime?
+  committedAt         DateTime?
+  releasedAt          DateTime?
+  reversedAt          DateTime?
+  // Independent from reversal status: E12 may retain consumption after cancellation.
+  limitReturnedAt     DateTime?
+  eligibleQuantity    Int
+  eligibleAmountMinor Int
+  discountAmountMinor Int
+  currency            String                  @db.Char(3)
+  ruleVersion         Int
+  ruleSnapshot        Json
+  targetSnapshot      Json
+  sourceSnapshot      Json
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  @@index([campaignId, status, limitReturnedAt])
+  @@index([codeId, status, limitReturnedAt])
+  @@index([campaignId, userId, status])
+  @@index([userId])
+  @@index([status, reservedUntil])
+}
+
+model VoucherBalance {
+  id                 String                @id @default(cuid())
+  codeId             String                @unique
+  code               VoucherCode           @relation(fields: [codeId], references: [id], onDelete: Restrict)
+  issuerCompanyId    String
+  issuerCompany      Company               @relation("VoucherBalanceIssuer", fields: [issuerCompanyId], references: [id], onDelete: Restrict)
+  currency           String                @db.Char(3)
+  initialAmountMinor Int
+  // Journal projection; creation alone issues no value. ISSUE updates this atomically.
+  balanceMinor       Int                   @default(0)
+  reservedMinor      Int                   @default(0)
+  status             VoucherBalanceStatus  @default(ACTIVE)
+  expiresAt          DateTime?
+  issuanceSource     String
+  issuanceReference  String?
+  uses               VoucherBalanceUse[]
+  entries            VoucherBalanceEntry[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@unique([id, codeId])
+  @@index([issuerCompanyId, status])
+}
+
+// One stored-value use can produce several journal entries and partial restorations.
+model VoucherBalanceUse {
+  id             String                  @id @default(cuid())
+  bookingId      String
+  booking        Booking                 @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  campaignId     String
+  campaign       VoucherCampaign         @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  codeId         String
+  code           VoucherCode             @relation(fields: [codeId, campaignId], references: [id, campaignId], onDelete: Restrict)
+  balanceId      String
+  balance        VoucherBalance          @relation(fields: [balanceId, codeId], references: [id, codeId], onDelete: Restrict)
+  userId         String?
+  user           User?                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  requestKey     String                  @unique
+  status         VoucherBalanceUseStatus @default(RESERVED)
+  amountMinor    Int
+  restoredMinor  Int                     @default(0)
+  currency       String                  @db.Char(3)
+  reservedUntil  DateTime?
+  committedAt    DateTime?
+  releasedAt     DateTime?
+  reversedAt     DateTime?
+  ruleVersion    Int
+  ruleSnapshot   Json
+  targetSnapshot Json
+  sourceSnapshot Json
+  entries        VoucherBalanceEntry[]
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  @@unique([bookingId, balanceId])
+  @@unique([id, balanceId])
+  @@index([balanceId, status])
+  @@index([codeId, campaignId])
+  @@index([campaignId, userId, status])
+  @@index([userId])
+  @@index([status, reservedUntil])
+}
+
+// SQL migration forbids UPDATE/DELETE/TRUNCATE. Corrections are new entries.
+model VoucherBalanceEntry {
+  id                    String                  @id @default(cuid())
+  balanceId             String
+  balance               VoucherBalance          @relation(fields: [balanceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  useId                 String?
+  use                   VoucherBalanceUse?      @relation(fields: [useId, balanceId], references: [id, balanceId], onDelete: Restrict, onUpdate: Restrict)
+  type                  VoucherBalanceEntryType
+  operationKey          String                  @unique
+  amountMinor           Int
+  balanceDeltaMinor     Int
+  reservedDeltaMinor    Int
+  currency              String                  @db.Char(3)
+  // RESTORE references the original SPEND; ADJUST can reference a corrected entry.
+  reversalOfId          String?
+  reversalOf            VoucherBalanceEntry?    @relation("VoucherEntryReversal", fields: [reversalOfId, balanceId], references: [id, balanceId], onDelete: Restrict, onUpdate: Restrict)
+  reversals             VoucherBalanceEntry[]   @relation("VoucherEntryReversal")
+  cancellationRequestId String?
+  cancellationRequest   CancellationRequest?    @relation(fields: [cancellationRequestId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  // External refund identity is contextual, not globally unique (partial restorations).
+  externalRefundId      String?
+  createdById           String?
+  createdBy             User?                   @relation("VoucherBalanceEntryActor", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reason                String
+  createdAt             DateTime                @default(now())
+
+  @@unique([id, balanceId])
+  @@index([balanceId, createdAt, id])
+  @@index([useId, balanceId])
+  @@index([reversalOfId, balanceId])
+  @@index([cancellationRequestId])
+  @@index([externalRefundId])
+  @@index([createdById])
+}
+
+// Optional for existing Bookings. No backfill; SQL migration makes snapshots append-only.
+model BookingPrice {
+  bookingId           String   @id
+  booking             Booking  @relation(fields: [bookingId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  eventId             String
+  event               Event    @relation(fields: [eventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  companyId           String
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  currency            String   @db.Char(3)
+  unitPriceMinor      Int
+  quantity            Int
+  originalAmountMinor Int
+  discountAmountMinor Int
+  voucherAmountMinor  Int
+  payableAmountMinor  Int
+  calculationVersion  Int
+  // Optional until E7 is decided; contains stable position identities and allocations.
+  allocationSnapshot  Json?
+  createdAt           DateTime @default(now())
+
+  @@index([eventId])
+  @@index([companyId])
 }

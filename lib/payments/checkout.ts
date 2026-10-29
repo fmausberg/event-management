@@ -3,6 +3,7 @@ import Stripe from "stripe";
 import type { Payment, Prisma } from "@prisma/client";
 import { getPrisma } from "@/lib/db/prisma";
 import { getStripe } from "./stripe";
+import { releaseVoucherInTransaction, voucherTransaction } from "@/lib/vouchers/service";
 
 export async function ensureCheckout(payment: Payment) {
   const stripe = getStripe();
@@ -34,9 +35,13 @@ export async function ensureCheckout(payment: Payment) {
     // Never release inventory for network failures or ambiguous Stripe errors.
     const expiresAt = (payment.checkoutRequest as { expires_at?: number }).expires_at;
     if (error instanceof Stripe.errors.StripeInvalidRequestError && error.param === "expires_at" && expiresAt && expiresAt * 1000 <= Date.now()) {
-      await getPrisma().$transaction(async (tx) => {
+      await voucherTransaction(async (tx) => {
         const changed = await tx.payment.updateMany({ where: { id: payment.id, status: "PENDING", checkoutSessionId: null }, data: { status: "EXPIRED" } });
-        if (changed.count) await tx.booking.update({ where: { id: payment.bookingId }, data: { status: "EXPIRED", reservedUntil: null } });
+        if (changed.count) {
+          await tx.booking.update({ where: { id: payment.bookingId }, data: { status: "EXPIRED", reservedUntil: null } });
+          const metadata = (payment.checkoutRequest as { metadata?: { bookingPriceVersion?: string } }).metadata;
+          if (metadata?.bookingPriceVersion === "1") await releaseVoucherInTransaction(tx, payment.bookingId);
+        }
       });
     }
     throw error;

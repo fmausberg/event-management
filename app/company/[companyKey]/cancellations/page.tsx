@@ -1,3 +1,4 @@
+import { VoucherCancellationStatus } from "@/components/voucher-cancellation-status";
 import { notFound, redirect } from "next/navigation";
 import { MemberAccessError } from "@/lib/companies/members";
 import { getCompanyCancellations } from "@/lib/cancellations/data";
@@ -27,6 +28,7 @@ export default async function CancellationsPage({ params }: { params: Promise<{ 
         {request.customerReason && <p className="mt-2 whitespace-pre-wrap text-sm">Kundenhinweis: {request.customerReason}</p>}
         {request.internalNote && <p className="mt-2 whitespace-pre-wrap text-sm">Interne Notiz: {request.internalNote}</p>}
         {request.status === "APPROVED" && <><p className="mt-2 font-medium">{refundLabels[request.refundStatus]}</p>{request.refundError && <p className="text-sm text-red-700">{request.refundError}</p>}</>}
+        <VoucherCancellationStatus booking={request.booking} />
         {request.booking.payment && <p className="text-sm">Onlinezahlung: {(request.booking.payment.amount / 100).toFixed(2)} {request.booking.payment.currency} · {request.booking.payment.status}</p>}
         {request.status === "PENDING" && <CancellationActionForm id={request.id} intent="decide" label="Ausgewählte Entscheidung" noteLabel="Interne Notiz (optional)" />}
         {request.status === "APPROVED" && ["PENDING", "FAILED", "REVIEW"].includes(request.refundStatus) && <CancellationActionForm id={request.id} intent="retry" label={request.refundStatus === "FAILED" ? "Erstattung erneut anstoßen" : "Erstattungsstatus erneut prüfen"} />}
