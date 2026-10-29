@@ -6,6 +6,7 @@ import type { TargetOptions, VoucherAdminState } from "@/lib/vouchers/admin-vali
 
 const input = "mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700";
 const button = "rounded-lg bg-primary-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-50";
+const eventDate = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" });
 
 function FieldInfo({ label, children }: { label: string; children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -73,11 +74,11 @@ export function VoucherCampaignForm({ slug, options, row, start, drawer = false,
       <input type="hidden" name="currency" value="EUR" />
       <p className="text-sm text-zinc-500">Währung: EUR. Bei 100 % Rabatt ist ohne Ticketlimit genau ein Ticket kostenlos. Wertguthaben hat kein Ticketlimit. Gäste werden nur weich über ihre Buchungs-E-Mail begrenzt.</p>
       <div className="grid gap-4 sm:grid-cols-2">{([
-        ["companyIds", "Companies", options.companies], ["seriesIds", "Veranstaltungsreihen", options.series],
+        ["companyIds", "Gesamte Company", options.companies], ["seriesIds", "Veranstaltungsreihen", options.series],
         ["eventIds", "Einzelne Events", options.events], ["venueIds", "Venues", options.venues],
       ] as const).map(([key, label, choices]) => <fieldset key={key} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-        <legend className="px-1 font-medium"><span className="inline-flex flex-wrap items-center gap-2">{label}<FieldInfo label={label}>{key === "companyIds" ? "Die Kampagne gilt für alle Events der ausgewählten Companies – auch für später dort angelegte Events." : key === "seriesIds" ? "Die Kampagne gilt für alle Events, die einer ausgewählten Veranstaltungsreihe zugeordnet sind. Später zugeordnete Events werden ebenfalls erfasst." : key === "eventIds" ? "Die Kampagne gilt nur für die konkret ausgewählten einzelnen Events. Andere Events derselben Company oder Reihe sind dadurch nicht automatisch enthalten." : "Die Kampagne gilt für Events, deren tatsächlich zugewiesene Venue ausgewählt ist. Später dort stattfindende Events werden ebenfalls erfasst."}</FieldInfo></span></legend><div className="max-h-52 space-y-2 overflow-y-auto">
-          {choices.map(choice => <label key={choice.id} className="flex items-start gap-2 text-sm"><input type="checkbox" name={key} value={choice.id} defaultChecked={row?.[key].includes(choice.id)} disabled={locked} />{choice.name || "Unbenannt"}</label>)}
+        <legend className="px-1 font-medium"><span className="inline-flex flex-wrap items-center gap-2">{label}<FieldInfo label={label}>{key === "companyIds" ? "Wählt alle bestehenden und später angelegten Events der Company aus, in deren Gutscheinverwaltung du dich gerade befindest." : key === "seriesIds" ? "Die Kampagne gilt für alle Events, die einer ausgewählten Veranstaltungsreihe zugeordnet sind. Später zugeordnete Events werden ebenfalls erfasst." : key === "eventIds" ? "Die Kampagne gilt nur für die konkret ausgewählten einzelnen Events. Andere Events derselben Company oder Reihe sind dadurch nicht automatisch enthalten." : "Die Kampagne gilt für Events, deren tatsächlich zugewiesene Venue ausgewählt ist. Später dort stattfindende Events werden ebenfalls erfasst."}</FieldInfo></span></legend><div className="max-h-52 space-y-2 overflow-y-auto">
+          {choices.map(choice => <label key={choice.id} className="flex items-start gap-2 text-sm"><input type="checkbox" name={key} value={choice.id} defaultChecked={row?.[key].includes(choice.id)} disabled={locked} /><span>{key === "seriesIds" && "number" in choice ? `#${choice.number} · ${choice.name || "Unbenannt"}` : key === "eventIds" && "number" in choice && "beginsAt" in choice ? `#${choice.number} · ${choice.name || "Unbenannt"} · ${choice.beginsAt ? eventDate.format(choice.beginsAt) : "Beginn offen"}` : choice.name || "Unbenannt"}</span></label>)}
           {!choices.length && <p className="text-sm text-zinc-500">Keine Ziele verfügbar.</p>}
           {locked && row?.[key].map(id => <input key={id} type="hidden" name={key} value={id} />)}
         </div>

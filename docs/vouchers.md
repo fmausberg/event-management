@@ -912,9 +912,9 @@ Company der Route gehören, auch wenn eine fremde Kampagnen-ID manipuliert wird.
 `authorization.ts` enthält dafür den gemeinsamen Gutschein-Company-Prüfer.
 
 Jede übermittelte Company-, Reihen-, Event- und Venue-ID wird einzeln auf Existenz
-und Zuständigkeit geprüft. Company-Mitglieder dürfen nur eigene Ziele setzen.
-Plattform-Admins dürfen Rabattziele übergreifend wählen; bei Wertguthaben bleiben
-auch sie auf die Aussteller-Company beschränkt. Es entsteht kein Approval-System.
+und Zuständigkeit geprüft. Die Company der Verwaltungs-URL begrenzt die Zielauswahl
+auch für Plattform-Admins: auswählbar sind die gesamte aktuelle Company oder deren
+Reihen, Events und Venues. Es entsteht kein Approval-System.
 Ein aktiver Datensatz benötigt mindestens ein Ziel; ebenso ist eine Codeausgabe
 bei leerer Zielauswahl gesperrt. ODER-Verknüpfung und dynamische Ziele bleiben wie
 in Abschnitt 4 beschrieben. Auswahllisten sind noch ohne Suche; sehr große

@@ -79,11 +79,13 @@ it("rejects a foreign campaign even when its ID is posted to an authorized compa
   await expect(changeVoucherCampaignStatus("studio", "campaign", "ACTIVE")).rejects.toThrow();
   expect(db.voucherCampaign.update).not.toHaveBeenCalled();
 });
-it("allows platform admins cross-company discount targets but scopes value issuance to its owner", async () => {
+it("scopes platform-admin targets to the company selected by the URL", async () => {
   db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
-  await saveVoucherCampaign("studio", null, values({ eventIds: ["foreign-event"] }));
-  expect(db.event.count).toHaveBeenLastCalledWith({ where: { id: { in: ["foreign-event"] } } });
-  await saveVoucherCampaign("studio", null, values({ kind: "STORED_VALUE", value: "50", eventIds: ["event"] }));
+  db.event.count.mockResolvedValueOnce(0);
+  await expect(saveVoucherCampaign("studio", null, values({ eventIds: ["foreign-event"] }))).rejects.toThrow("Ziel");
+  expect(db.event.count).toHaveBeenLastCalledWith({ where: { id: { in: ["foreign-event"] }, companyId: "company" } });
+  db.event.count.mockImplementation(async ({ where }) => where.id.in.length);
+  await saveVoucherCampaign("studio", null, values({ eventIds: ["event"] }));
   expect(db.event.count).toHaveBeenLastCalledWith({ where: { id: { in: ["event"] }, companyId: "company" } });
 });
 it("blocks activation and code issuance without any explicit target", async () => {

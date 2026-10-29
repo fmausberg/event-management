@@ -33,4 +33,4 @@ export const issueInput = z.object({
 });
 export type CampaignInput = z.infer<typeof campaignInput>;
 export type VoucherAdminState = { success?: boolean; message?: string; campaignId?: string; codes?: string[]; replay?: boolean };
-export type TargetOptions = { companies: { id: string; name: string }[]; series: { id: string; name: string }[]; events: { id: string; name: string }[]; venues: { id: string; name: string }[] };
+export type TargetOptions = { companies: { id: string; name: string }[]; series: { id: string; number: number; name: string }[]; events: { id: string; number: number; name: string; beginsAt: Date | null }[]; venues: { id: string; name: string }[] };

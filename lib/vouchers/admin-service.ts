@@ -32,10 +32,9 @@ async function campaignForUpdate(tx: Prisma.TransactionClient, id: string, scope
   return campaign;
 }
 export async function validateVoucherTargets(tx: Prisma.TransactionClient, scope: Scope, input: Pick<CampaignInput, "kind" | "companyIds" | "seriesIds" | "eventIds" | "venueIds">) {
-  const local = !scope.platformAdmin || input.kind === "STORED_VALUE";
-  const companyFilter = local ? { companyId: scope.company.id } : {};
+  const companyFilter = { companyId: scope.company.id };
   const counts = await Promise.all([
-    tx.company.count({ where: { id: { in: input.companyIds }, ...(local ? { AND: { id: scope.company.id } } : {}) } }),
+    tx.company.count({ where: { id: { in: input.companyIds }, AND: { id: scope.company.id } } }),
     tx.eventSeries.count({ where: { id: { in: input.seriesIds }, ...companyFilter } }),
     tx.event.count({ where: { id: { in: input.eventIds }, ...companyFilter } }),
     tx.venue.count({ where: { id: { in: input.venueIds }, ...companyFilter } }),

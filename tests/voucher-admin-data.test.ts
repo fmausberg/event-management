@@ -55,6 +55,10 @@ it("denies a company user from another company before any voucher data is read",
 it("allows platform administrators to inspect cross-company campaign bookings", async () => {
   db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
   await getVoucherAdministration("studio", "campaign");
+  expect(db.company.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "company" } }));
+  expect(db.eventSeries.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { companyId: "company" } }));
+  expect(db.event.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { companyId: "company" } }));
+  expect(db.venue.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { companyId: "company" } }));
   expect(db.voucherRedemption.findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { campaignId: "campaign" } }));
 });
 it("does not disclose a foreign campaign through its ID", async () => {
