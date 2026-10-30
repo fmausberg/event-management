@@ -7,13 +7,13 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ ticket: { findUnique }, authRateLimit: { upsert, deleteMany } }) }));
 const token = "a".repeat(43);
 const event = { name: "Yoga", beginsAt: new Date("2026-10-16T15:30Z"), status: "PUBLISHED", venue: { name: "Studio", city: "Neuss" } };
-const ticket = { number: 7, status: "VALID", checkedInAt: null, booking: { status: "CONFIRMED", event } };
+const ticket = { number: 7, status: "VALID", checkedInAt: null, booking: { status: "CONFIRMED", customerName: "Max Mustermann", event } };
 function request(value = token) { return new Request("https://events.example.com/api/public-ticket", { method: "POST", body: value }); }
 beforeEach(() => { vi.resetAllMocks(); upsert.mockResolvedValue({ attempts: 1 }); findUnique.mockResolvedValue(ticket); });
 
 it("looks up only the hash and returns minimal uncached ticket details without writes", async () => {
  const response = await POST(request());
- expect(await response.json()).toEqual({ number: 7, status: "Gültig", checkedInAt: null, eventName: "Yoga", beginsAt: event.beginsAt.toISOString(), venue: "Studio, Neuss" });
+ expect(await response.json()).toEqual({ number: 7, status: "Gültig", checkedInAt: null, eventName: "Yoga", bookedByName: "Max Mustermann", beginsAt: event.beginsAt.toISOString(), venue: "Studio, Neuss" });
  expect(findUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { publicTokenHash: createHash("sha256").update(token).digest("hex") } }));
  expect(response.headers.get("cache-control")).toContain("no-store");
  expect(response.headers.get("referrer-policy")).toBe("no-referrer");

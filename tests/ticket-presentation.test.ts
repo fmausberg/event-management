@@ -19,7 +19,7 @@ vi.mock("@/components/refresh-status-button", () => ({ RefreshStatusButton: () =
 const token = Buffer.alloc(32, 4).toString("base64url");
 const hash = createHash("sha256").update(token).digest("hex");
 const event = { name: "Yoga", beginsAt: new Date("2026-10-25T01:30:00Z"), status: "PUBLISHED", venue: { name: "Studio", addressLine1: "Teststraße 1", addressLine2: "Hof", postalCode: "41460", city: "Neuss" } };
-const ticket = { publicTokenHash: hash, encryptedPublicToken: "", id: "ticket-1", number: 7, status: "VALID", checkedInAt: null, booking: { customerEmail: "owner@example.com", tickets: [{ id: "ticket-1" }], number: 42, status: "CONFIRMED", event } };
+const ticket = { publicTokenHash: hash, encryptedPublicToken: "", id: "ticket-1", number: 7, status: "VALID", checkedInAt: null, booking: { customerName: "Max Mustermann", customerEmail: "owner@example.com", tickets: [{ id: "ticket-1" }], number: 42, status: "CONFIRMED", event } };
 const page = () => MyTicketPage({ params: Promise.resolve({ ticketId: "ticket-1" }) });
 beforeEach(() => {
   vi.stubEnv("TICKET_CODE_ENCRYPTION_KEYS", JSON.stringify({ active: "k1", keys: { k1: Buffer.alloc(32, 7).toString("base64") } }));
@@ -51,6 +51,7 @@ it.each([
   expect(publicTicket).toEqual(account!.ticket);
   expect(publicTicket.status).toBe(status);
   expect(publicTicket.venue).toBe("Studio, Teststraße 1, Hof, 41460 Neuss");
+  expect(publicTicket.bookedByName).toBe("Max Mustermann");
   expect(publicTicket).not.toHaveProperty("id");
   expect(publicTicket).not.toHaveProperty("bookingNumber");
   expect(publicTicket).not.toHaveProperty("publicTokenHash");
@@ -64,6 +65,27 @@ it("handles missing dates and venues without dangling timezone labels", async ()
   expect(html).toContain("Termin noch offen");
   expect(html).not.toContain("Uhr (Berlin)");
   expect(html).not.toContain("<svg");
+});
+
+it("labels the booking contact without presenting them as the ticket holder", async () => {
+  const account = (await getMyTicket("ticket-1"))!;
+  const html = renderToStaticMarkup(createElement(TicketCard, { ticket: account.ticket, qrCode: null }));
+  expect(html).toContain("Gebucht von:");
+  expect(html).toContain("Max Mustermann");
+  expect(html).not.toContain("Ticketinhaber");
+});
+
+it("renders the Event Yoga logo in the ticket header", async () => {
+  const account = (await getMyTicket("ticket-1"))!;
+  const html = renderToStaticMarkup(createElement(TicketCard, { ticket: account.ticket, qrCode: null }));
+  expect(html).toContain('alt="Event Yoga"');
+  expect(html).toContain("Event-Yoga-Logo-V2");
+});
+
+it("groups long ticket numbers into blocks of three", async () => {
+  const account = (await getMyTicket("ticket-1"))!;
+  const html = renderToStaticMarkup(createElement(TicketCard, { ticket: { ...account.ticket, number: 123456789 }, qrCode: null }));
+  expect(html).toContain("Ticket #123.456.789");
 });
 
 it("uses the same status and timezone rendering, preserving check-in seconds", async () => {
