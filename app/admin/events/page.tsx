@@ -48,6 +48,7 @@ export default async function EventsPage() {
                   <td className="px-4 py-3">
                     <div className="flex items-start gap-4">
                       <Link href={`/admin/events/${encodeURIComponent(event.id)}/edit`} className="underline">Bearbeiten</Link>
+                      <Link href={`/admin/events/${encodeURIComponent(event.id)}/reviews`} className="underline">Bewertungen</Link>
                       <DeleteEventButton id={event.id} name={event.name} />
                     </div>
                   </td>

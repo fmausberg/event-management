@@ -5,10 +5,11 @@ import { redeemCompanyTicket } from "@/app/company/[companyKey]/events/[eventId]
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 import Page from "@/app/company/[companyKey]/events/[eventId]/tickets/page";
 const { access, event, tickets, update } = vi.hoisted(() => ({ update: vi.fn(), access: vi.fn(), event: vi.fn(), tickets: vi.fn() }));
+const { member, reviews } = vi.hoisted(() => ({ member: vi.fn(), reviews: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/auth", () => ({ auth: vi.fn(async () => ({ user: { id: "actor" } })) }));
 vi.mock("@/lib/tickets/access", () => ({ requireEventTicketAccess: access }));
-vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ event: { findFirst: event }, ticket: { findMany: tickets, updateMany: update } }) }));
+vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ companyMembership: { findUnique: member }, eventReview: { findMany: reviews }, event: { findFirst: event }, ticket: { findMany: tickets, updateMany: update } }) }));
 vi.mock("next/navigation", () => ({ notFound: () => { throw new Error("NOT_FOUND"); }, redirect: () => { throw new Error("LOGIN"); } }));
 const props = { params: Promise.resolve({ companyKey: "yoga", eventId: "event" }) };
 beforeEach(() => { vi.resetAllMocks(); access.mockResolvedValue({ actor: "actor", company: { id: "company", name: "Studio" }, event: { id: "event", name: "Yoga", beginsAt: new Date("2026-10-16T15:30Z"), status: "PUBLISHED" } }); event.mockResolvedValue({ id: "event", name: "Yoga", beginsAt: new Date("2026-10-16T15:30Z"), status: "PUBLISHED" }); tickets.mockResolvedValue([]); });
@@ -24,6 +25,19 @@ it("rejects foreign events and unauthorized users before reading tickets", async
  expect(tickets).not.toHaveBeenCalled();
 });
 it("renders an empty table", async () => { expect(renderToStaticMarkup(await Page(props))).toContain("Noch keine Tickets vorhanden."); });
+it.each(["COMPANY_USER", "COMPANY_ADMIN"])("shows review status and resend controls for %s", async role => {
+ member.mockResolvedValue({ role, status: "ACTIVE" });
+ reviews.mockResolvedValue([{ recipientEmail: "holder@example.com", status: "COMPLETED", overallRating: 5, submittedAt: new Date(), sentAt: new Date() }]);
+ tickets.mockResolvedValue([{ id: "ticket", number: 1, status: "VALID", checkedInAt: new Date(), booking: { number: 1, status: "CONFIRMED", customerEmail: "Holder@Example.com" } }]);
+ const html = renderToStaticMarkup(await Page(props));
+ expect(html).toContain("Abgegeben"); expect(html).toContain("Bewertungsaufforderung senden");
+ expect(html).toContain("Bewertung bereits abgegeben.");
+});
+it("never reads review status for staff without active company membership", async () => {
+ member.mockResolvedValue(null);
+ const html = renderToStaticMarkup(await Page(props));
+ expect(html).not.toContain("Bewertungsaufforderung"); expect(reviews).not.toHaveBeenCalled();
+});
 it("redeems only unused valid tickets in the authorized company and event", async () => {
  update.mockResolvedValue({ count: 1 });
  expect((await redeemCompanyTicket("yoga", "event", "ticket", {}, new FormData())).message).toBe("Ticket eingelöst.");

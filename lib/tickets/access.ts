@@ -21,7 +21,7 @@ export async function requireEventTicketAccess(slug: string, eventId: string) {
         { venue: { staff: { some: { userId: user.id } } } },
       ] }),
     },
-    select: { id: true, name: true, beginsAt: true, status: true, company: { select: { id: true, name: true, slug: true } } },
+    select: { id: true, name: true, beginsAt: true, endsAt: true, status: true, company: { select: { id: true, name: true, slug: true } } },
   });
   if (!event) throw new MemberAccessError("FORBIDDEN");
   return { actor: user.id, company: event.company, event };

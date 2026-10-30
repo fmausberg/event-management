@@ -1,5 +1,9 @@
 # Mailversand
 
+Bewertungseinladungen nach eingelöster Teilnahme nutzen ebenfalls die bestehende
+Mail-Outbox und den Reconciliation-Job. Ablauf, Linkschutz und Deployment:
+[Eventbewertungen](event-reviews.md).
+
 `lib/mail/index.ts` stellt ein internes, serverseitiges Nodemailer-Modul bereit.
 Es benötigt die Node.js-Runtime, keine Edge-Runtime. Importieren allein baut keine
 Verbindung auf; fehlende SMTP-Konfiguration beeinflusst andere Seiten nicht.

@@ -4,6 +4,7 @@ import { getEventTickets } from "@/lib/tickets/management";
 import { redeemCompanyTicket } from "@/app/company/[companyKey]/events/[eventId]/tickets/actions";
 
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
+  companyMembership: { findUnique: vi.fn() },
   user: { findUnique: vi.fn(), findMany: vi.fn() }, event: { findFirst: vi.fn() }, ticket: { findMany: vi.fn(), updateMany: vi.fn() },
 } }));
 vi.mock("server-only", () => ({}));

@@ -32,8 +32,8 @@ CREATE TABLE "MailOutbox" (
 );
 
 CREATE UNIQUE INDEX "TrainerReminder_requestKey_key" ON "TrainerReminder"("requestKey");
+CREATE UNIQUE INDEX "TrainerReminder_eventId_key" ON "TrainerReminder"("eventId");
 CREATE INDEX "TrainerReminder_createdAt_idx" ON "TrainerReminder"("createdAt");
-CREATE INDEX "TrainerReminder_eventId_createdAt_idx" ON "TrainerReminder"("eventId", "createdAt");
 CREATE UNIQUE INDEX "MailOutbox_requestKey_key" ON "MailOutbox"("requestKey");
 CREATE UNIQUE INDEX "MailOutbox_kind_trainerReminderId_trainerId_key" ON "MailOutbox"("kind", "trainerReminderId", "trainerId");
 CREATE INDEX "MailOutbox_sentAt_cancelledAt_availableAt_createdAt_idx" ON "MailOutbox"("sentAt", "cancelledAt", "availableAt", "createdAt");

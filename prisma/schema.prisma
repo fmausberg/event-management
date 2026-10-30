@@ -54,6 +54,7 @@ enum EventStatus {
 
 enum MailOutboxKind {
   TRAINER_REMINDER
+  EVENT_REVIEW
 }
 
 model User {
@@ -269,6 +270,7 @@ model EventSeries {
 }
 
 model Event {
+  reviews EventReview[]
   voucherCampaignTargets VoucherCampaignEvent[]
   bookingPrices          BookingPrice[]
   // ID & number
@@ -319,6 +321,7 @@ model Event {
 }
 
 model Booking {
+  reviews EventReview[]
   price              BookingPrice?
   voucherRedemption  VoucherRedemption?
   voucherBalanceUses VoucherBalanceUse[]
@@ -444,6 +447,7 @@ enum TicketStatus {
 }
 
 model Ticket {
+  reviews EventReview[]
   // ID & number
   id     String @id @default(cuid())
   number Int    @unique @default(autoincrement())
@@ -580,6 +584,9 @@ model TrainerReminder {
 }
 
 model MailOutbox {
+  reviewId          String? @unique
+  review            EventReview? @relation(fields: [reviewId], references: [id], onDelete: Restrict)
+  encryptedMessage  String?
   id                String         @id @default(cuid())
   requestKey        String         @unique
   kind              MailOutboxKind
@@ -600,6 +607,55 @@ model MailOutbox {
   @@index([sentAt, cancelledAt, availableAt, createdAt])
   @@index([trainerReminderId, createdAt])
   @@index([trainerId])
+}
+
+enum EventReviewStatus {
+  PROVISIONAL
+  COMPLETED
+}
+
+// One invitation per event and normalized booking email, including group bookings.
+model EventReview {
+  resendTokens EventReviewResendToken[]
+  id String @id @default(cuid())
+  eventId String
+  event Event @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  bookingId String
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  ticketId String
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  recipientEmail String
+  tokenHash String @unique
+  expiresAt DateTime
+  sentAt DateTime?
+  submittedAt DateTime?
+  status EventReviewStatus @default(PROVISIONAL)
+  overallRating Int?
+  trainerRating Int?
+  locationRating Int?
+  organizationRating Int?
+  overallComment String? @db.VarChar(2000)
+  trainerComment String? @db.VarChar(2000)
+  locationComment String? @db.VarChar(2000)
+  organizationComment String? @db.VarChar(2000)
+  mail MailOutbox?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([eventId, recipientEmail])
+  @@index([eventId, status])
+  @@index([bookingId])
+  @@index([ticketId])
+  @@index([expiresAt])
+}
+
+// Additional bearer hashes let manual reminders preserve previously emailed links.
+model EventReviewResendToken {
+  tokenHash String @id
+  requestId String @unique
+  reviewId String
+  review EventReview @relation(fields: [reviewId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  @@index([reviewId])
 }
 
 
