@@ -1,7 +1,7 @@
 "use client";
 import { useActionState, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { saveCampaign, setCampaignStatus, createCodes, setCodeStatus } from "@/app/company/[companyKey]/vouchers/actions";
+import { saveCampaign, setCampaignStatus, createCodes, editCode, setCodeStatus } from "@/app/company/[companyKey]/vouchers/actions";
 import type { TargetOptions, VoucherAdminState } from "@/lib/vouchers/admin-validation";
 
 const input = "mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700";
@@ -39,6 +39,7 @@ export function VoucherCampaignForm({ slug, options, row, start, drawer = false,
     return result;
   }, {});
   const [kind, setKind] = useState(row?.kind ?? "PERCENTAGE");
+  const [targets, setTargets] = useState({ companyIds: row?.companyIds ?? [], seriesIds: row?.seriesIds ?? [], eventIds: row?.eventIds ?? [], venueIds: row?.venueIds ?? [] });
   useEffect(() => {
     if (!drawer) return;
     const dialog = panel.current!;
@@ -73,16 +74,21 @@ export function VoucherCampaignForm({ slug, options, row, start, drawer = false,
       </div>
       <input type="hidden" name="currency" value="EUR" />
       <p className="text-sm text-zinc-500">Währung: EUR. Bei 100 % Rabatt ist ohne Ticketlimit genau ein Ticket kostenlos. Wertguthaben hat kein Ticketlimit. Gäste werden nur weich über ihre Buchungs-E-Mail begrenzt.</p>
-      <div className="grid gap-4 sm:grid-cols-2">{([
-        ["companyIds", "Gesamte Company", options.companies], ["seriesIds", "Veranstaltungsreihen", options.series],
-        ["eventIds", "Einzelne Events", options.events], ["venueIds", "Venues", options.venues],
-      ] as const).map(([key, label, choices]) => <fieldset key={key} className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
-        <legend className="px-1 font-medium"><span className="inline-flex flex-wrap items-center gap-2">{label}<FieldInfo label={label}>{key === "companyIds" ? "Wählt alle bestehenden und später angelegten Events der Company aus, in deren Gutscheinverwaltung du dich gerade befindest." : key === "seriesIds" ? "Die Kampagne gilt für alle Events, die einer ausgewählten Veranstaltungsreihe zugeordnet sind. Später zugeordnete Events werden ebenfalls erfasst." : key === "eventIds" ? "Die Kampagne gilt nur für die konkret ausgewählten einzelnen Events. Andere Events derselben Company oder Reihe sind dadurch nicht automatisch enthalten." : "Die Kampagne gilt für Events, deren tatsächlich zugewiesene Venue ausgewählt ist. Später dort stattfindende Events werden ebenfalls erfasst."}</FieldInfo></span></legend><div className="max-h-52 space-y-2 overflow-y-auto">
-          {choices.map(choice => <label key={choice.id} className="flex items-start gap-2 text-sm"><input type="checkbox" name={key} value={choice.id} defaultChecked={row?.[key].includes(choice.id)} disabled={locked} /><span>{key === "seriesIds" && "number" in choice ? `#${choice.number} · ${choice.name || "Unbenannt"}` : key === "eventIds" && "number" in choice && "beginsAt" in choice ? `#${choice.number} · ${choice.name || "Unbenannt"} · ${choice.beginsAt ? eventDate.format(choice.beginsAt) : "Beginn offen"}` : choice.name || "Unbenannt"}</span></label>)}
-          {!choices.length && <p className="text-sm text-zinc-500">Keine Ziele verfügbar.</p>}
-          {locked && row?.[key].map(id => <input key={id} type="hidden" name={key} value={id} />)}
-        </div>
-      </fieldset>)}</div>
+      <div className="space-y-4">
+        {options.companies.map(company => <div key={company.id} className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 font-medium"><input type="checkbox" name="companyIds" value={company.id} checked={targets.companyIds.includes(company.id)} onChange={event => setTargets(old => ({ ...old, companyIds: event.target.checked ? [company.id] : [] }))} disabled={locked} />Gesamtes Unternehmen</label><FieldInfo label="Gesamtes Unternehmen">Wählt alle bestehenden und später angelegten Events von {company.name} aus.</FieldInfo>{locked && targets.companyIds.map(id => <input key={id} type="hidden" name="companyIds" value={id} />)}</div>)}
+        {([
+          ["seriesIds", "Veranstaltungsreihen", options.series, "Die Kampagne gilt für alle Events, die einer ausgewählten Veranstaltungsreihe zugeordnet sind. Später zugeordnete Events werden ebenfalls erfasst."],
+          ["eventIds", "Einzelne Events", options.events, "Die Kampagne gilt nur für die konkret ausgewählten einzelnen Events. Andere Events derselben Company oder Reihe sind dadurch nicht automatisch enthalten."],
+          ["venueIds", "Venues", options.venues, "Die Kampagne gilt für Events, deren tatsächlich zugewiesene Venue ausgewählt ist. Später dort stattfindende Events werden ebenfalls erfasst."],
+        ] as const).map(([key, label, choices, help]) => <details key={key} className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
+          <summary className="cursor-pointer select-none px-4 py-3 font-medium">{label} <span className="text-sm font-normal text-zinc-500">({targets[key].length} ausgewählt)</span></summary>
+          <div className="border-t border-zinc-200 p-4 dark:border-zinc-800"><div className="mb-3"><FieldInfo label={label}>{help}</FieldInfo></div><div className="max-h-64 space-y-2 overflow-y-auto">
+            {choices.map(choice => <label key={choice.id} className="flex items-start gap-2 text-sm"><input type="checkbox" name={key} value={choice.id} checked={targets[key].includes(choice.id)} onChange={event => setTargets(old => ({ ...old, [key]: event.target.checked ? [...old[key], choice.id] : old[key].filter(id => id !== choice.id) }))} disabled={locked} /><span>{key === "seriesIds" && "number" in choice ? `#${choice.number} · ${choice.name || "Unbenannt"}` : key === "eventIds" && "number" in choice && "beginsAt" in choice ? `#${choice.number} · ${choice.name || "Unbenannt"} · ${choice.beginsAt ? eventDate.format(choice.beginsAt) : "Beginn offen"}` : choice.name || "Unbenannt"}</span></label>)}
+            {!choices.length && <p className="text-sm text-zinc-500">Keine Ziele verfügbar.</p>}
+            {locked && targets[key].map(id => <input key={id} type="hidden" name={key} value={id} />)}
+          </div></div>
+        </details>)}
+      </div>
       <p className="text-sm text-zinc-500">Ziele gelten per ODER; Überschneidungen erhöhen den Rabatt nicht. Company-, Reihen- und Venue-Ziele erfassen auch spätere Zuordnungen. Wertguthaben ist auf die ausstellende Company beschränkt. Ein Entwurf darf ohne Ziel gespeichert, aber nicht aktiviert oder mit Codes ausgestattet werden.</p>
       <div className="flex gap-3"><button className={button} disabled={pending || row?.archived}>{pending ? "Wird gespeichert …" : "Kampagne speichern"}</button>{drawer && <button type="button" disabled={pending} onClick={onCancel} className="text-sm underline">Abbrechen</button>}</div>
     </fieldset>
@@ -107,18 +113,82 @@ export function VoucherStatusForm({ slug, campaignId, status, codeId }: { slug: 
   </form>;
 }
 
-export function VoucherIssueForm({ slug, campaignId, stored, requestId }: { slug: string; campaignId: string; stored: boolean; requestId: string }) {
+type VoucherCodeRow = { id: string; mode: string; source: string | null; codeSuffix: string | null; status: string };
+const codeStatuses: Record<string, string> = { ACTIVE: "Aktiv", DISABLED: "Gesperrt", ARCHIVED: "Archiviert" };
+const codeStatusColors: Record<string, string> = {
+  ACTIVE: "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-200",
+  DISABLED: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200",
+  ARCHIVED: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200",
+};
+function CodeStatusTag({ status }: { status: string }) { return <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${codeStatusColors[status] ?? codeStatusColors.ARCHIVED}`}>{codeStatuses[status] ?? status}</span>; }
+function VoucherCodeEditForm({ slug, campaignId, code, onSaved, onCancel }: { slug: string; campaignId: string; code: VoucherCodeRow; onSaved: (message: string) => void; onCancel: () => void }) {
+  const panel = useRef<HTMLDialogElement>(null);
+  const [state, action, pending] = useActionState<VoucherAdminState, FormData>(async (previous, form) => {
+    const result = await editCode(slug, campaignId, code.id, previous, form);
+    if (result.success) onSaved(result.message ?? "Code gespeichert.");
+    return result;
+  }, {});
+  useEffect(() => {
+    const dialog = panel.current!, previous = document.activeElement as HTMLElement | null;
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const open = () => { dialog.close(); if (desktop.matches) dialog.show(); else dialog.showModal(); dialog.querySelector<HTMLInputElement>('input[name="source"]')?.focus(); };
+    open(); desktop.addEventListener("change", open);
+    return () => { desktop.removeEventListener("change", open); dialog.close(); previous?.focus(); };
+  }, []);
+  return <dialog ref={panel} aria-labelledby="voucher-code-edit-title" onCancel={event => { event.preventDefault(); if (!pending) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
+    <form action={action} className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 id="voucher-code-edit-title" className="text-lg font-semibold">Code bearbeiten</h2><button type="button" disabled={pending} aria-label="Codeformular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
+      <p className="text-sm text-zinc-500">{code.mode === "PUBLIC" ? "Öffentlicher Mehrfachcode" : "Individueller Code"} · bisherige Endzeichen: <span className="font-mono">{code.codeSuffix ?? "—"}</span></p>
+      <fieldset disabled={pending} className="space-y-4">
+        <FieldLabel label="Trackingquelle des Codes" help="Interne Herkunft dieses Codes, zum Beispiel ein Influencer oder Vertriebskanal. Sie ändert die Kampagnenregeln nicht."><input className={input} name="source" maxLength={160} defaultValue={code.source ?? ""} /></FieldLabel>
+        <FieldLabel label="Neuer Code (optional)" help="Der bisherige Klartext kann aus Sicherheitsgründen nicht angezeigt werden. Leer lassen, um ihn beizubehalten. Ein neuer Wert ersetzt den bisherigen Code und muss global eindeutig sein."><input className={`${input} font-mono`} name="newCode" minLength={8} maxLength={128} autoComplete="off" spellCheck={false} /></FieldLabel>
+        <FieldLabel label="Code-Status" help="Aktiv erlaubt neue Einlösungen, Gesperrt stoppt sie vorübergehend. Archivieren ist endgültig und bei Wertgutscheinen nicht verfügbar."><select className={input} name="status" defaultValue={code.status}><option value="ACTIVE">Aktiv</option><option value="DISABLED">Gesperrt</option><option value="ARCHIVED">Archiviert</option></select></FieldLabel>
+      </fieldset>
+      {state.message && <p role={state.success ? "status" : "alert"} className="text-sm">{state.message}</p>}
+      <div className="flex gap-3"><button className={button} disabled={pending}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
+    </form>
+  </dialog>;
+}
+function VoucherCodeIssueDrawer({ slug, campaignId, stored, requestId, onCancel }: { slug: string; campaignId: string; stored: boolean; requestId: string; onCancel: () => void }) {
+  const panel = useRef<HTMLDialogElement>(null);
+  useEffect(() => {
+    const dialog = panel.current!, previous = document.activeElement as HTMLElement | null;
+    const desktop = window.matchMedia("(min-width: 1280px)");
+    const open = () => { dialog.close(); if (desktop.matches) dialog.show(); else dialog.showModal(); dialog.querySelector<HTMLElement>("select")?.focus(); };
+    open(); desktop.addEventListener("change", open);
+    return () => { desktop.removeEventListener("change", open); dialog.close(); previous?.focus(); };
+  }, []);
+  return <dialog ref={panel} aria-labelledby="voucher-code-issue-title" onCancel={event => { event.preventDefault(); onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
+    <header className="mb-5 flex items-center justify-between gap-4"><h2 id="voucher-code-issue-title" className="text-lg font-semibold">Code hinzufügen</h2><button type="button" aria-label="Codeausgabe schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
+    <VoucherIssueForm slug={slug} campaignId={campaignId} stored={stored} requestId={requestId} embedded onCancel={onCancel} />
+  </dialog>;
+}
+type CodeEditor = { kind: "issue" } | { kind: "edit"; code: VoucherCodeRow };
+export function VoucherCodesTable({ slug, campaignId, campaignName, codes, stored, canCreate, requestId, activeCodes, totalCodes }: { slug: string; campaignId: string; campaignName: string; codes: VoucherCodeRow[]; stored: boolean; canCreate: boolean; requestId: string; activeCodes: number; totalCodes: number }) {
+  const [editor, setEditor] = useState<CodeEditor | null>(null), [message, setMessage] = useState(""), [issueId, setIssueId] = useState(requestId);
+  function saved(value: string) { setEditor(null); setMessage(value); }
+  function closeIssue() { setEditor(null); setIssueId(globalThis.crypto.randomUUID()); }
+  return <>{<header className="flex flex-wrap items-center justify-between gap-4"><h2 className="text-lg font-semibold">Codes · {activeCodes} aktiv / {totalCodes} erzeugt</h2>{canCreate && <button type="button" disabled={!!editor} onClick={() => { setEditor({ kind: "issue" }); setMessage(""); }} className={button}>+ Code hinzufügen</button>}</header>}
+    {message && <p role="status" className="text-sm text-green-700 dark:text-green-300">{message}</p>}
+    {editor?.kind === "edit" && <VoucherCodeEditForm key={editor.code.id} slug={slug} campaignId={campaignId} code={editor.code} onSaved={saved} onCancel={() => setEditor(null)} />}
+    {editor?.kind === "issue" && <VoucherCodeIssueDrawer key={issueId} slug={slug} campaignId={campaignId} stored={stored} requestId={issueId} onCancel={closeIssue} />}
+    <div className="overflow-x-auto"><table className="w-full text-left text-sm"><caption className="sr-only">Codes der Kampagne {campaignName}</caption><thead className="bg-zinc-100 text-xs dark:bg-zinc-900"><tr>{["Code-Modus", "Trackingquelle des Codes", "Letzte 4 Zeichen", "Code-Status", "Aktionen"].map(label => <th key={label} scope="col" className="px-4 py-3">{label}</th>)}</tr></thead>
+      <tbody>{codes.map(code => <tr key={code.id} className="border-t border-zinc-200 align-top dark:border-zinc-800"><td className="px-4 py-4">{code.mode === "PUBLIC" ? "Öffentlicher Mehrfachcode" : "Individueller Code"}</td><td className="px-4 py-4">{code.source ?? "—"}</td><td className="px-4 py-4 font-mono">{code.codeSuffix ?? "—"}</td><td className="px-4 py-4"><CodeStatusTag status={code.status} /></td><td className="px-4 py-3"><button type="button" disabled={!!editor || code.status === "ARCHIVED"} title={code.status === "ARCHIVED" ? "Archivierte Codes sind schreibgeschützt" : "Code bearbeiten"} aria-label={`Code mit Endzeichen ${code.codeSuffix ?? "unbekannt"} bearbeiten`} onClick={() => { setEditor({ kind: "edit", code }); setMessage(""); }} className="rounded-lg p-2 text-primary-700 hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-40 dark:text-primary-300 dark:hover:bg-primary-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 5 5L8 21H3v-5ZM13 6l5 5" /></svg></button></td></tr>)}</tbody>
+    </table></div>{!codes.length && <p>Keine Codes auf dieser Seite.</p>}
+  </>;
+}
+
+export function VoucherIssueForm({ slug, campaignId, stored, requestId, embedded = false, onCancel }: { slug: string; campaignId: string; stored: boolean; requestId: string; embedded?: boolean; onCancel?: () => void }) {
   const [nonce] = useState(requestId);
   const [mode, setMode] = useState(stored ? "INDIVIDUAL" : "PUBLIC");
   const [state, action, pending] = useActionState<VoucherAdminState, FormData>(createCodes.bind(null, slug, campaignId), {});
-  if (state.success) return <section className="space-y-3 rounded-xl border border-emerald-300 p-5" aria-live="polite">
-    <h2 className="text-lg font-semibold">Codeausgabe</h2><p>{state.message}</p>
+  if (state.success) return <section className={`space-y-3 ${embedded ? "" : "rounded-xl border border-emerald-300 p-5"}`} aria-live="polite">
+    {!embedded && <h2 className="text-lg font-semibold">Codeausgabe</h2>}<p>{state.message}</p>
     {!!state.codes?.length && <textarea aria-label="Einmalig angezeigte Gutscheincodes" className={`${input} font-mono`} rows={Math.min(state.codes.length + 1, 12)} readOnly value={state.codes.join("\n")} spellCheck={false} />}
     <p className="text-sm">Nur im vorgesehenen Empfängerkreis weitergeben. Nach Verlassen dieser Ansicht ist keine erneute Klartextanzeige möglich.</p>
-    <a className="underline" href={`/company/${encodeURIComponent(slug)}/vouchers/${encodeURIComponent(campaignId)}`}>Anzeige schließen / neue Ausgabe vorbereiten</a>
+    {onCancel ? <button type="button" onClick={onCancel} className="underline">Anzeige schließen</button> : <a className="underline" href={`/company/${encodeURIComponent(slug)}/vouchers/${encodeURIComponent(campaignId)}`}>Anzeige schließen / neue Ausgabe vorbereiten</a>}
   </section>;
-  return <form action={action} className="space-y-4 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-    <h2 className="text-lg font-semibold">Codes ausgeben</h2>
+  return <form action={action} className={`space-y-4 ${embedded ? "" : "rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950"}`}>
+    {!embedded && <h2 className="text-lg font-semibold">Codes ausgeben</h2>}
     <p className="text-sm text-zinc-500">{stored ? "Administrative Guthabenausgabe ohne Verkauf oder Zahlung. Das Guthaben wird pro Code ausgegeben." : "Mehrere öffentliche Mehrfachcodes und individuelle Einmalcodes können dieselbe Kampagne nutzen."} Klartextcodes werden nur einmal angezeigt.</p>
     <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2">
       <input type="hidden" name="requestId" value={nonce} />

@@ -8,7 +8,7 @@ import { VoucherError } from "./errors";
 import { voucherTransaction } from "./service";
 import { normalizeVoucherCode, voucherCodeDigest, voucherCodeDigests } from "./codes";
 import { getVoucherDigestKeyring } from "./config";
-import { campaignInput, issueInput, type CampaignInput } from "./admin-validation";
+import { campaignInput, codeEditInput, issueInput, type CampaignInput } from "./admin-validation";
 
 export class VoucherAdminError extends Error {}
 export const targetInclude = { companyTargets: true, eventSeriesTargets: true, eventTargets: true, venueTargets: true } as const;
@@ -160,5 +160,31 @@ export async function changeVoucherCodeStatus(slug: string, campaignId: string, 
     if ((code.status === "ARCHIVED" || campaign.status === "ARCHIVED") && status !== "ARCHIVED") throw new VoucherAdminError("Archivierte Codes oder Kampagnen können nicht reaktiviert werden.");
     if (status === "ACTIVE") await validateVoucherTargets(tx, scope, { kind: campaign.kind, ...targetIds(campaign) });
     await tx.voucherCode.update({ where: { id: codeId }, data: { status } });
+  });
+}
+export async function updateVoucherCode(slug: string, campaignId: string, codeId: string, raw: unknown) {
+  const input = codeEditInput.parse(raw), actor = await voucherAdminActor();
+  z.string().min(1).max(191).parse(codeId);
+  await voucherTransaction(async tx => {
+    const scope = await voucherAdminScope(tx, actor, slug);
+    await tx.$executeRaw`SELECT pg_advisory_xact_lock(190721, 1)`;
+    const campaign = await campaignForUpdate(tx, campaignId, scope);
+    const code = await tx.voucherCode.findFirst({ where: { id: codeId, campaignId }, select: { status: true } });
+    if (!code) throw new VoucherError("FORBIDDEN");
+    if (code.status === "ARCHIVED" || campaign.status === "ARCHIVED") throw new VoucherAdminError("Archivierte Codes oder Kampagnen sind schreibgeschützt.");
+    if (input.status === "ARCHIVED" && campaign.kind === "STORED_VALUE") throw new VoucherAdminError("Wertgutscheincodes bitte reversibel sperren; die endgültige Archivierung ist noch nicht freigegeben.");
+    if (input.status === "ACTIVE") await validateVoucherTargets(tx, scope, { kind: campaign.kind, ...targetIds(campaign) });
+    let digest: ReturnType<typeof voucherCodeDigest> | undefined;
+    let codeSuffix: string | undefined;
+    if (input.newCode) {
+      const plaintext = normalizeVoucherCode(input.newCode);
+      if (plaintext.length < 8) throw new VoucherAdminError("Der neue Code benötigt mindestens acht Zeichen; nur vier Endzeichen bleiben sichtbar.");
+      const keyring = getVoucherDigestKeyring();
+      const versions = await tx.voucherCode.groupBy({ by: ["digestVersion"] });
+      if (versions.some(version => !keyring.keys.some(key => key.version === version.digestVersion))) throw new VoucherAdminError("Codeänderung gesperrt: Die benötigten Digest-Schlüsselversionen müssen vollständig konfiguriert sein.");
+      if (await tx.voucherCode.count({ where: { id: { not: codeId }, OR: voucherCodeDigests(plaintext) } })) throw new VoucherAdminError("Codeänderung nicht möglich. Bitte einen anderen Code verwenden.");
+      digest = voucherCodeDigest(plaintext); codeSuffix = plaintext.slice(-4);
+    }
+    await tx.voucherCode.update({ where: { id: codeId }, data: { source: input.source, status: input.status, ...digest, ...(codeSuffix ? { codeSuffix } : {}) } });
   });
 }

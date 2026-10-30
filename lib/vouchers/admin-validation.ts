@@ -31,6 +31,9 @@ export const issueInput = z.object({
   if (v.mode === "PUBLIC" && v.count !== 1) ctx.addIssue({ code: "custom", message: "Pro Ausgabevorgang genau einen öffentlichen Code anlegen." });
   if (v.mode === "INDIVIDUAL" && v.publicCode) ctx.addIssue({ code: "custom", message: "Individuelle Codes werden zufällig erzeugt." });
 });
+export const codeEditInput = z.object({
+  source: optionalText(160), status: z.enum(["ACTIVE", "DISABLED", "ARCHIVED"]), newCode: z.string().trim().max(128),
+});
 export type CampaignInput = z.infer<typeof campaignInput>;
 export type VoucherAdminState = { success?: boolean; message?: string; campaignId?: string; codes?: string[]; replay?: boolean };
 export type TargetOptions = { companies: { id: string; name: string }[]; series: { id: string; number: number; name: string }[]; events: { id: string; number: number; name: string; beginsAt: Date | null }[]; venues: { id: string; name: string }[] };

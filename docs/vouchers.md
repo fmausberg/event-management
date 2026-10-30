@@ -971,6 +971,17 @@ Codes und ihre Historie bleiben unverändert erhalten.
 Individuelle Rabattcodes sind Einmalcodes; individuelle Wertgutscheine behalten
 Teileinsätze und erhalten ohne explizites Code-Limit kein Einmal-Limit.
 
+Nicht archivierte Codes können in der Verwaltung hinsichtlich Trackingquelle,
+Status und Bearercode bearbeitet werden. Da Klartextcodes nicht gespeichert sind,
+wird der bisherige Code niemals angezeigt; ein leeres Ersatzfeld behält ihn bei.
+Ein neuer Wert ersetzt ausschließlich Digest, Digest-Version und sichtbare Endzeichen
+unter derselben Code-ID. Globale Eindeutigkeit, Einlösungen, Guthaben und Historie
+bleiben erhalten. Archivierte Codes und Kampagnen bleiben schreibgeschützt.
+Codeausgabe und Codebearbeitung verwenden in der Oberfläche denselben rechten
+Drawer, bleiben jedoch getrennte Formulare: Die Ausgabe besitzt Batch-/Request-
+Idempotenz, erzeugt gegebenenfalls Guthaben und zeigt Klartext nur einmal; die
+Bearbeitung aktualisiert genau eine vorhandene Code-ID.
+
 Ein Batch erzeugt 1–100 individuelle Codes. Zufallscodes enthalten 20 kryptographisch
 zufällige Bytes, dargestellt mit `VG-` und Hex-Zeichen. Öffentliche Wunschcodes
 verwenden die vorhandene Normalisierung, benötigen bei Neuausgabe aber mindestens

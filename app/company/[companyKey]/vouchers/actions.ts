@@ -2,8 +2,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { VoucherError } from "@/lib/vouchers/errors";
-import { campaignInput, issueInput, type VoucherAdminState } from "@/lib/vouchers/admin-validation";
-import { saveVoucherCampaign, changeVoucherCampaignStatus, changeVoucherCodeStatus, issueVoucherCodes, VoucherAdminError } from "@/lib/vouchers/admin-service";
+import { campaignInput, codeEditInput, issueInput, type VoucherAdminState } from "@/lib/vouchers/admin-validation";
+import { saveVoucherCampaign, changeVoucherCampaignStatus, changeVoucherCodeStatus, issueVoucherCodes, updateVoucherCode, VoucherAdminError } from "@/lib/vouchers/admin-service";
 
 function failure(error: unknown): VoucherAdminState {
   if (error instanceof VoucherAdminError) return { message: error.message };
@@ -33,4 +33,10 @@ export async function createCodes(slug: string, id: string, _state: VoucherAdmin
 export async function setCodeStatus(slug: string, id: string, codeId: string, _state: VoucherAdminState, form: FormData): Promise<VoucherAdminState> {
   try { await changeVoucherCodeStatus(slug, id, codeId, form.get("status")); refresh(slug); return { success: true, message: "Codestatus gespeichert." }; }
   catch (error) { return failure(error); }
+}
+export async function editCode(slug: string, id: string, codeId: string, _state: VoucherAdminState, form: FormData): Promise<VoucherAdminState> {
+  try {
+    const raw = Object.fromEntries(Object.keys(codeEditInput.shape).map(key => [key, form.get(key) ?? ""]));
+    await updateVoucherCode(slug, id, codeId, raw); refresh(slug); return { success: true, message: "Code gespeichert." };
+  } catch (error) { return failure(error); }
 }

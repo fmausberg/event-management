@@ -1,7 +1,7 @@
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { randomBytes, randomUUID } from "node:crypto";
 import { Prisma } from "@prisma/client";
-import { saveVoucherCampaign, changeVoucherCampaignStatus, issueVoucherCodes, changeVoucherCodeStatus } from "@/lib/vouchers/admin-service";
+import { saveVoucherCampaign, changeVoucherCampaignStatus, issueVoucherCodes, changeVoucherCodeStatus, updateVoucherCode } from "@/lib/vouchers/admin-service";
 import { voucherCodeDigests } from "@/lib/vouchers/codes";
 import { createCodes } from "@/app/company/[companyKey]/vouchers/actions";
 
@@ -159,6 +159,19 @@ it("rejects the same normalized public code in one or different campaigns", asyn
 it("rejects invalid recipient bindings", async () => {
   db.user.findFirst.mockResolvedValue(null);
   await expect(issueVoucherCodes("studio", "campaign", issue({ assignedUserId: "foreign" }))).rejects.toThrow("Empfänger");
+});
+it("edits tracking source, status, and the global code digest without storing plaintext", async () => {
+  db.voucherCode.findFirst.mockResolvedValue({ status: "ACTIVE" });
+  await updateVoucherCode("studio", "campaign", "code", { source: "Yoga Lena", status: "DISABLED", newCode: "YOGALENA10" });
+  const data = db.voucherCode.update.mock.calls[0][0].data;
+  expect(data).toMatchObject({ source: "Yoga Lena", status: "DISABLED", codeSuffix: "NA10", digestVersion: 1, codeDigest: expect.stringMatching(/^[a-f0-9]{64}$/) });
+  expect(JSON.stringify(data)).not.toContain("YOGALENA10");
+  expect(db.voucherCode.count).toHaveBeenCalledWith({ where: { id: { not: "code" }, OR: voucherCodeDigests("YOGALENA10") } });
+});
+it("rejects a replacement code that already belongs to another code", async () => {
+  db.voucherCode.findFirst.mockResolvedValue({ status: "ACTIVE" }); db.voucherCode.count.mockResolvedValue(1);
+  await expect(updateVoucherCode("studio", "campaign", "code", { source: "", status: "ACTIVE", newCode: "YOGALENA10" })).rejects.toThrow("anderen Code");
+  expect(db.voucherCode.update).not.toHaveBeenCalled();
 });
 it("cannot reactivate archived campaigns or codes and never deletes history", async () => {
   current.status = "ARCHIVED";

@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import type { VoucherAdministration } from "@/lib/vouchers/admin-data";
 import { formatBerlinDateTime } from "@/lib/events/berlin-date-time";
-import { VoucherIssueForm, VoucherStatusForm } from "./voucher-admin-forms";
+import { VoucherCodesTable, VoucherStatusForm } from "./voucher-admin-forms";
 import { VoucherCampaignsTable } from "./voucher-campaigns-table";
 
 const money = (n: number) => `${(n / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`;
@@ -47,16 +47,9 @@ export function VoucherAdministrationView({ data, detail = false }: { data: Vouc
       <VoucherStatusForm slug={data.company.slug} campaignId={c.id} status={c.status} />
     </section>
     <>
-      {c.status !== "ARCHIVED" && <VoucherIssueForm slug={data.company.slug} campaignId={c.id} stored={c.kind === "STORED_VALUE"} requestId={randomUUID()} />}
-      <section className={panel}><h2 className="text-lg font-semibold">Codes · {data.activeCodes} aktiv / {c._count.codes} erzeugt</h2>
-        <p className="text-sm text-zinc-500">Endzeichen dienen nur zur Zuordnung. Ein archivierter Code kann nicht wieder aktiviert werden.</p>
-        <div className="space-y-4">{data.codes.map(code => <article key={code.id} className="space-y-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
-          <p className="font-medium">…{code.codeSuffix ?? "—"} · Referenz {code.id.slice(-8)} · {code.mode === "PUBLIC" ? "Öffentlich" : "Individuell"} · {statuses[code.status]}</p>
-          <p className="text-sm">Erstellt: {date(code.createdAt)} · Code-Limit: {code.maxRedemptions ?? "Unbegrenzt"} · Quelle: {code.source ?? "—"} · Empfängerbindung: {code.assignedUserId ? "Ja" : "Nein"}</p>
-          <p className="break-all text-xs text-zinc-500">Batch: {code.batchId ?? "—"}</p>
-          {code.balance && <p className="text-sm">Ausgabe: {money(code.balance.initialAmountMinor)} · Saldo: {money(code.balance.balanceMinor)} · Reserviert: {money(code.balance.reservedMinor)} · Ablauf: {date(code.balance.expiresAt)} · {code.balance.status}</p>}
-          <VoucherStatusForm slug={data.company.slug} campaignId={c.id} status={code.status} codeId={code.id} />
-        </article>)}</div>{!data.codes.length && <p>Keine Codes auf dieser Seite.</p>}
+      <section className={panel}>
+        <p className="text-sm text-zinc-500">Trackingquelle, Code und Status können über den Bearbeitungsstift geändert werden. Archivierte Codes bleiben schreibgeschützt.</p>
+        <VoucherCodesTable slug={data.company.slug} campaignId={c.id} campaignName={c.name} codes={data.codes} stored={c.kind === "STORED_VALUE"} canCreate={c.status !== "ARCHIVED"} requestId={randomUUID()} activeCodes={data.activeCodes} totalCodes={c._count.codes} />
       </section>
       <section className={panel}><h2 className="text-lg font-semibold">Einlösungs- und Guthabenhistorie</h2>
         <p className="text-sm text-zinc-500">Buchungsreferenzen sind auf deinen Verwaltungsbereich beschränkt. Kampagnenlimits werden über alle Codes gezählt.</p>
