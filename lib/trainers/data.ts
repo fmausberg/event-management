@@ -2,6 +2,8 @@ import "server-only";
 import { auth } from "@/auth";
 import { MemberAccessError, requireCompanyAccess } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
+import { getCompanyEntityRatings } from "@/lib/reviews/entity-ratings";
+import { ratingSummary } from "@/lib/reviews/summary";
 
 export async function getCompanyTrainers(slug: string) {
   const { company } = await requireCompanyAccess(slug);
@@ -13,11 +15,12 @@ export async function getCompanyTrainers(slug: string) {
     where: { OR: trainers.map(({ email }) => ({ email: { equals: email, mode: "insensitive" as const } })) },
     select: { email: true, emailVerified: true },
   }) : [];
+  const ratings = trainers.length ? await getCompanyEntityRatings(company.id, "trainer") : new Map<string, ReturnType<typeof ratingSummary>>();
   return { company, trainers: trainers.map((trainer) => {
     const matches = accounts.filter((account) => account.email.toLowerCase() === trainer.email.toLowerCase());
     const accountStatus: "missing" | "unverified" | "verified" = !matches.length ? "missing"
       : matches.some((account) => !!account.emailVerified) ? "verified" : "unverified";
-    return { ...trainer, accountStatus };
+    return { ...trainer, accountStatus, rating: ratings.get(trainer.id) ?? ratingSummary(0, 0) };
   }) };
 }
 

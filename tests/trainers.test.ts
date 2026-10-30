@@ -9,6 +9,7 @@ import { getCompanyTrainers, getTrainerCompanies } from "@/lib/trainers/data";
 import { trainerSchema } from "@/lib/trainers/validation";
 
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
+  eventReview: { groupBy: vi.fn() },
   user: { findMany: vi.fn(), findUnique: vi.fn() }, company: { findUnique: vi.fn(), findMany: vi.fn() }, companyMembership: { findUnique: vi.fn() },
   trainer: { findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
 } }));
@@ -24,6 +25,7 @@ function form(overrides: Record<string, string> = {}) {
 const company = { id: "company-1", slug: "yoga", name: "Yoga" };
 beforeEach(() => {
   vi.resetAllMocks(); db.user.findMany.mockResolvedValue([]); auth.mockResolvedValue({ user: { id: "actor" } });
+  db.eventReview.groupBy.mockResolvedValue([]);
   db.user.findUnique.mockResolvedValue({ role: "USER" });
   db.company.findUnique.mockResolvedValue(company); db.company.findMany.mockResolvedValue([company]);
   db.companyMembership.findUnique.mockResolvedValue({ role: "COMPANY_USER", status: "ACTIVE" });

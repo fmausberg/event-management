@@ -5,6 +5,7 @@ import Page from "@/app/company/[companyKey]/venues/page";
 import { getCompanyVenues } from "@/lib/venues/data";
 import { venueSchema } from "@/lib/venues/validation";
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
+ eventReview: { groupBy: vi.fn() },
  user: { findUnique: vi.fn() }, company: { findUnique: vi.fn() }, companyMembership: { findUnique: vi.fn() },
  venue: { findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
 } }));
@@ -17,6 +18,7 @@ const values = { name: " Studio ", addressLine1: " Street 1 ", addressLine2: "",
 function form(overrides: Record<string,string> = {}) { const data = new FormData(); Object.entries({ ...values, ...overrides }).forEach(([key,value]) => data.set(key,value)); return data; }
 beforeEach(() => {
  vi.resetAllMocks(); auth.mockResolvedValue({ user: { id: "actor" } }); db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
+ db.eventReview.groupBy.mockResolvedValue([]);
  db.company.findUnique.mockResolvedValue({ id: "company-id", slug: "yoga", name: "Yoga" });
  db.venue.findMany.mockResolvedValue([]);
  db.venue.updateMany.mockResolvedValue({ count: 1 }); db.venue.deleteMany.mockResolvedValue({ count: 1 });

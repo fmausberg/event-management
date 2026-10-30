@@ -1,4 +1,5 @@
 import { z } from "zod";
+import type { RatingSummary } from "@/lib/reviews/summary";
 const text = (max: number) => z.string().trim().max(max, `Bitte höchstens ${max} Zeichen eingeben.`).transform((value) => value || null);
 export const venueSchema = z.object({
  name: z.string().trim().min(1, "Bitte gib einen Namen ein.").max(160),
@@ -7,4 +8,4 @@ export const venueSchema = z.object({
 });
 export type VenueValues = z.input<typeof venueSchema>;
 export type VenueState = { success?: boolean; message?: string; errors?: Partial<Record<keyof VenueValues, string[]>> };
-export type VenueRow = z.output<typeof venueSchema> & { id: string; number: number; _count: { events: number; suggestedForSeries: number } };
+export type VenueRow = z.output<typeof venueSchema> & { id: string; number: number; rating: RatingSummary; _count: { events: number; suggestedForSeries: number } };

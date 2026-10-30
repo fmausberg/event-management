@@ -1,4 +1,5 @@
 "use client";
+import { RatingSummary } from "@/components/rating-summary";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { deleteVenue, saveVenue } from "../actions";
 import { VenueUpdateConfirmation } from "./venue-update-confirmation";
@@ -84,10 +85,11 @@ export function VenuesTable({ company, venues }: { company: { name: string; slug
   {editor && <VenueForm key={editor.row?.id ?? "new"} slug={company.slug} row={editor.row} onSaved={saved} onCancel={() => setEditor(null)} />}
   <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
    <div className="flex flex-wrap items-center justify-between gap-3 p-4"><label><span className="sr-only">Venues durchsuchen</span><input type="search" placeholder="Venues durchsuchen …" value={query} onChange={(event) => setQuery(event.target.value)} className="rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700" /></label><span className="text-sm text-zinc-500">{visible.length} von {venues.length} Venues</span></div>
-   <table className="w-full text-left text-sm"><caption className="sr-only">Venues von {company.name}</caption><thead className="bg-zinc-100 text-xs dark:bg-zinc-900"><tr>{["Nr.", "Venue", "Adresse", "Events", "Eventserien", "Aktionen"].map((label) => <th scope="col" key={label} className="px-4 py-3">{label}</th>)}</tr></thead><tbody>{visible.map((row) => <tr key={row.id} className="border-t border-zinc-200 align-top dark:border-zinc-800">
+   <table className="w-full text-left text-sm"><caption className="sr-only">Venues von {company.name}</caption><thead className="bg-zinc-100 text-xs dark:bg-zinc-900"><tr>{["Nr.", "Venue", "Adresse", "Events", "Eventserien", "Bewertung", "Aktionen"].map((label) => <th scope="col" key={label} className="px-4 py-3">{label}</th>)}</tr></thead><tbody>{visible.map((row) => <tr key={row.id} className="border-t border-zinc-200 align-top dark:border-zinc-800">
     <td className="px-4 py-4">{row.number}</td><th scope="row" className="px-4 py-4 font-medium">{row.name}</th>
     <td className="px-4 py-4">{[row.addressLine1, row.addressLine2, [row.postalCode, row.city].filter(Boolean).join(" "), row.countryCode].filter(Boolean).join(", ") || "—"}</td>
     <td className="px-4 py-4">{row._count.events}</td><td className="px-4 py-4">{row._count.suggestedForSeries}</td>
+    <td className="px-4 py-4"><RatingSummary rating={row.rating} /></td>
     <td className="px-4 py-4"><div className="flex items-start gap-2"><button type="button" disabled={!!editor} title="Venue bearbeiten" aria-label={`${row.name} bearbeiten`} onClick={() => { setEditor({ row }); setMessage(""); }} className="rounded-lg p-2 text-primary-700 hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-40 dark:text-primary-300 dark:hover:bg-primary-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 5 5L8 21H3v-5ZM13 6l5 5" /></svg></button>{!editor && <DeleteVenue slug={company.slug} row={row} onDeleted={setMessage} />}</div></td>
    </tr>)}</tbody></table>
    {!visible.length && <p className="p-8 text-center text-sm text-zinc-500">{venues.length ? "Keine passenden Venues gefunden." : "Noch keine Venues vorhanden. Erstelle die erste Venue über den Button oben."}</p>}

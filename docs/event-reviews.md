@@ -100,6 +100,29 @@ beide enthalten denselben Link und ermöglichen keine zweite Bewertung.
 
 ## Interne Auswertung
 
+Die Company-Tabellen für Trainer und Venues zeigen zusätzlich eine gemeinsame
+Bewertungskennzahl. `getCompanyTrainers` und `getCompanyVenues` prüfen zuerst den
+bestehenden Company-Zugriff und lesen anschließend über `getCompanyEntityRatings`
+gebündelte Summen und Antwortzahlen je Event. Ausschließlich `COMPLETED` mit
+gesetztem `submittedAt` und einer nicht leeren jeweiligen Kategorie zählen mit.
+Die Gesamtdurchschnitte werden aus Summen und Anzahlen gebildet, damit Events mit
+unterschiedlich vielen Antworten korrekt gewichtet werden. Es gibt höchstens
+zwei zusätzliche Abfragen je Übersicht, keine Abfrage pro Tabellenzeile.
+
+Trainer werden ausschließlich über `EventTrainer`, Venues über `Event.venueId`
+zugeordnet, jeweils auf die autorisierte Company begrenzt. Eine gemeinsame
+Trainerbewertung eines Events zählt für jeden explizit zugeordneten Trainer.
+Events ohne Trainerzuordnung (auch mit bloßem Legacy-Trainername) liefern keine
+Trainerkennzahl. Namen, E-Mail-Adressen und Serienvorgaben werden nicht zur
+Zuordnung verwendet. Historische Zuordnungssnapshots existieren nicht; maßgeblich
+sind die gespeicherten Event-Zuordnungen, keine Rekonstruktion aus Stammdaten.
+
+Ab der ersten abgeschlossenen Antwort erscheint der Durchschnitt mit einer
+deutschen Dezimalstelle, Stern und Antwortzahl. Es gibt keine Mindestschwelle;
+bei null Antworten erscheint „Noch keine Bewertungen“.
+Beide Tabellen nutzen dieselbe `RatingSummary`-Komponente. Kommentare und
+personenbezogene Bewertungsdetails werden nicht geladen oder angezeigt.
+
 Links in der Company- und Admin-Eventverwaltung führen zur Auswertung unter
 `/company/[companyKey]/events/[eventId]/reviews`. Vor jedem Datenzugriff prüfen
 die vorhandenen `requireBookingEvent`/`requireCompanyAccess`-Funktionen die aktive
