@@ -13,6 +13,10 @@ Die Verwaltung nutzt das `Trainer`-Modell und die Migration `20261015100202_add_
 
 Event- und Serienformulare bieten eine Company-bezogene Trainerauswahl. Events können mehrere Trainer über `EventTrainer` verknüpfen; Serien verwenden `suggestedTrainerId` als einzelne Vorgabe. Bei Auswahl einer Serie wird diese Vorgabe ins Event übernommen. Spätere Serienänderungen können ausgewählte Attribute zukünftiger Events über die [Serienvorschau](events-and-series.md) aktualisieren.
 
+Der minütliche geschützte Reconcile-Job versendet für veröffentlichte Events in der
+letzten Stunde vor Beginn einen Reminder an alle aktuell zugeordneten Trainer.
+Empfängerauswahl, Idempotenz und Retry beschreibt [Trainer-Reminder](trainer-reminders.md).
+
 Über **Neuen Trainer anlegen** können Vorname, Nachname und E-Mail direkt im Formular erfasst werden. **Anlegen und auswählen** speichert den Trainer sofort und übernimmt ihn in die Auswahl, ohne die übrigen Eingaben zu verlieren. Der neue Trainer bleibt erhalten, wenn das Event- oder Serienformular anschließend abgebrochen wird.
 
 Neue Speichervorgänge verwenden ausschließlich Trainer-IDs und prüfen deren Company-Zugehörigkeit serverseitig. Eventänderungen und Zuordnungen werden gemeinsam in einer Transaktion gespeichert. Auf öffentlichen Eventseiten werden die aktuellen Namen der verknüpften Trainer angezeigt; ihre E-Mail-Adressen werden dort nicht abgefragt.

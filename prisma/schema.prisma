@@ -52,6 +52,10 @@ enum EventStatus {
   COMPLETED
 }
 
+enum MailOutboxKind {
+  TRAINER_REMINDER
+}
+
 model User {
   createdVoucherCampaigns VoucherCampaign[]     @relation("VoucherCampaignCreator")
   assignedVoucherCodes    VoucherCode[]         @relation("VoucherCodeRecipient")
@@ -285,6 +289,7 @@ model Event {
   trainerName      String?
   imageUrl         String?
   imagePublicId    String?
+  trainerReminderSentAt DateTime?
 
   // n:1 Relationen
   eventSeriesId String?
@@ -301,6 +306,7 @@ model Event {
   bookings       Booking[]
   staff          EventStaff[]
   trainers       EventTrainer[]
+  trainerReminders TrainerReminder[]
 
   // Timestamps
   createdAt DateTime @default(now())
@@ -529,6 +535,7 @@ model Trainer {
   // 1:n Relation
   events             EventTrainer[]
   suggestedForSeries EventSeries[]  @relation("SeriesSuggestedTrainer")
+  reminderMails      MailOutbox[]
 
   // Timestamps
 
@@ -556,6 +563,42 @@ model EventTrainer {
 
   // Indizes
   @@unique([eventId, trainerId])
+  @@index([trainerId])
+}
+
+model TrainerReminder {
+  id         String @id @default(cuid())
+  requestKey String @unique
+  manualRequestedAt DateTime?
+  eventId    String
+  event      Event  @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  mails      MailOutbox[]
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([eventId, createdAt])
+}
+
+model MailOutbox {
+  id                String         @id @default(cuid())
+  requestKey        String         @unique
+  kind              MailOutboxKind
+  trainerReminderId String?
+  trainerReminder   TrainerReminder? @relation(fields: [trainerReminderId], references: [id], onDelete: Restrict)
+  trainerId         String?
+  trainer           Trainer?        @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  sentAt            DateTime?
+  cancelledAt       DateTime?
+  lockedUntil       DateTime?
+  lockToken         String?
+  attempts          Int            @default(0)
+  availableAt       DateTime       @default(now())
+  lastError         String?
+  createdAt         DateTime       @default(now())
+
+  @@unique([kind, trainerReminderId, trainerId])
+  @@index([sentAt, cancelledAt, availableAt, createdAt])
+  @@index([trainerReminderId, createdAt])
   @@index([trainerId])
 }
 

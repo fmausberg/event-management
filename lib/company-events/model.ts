@@ -20,7 +20,7 @@ export const publishEventSchema = eventSchema.superRefine((v, ctx) => {
 });
 export type EventValues = z.input<typeof eventSchema>;
 export type EventState = { success?: boolean; message?: string; warnings?: string[]; errors?: Partial<Record<keyof EventValues, string[]>> };
-export type EventRow = Omit<EventValues, "maxSeats"> & { id: string; number: number; trainerName?: string | null; imageUrl?: string | null; maxSeats: number | null; remainingSeats: number | null; _count: { bookings: number; platformEvents: number } };
+export type EventRow = Omit<EventValues, "maxSeats"> & { id: string; number: number; trainerName?: string | null; imageUrl?: string | null; trainerReminderSentAt?: string | null; maxSeats: number | null; remainingSeats: number | null; _count: { bookings: number; platformEvents: number } };
 export const emptyEvent: EventValues = { freeCancellationUntilMinutesBeforeStart: "", name: "", shortdescription: "", description: "", trainerIds: [], eventSeriesId: "", venueId: "", beginsAt: "", endsAt: "", maxSeats: "", ticketPrice: "", currency: "EUR", status: "DRAFT" };
 export function applySeries(values: EventValues, series: SeriesRow): EventValues {
  return { ...values, freeCancellationUntilMinutesBeforeStart: series.suggestedFreeCancellationUntilMinutesBeforeStart?.toString() ?? "", eventSeriesId: series.id, name: series.name, shortdescription: series.shortdescription ?? "", description: series.description ?? "", trainerIds: series.suggestedTrainerId ? [series.suggestedTrainerId] : [], venueId: series.suggestedVenueId ?? "", maxSeats: series.suggestedMaxSeats?.toString() ?? "", ticketPrice: series.suggestedTicketPrice ?? "", currency: "EUR" };

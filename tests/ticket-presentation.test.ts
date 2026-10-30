@@ -116,12 +116,12 @@ it.each([
   { ...ticket, status: "CANCELLED" },
   { ...ticket, checkedInAt: new Date() },
   { ...ticket, booking: { ...ticket.booking, status: "EXPIRED" } },
-])("keeps the account QR hidden for unusable tickets while allowing the existing public QR", async (record) => {
+])("keeps the QR hidden through every access path for unusable tickets", async (record) => {
   findFirst.mockResolvedValue(record);
   expect(renderToStaticMarkup(await page())).not.toContain("<svg");
   const account = (await getMyTicket("ticket-1"))!;
   const html = renderToStaticMarkup(createElement(TicketCard, { ticket: account.ticket, qrCode: { value: token } }));
-  expect(html).toContain("<svg");
+  expect(html).not.toContain("<svg");
   expect(html).not.toContain("Zeige diesen QR-Code beim Einlass vor.");
 });
 

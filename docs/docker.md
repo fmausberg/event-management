@@ -155,7 +155,8 @@ nicht ausreichend.
 Ein externer Scheduler muss `POST /api/payments/reconcile` mit
 `Authorization: Bearer <PAYMENTS_CRON_SECRET>` regelmäßig (empfohlen jede Minute)
 aufrufen. Compose und der GitHub-Workflow richten diesen Scheduler nicht ein.
-Er verarbeitet offene Zahlungen, Erstattungen, Ticket- und Stornierungsmails.
+Er verarbeitet offene Zahlungen, Erstattungen, Ticket- und Stornierungsmails sowie
+fällige Trainer-Reminder für Events, die in höchstens einer Stunde beginnen.
 Er ist auch für kostenlose Events mit fehlgeschlagenem Mailversand erforderlich.
-Details: [Stripe](stripe.md), [Ticket-Outbox](ticket-outbox.md) und
-[Stornierungen](cancellations.md).
+Details: [Stripe](stripe.md), [Ticket-Outbox](ticket-outbox.md),
+[Trainer-Reminder](trainer-reminders.md) und [Stornierungen](cancellations.md).

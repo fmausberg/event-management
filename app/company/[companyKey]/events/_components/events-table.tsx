@@ -7,7 +7,7 @@ import { PublishConfirmation } from "./publish-confirmation";
 import { EventImage } from "./event-image";
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
-import { saveEvent, deleteEvent } from "../actions";
+import { saveEvent, deleteEvent, sendTrainerInfo, type TrainerReminderActionState } from "../actions";
 import { suggestedEndDate, applySeries, emptyEvent, localDateTime, type EventRow, type EventState, type EventValues } from "@/lib/company-events/model";
 import type { SeriesRow, VenueOption } from "@/lib/event-series/validation";
 const input = "mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700";
@@ -15,6 +15,7 @@ const primary = "rounded-lg bg-primary-600 px-4 py-2 text-sm text-white hover:bg
 const statuses = { DRAFT: "Entwurf", PUBLISHED: "Veröffentlicht", CANCELLED: "Abgesagt", COMPLETED: "Abgeschlossen" };
 const statusColors = { DRAFT: "bg-yellow-100 text-yellow-800", PUBLISHED: "bg-green-100 text-green-800", CANCELLED: "bg-red-100 text-red-800", COMPLETED: "bg-zinc-200 text-zinc-700" };
 const eventDateTime = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+const trainerReminderDateTime = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Berlin" });
 const berlinDateParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" });
 function berlinWeek(value: string) {
  const parts = Object.fromEntries(berlinDateParts.formatToParts(new Date(value)).map(part => [part.type, part.value]));
@@ -50,6 +51,29 @@ const columns: { key: SortKey; label: string }[] = [
 function RequiredMark() { return <><span aria-hidden="true" className="ml-1 text-xs text-red-600 dark:text-red-400">*</span><span className="sr-only"> (zum Veröffentlichen erforderlich)</span></>; }
 function StatusTag({ status }: { status: EventValues["status"] }) { return <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[status]}`}>{statuses[status]}</span>; }
 type Props = { defaultSeriesId?: string; seriesDetails?: React.ReactNode; canManage: boolean; company: { name: string; slug: string }; events: EventRow[]; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[] };
+function TrainerReminderControls({ slug, row }: { slug: string; row: EventRow }) {
+ const [sentAt, setSentAt] = useState(row.trainerReminderSentAt ?? null);
+ const requestId = useRef<string | null>(null);
+ const [sendState, sendAction, sending] = useActionState<TrainerReminderActionState, FormData>(async (previous) => {
+  requestId.current ??= crypto.randomUUID();
+  const result = await sendTrainerInfo(slug, row.id, requestId.current, previous);
+  if (result.sentAt) { setSentAt(result.sentAt); requestId.current = null; }
+  return result;
+ }, {});
+ return <section aria-labelledby="trainer-info-title" className="mt-6 space-y-3 border-t border-zinc-200 pt-5 dark:border-zinc-800">
+  <h3 id="trainer-info-title" className="font-semibold">Trainer-Info</h3>
+  <p className="text-xs leading-relaxed text-zinc-500">Ohne manuelle Aktion wird die Trainer-Info automatisch eine Stunde vor Beginn des Events versendet.</p>
+  <div className="flex flex-wrap items-center gap-2">
+    <input id={`trainer-info-status-${row.id}`} type="checkbox" checked={!!sentAt} disabled readOnly className="h-4 w-4 rounded border-zinc-300 text-primary-600" />
+    <label htmlFor={`trainer-info-status-${row.id}`} className="text-sm">Trainer-Info versendet</label>
+    <span className="ml-2 whitespace-nowrap text-xs text-zinc-500">{sentAt ? `${trainerReminderDateTime.format(new Date(sentAt))} Uhr` : "Noch nicht versendet"}</span>
+  </div>
+  <form action={sendAction}>
+   <button disabled={sending} className={primary}>Trainer Info schicken</button>
+  </form>
+  {sendState.message && <p role="status" className={`text-sm ${sendState.success ? "text-green-700 dark:text-green-300" : "text-zinc-600 dark:text-zinc-300"}`}>{sendState.message}</p>}
+ </section>;
+}
 function EventForm({ slug, row, defaultSeries, series, venues, trainers, onSaved, onCancel }: { slug: string; row?: EventRow; defaultSeries?: SeriesRow; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[]; onSaved: (message: string) => void; onCancel: () => void }) {
  const [values, setValues] = useState<EventValues>(() => row ? { ...row, maxSeats: row.maxSeats?.toString() ?? "", beginsAt: localDateTime(row.beginsAt), endsAt: localDateTime(row.endsAt) } : defaultSeries ? applySeries({ ...emptyEvent }, defaultSeries) : { ...emptyEvent });
  const manualEnd = useRef(false);
@@ -145,6 +169,7 @@ function EventForm({ slug, row, defaultSeries, series, venues, trainers, onSaved
   </form>
   {row && <EventStaff slug={slug} eventId={row.id} />}
   {publishWarnings && <PublishConfirmation missing={publishWarnings} onDecision={decidePublication} />}
+  {row && <TrainerReminderControls slug={slug} row={row} />}
  </dialog>;
 }
 function DeleteEvent({ slug, row, onDeleted }: { slug: string; row: EventRow; onDeleted: (message: string) => void }) {

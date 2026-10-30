@@ -6,6 +6,8 @@ import { requireCompanyAccess, MemberAccessError } from "@/lib/companies/members
 import { getPrisma } from "@/lib/db/prisma";
 import { eventSchema, publishEventSchema, emptyEvent, type EventState } from "@/lib/company-events/model";
 import { uploadEventImage, deleteEventImage, EventImageError, type UploadedEventImage } from "@/lib/events/images";
+import { requestTrainerReminderNow } from "@/lib/trainers/reminders";
+export type TrainerReminderActionState = { success?: boolean; sent?: boolean; sentAt?: string | null; message?: string };
 function refresh(slug: string) {
  revalidatePath("/company/[companyKey]/event-series/[seriesId]", "page");
  revalidatePath("/account/events");
@@ -104,4 +106,16 @@ export async function deleteEvent(slug: string, id: string, _previous: EventStat
  } catch (error) { return failure(error); }
  refresh(slug);
  return { success: true, message: "Event wurde gelöscht." };
+}
+
+export async function sendTrainerInfo(slug: string, id: string, requestId: string, _previous: TrainerReminderActionState): Promise<TrainerReminderActionState> {
+ try {
+  const { company } = await requireCompanyAccess(slug);
+  if (!validId(id)) return { message: "Ungültiges Event." };
+  const result = await requestTrainerReminderNow(id, company.id, requestId);
+  if (!result.available) return { message: "Das veröffentlichte Event ist nicht versandbereit. Prüfe Beginn und Trainerzuordnung." };
+  refresh(slug);
+  if (result.sent) return { success: true, sent: true, sentAt: result.sentAt, message: "Trainer-Info wurde versendet." };
+  return { sent: false, message: "Der Versand wurde beauftragt, konnte aber noch nicht für alle Trainer abgeschlossen werden. Der Cron versucht es erneut." };
+ } catch (error) { return { message: failure(error).message }; }
 }

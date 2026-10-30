@@ -7,6 +7,7 @@ import { ensureCheckout } from "@/lib/payments/checkout";
 import { applyCheckoutSession } from "@/lib/payments/fulfillment";
 import { deliverPendingTicketMails } from "@/lib/tickets/outbox";
 import { releaseExpiredVoucherReservation } from "@/lib/vouchers/service";
+import { deliverPendingTrainerReminders, enqueueDueTrainerReminders } from "@/lib/trainers/reminders";
 
 export const runtime = "nodejs";
 export async function POST(request: Request) {
@@ -28,6 +29,16 @@ export async function POST(request: Request) {
   const voucherRefunds = await reconcileVoucherRefunds();
   failures += voucherRefunds.failures;
   const mails = await deliverPendingTicketMails();
+  let trainerReminders = { checked: 0, queued: 0, delivered: 0 };
+  try {
+    const queued = await enqueueDueTrainerReminders();
+    const delivered = await deliverPendingTrainerReminders();
+    trainerReminders = { checked: queued.checked, queued: queued.queued, delivered: delivered.delivered };
+    failures += queued.failures + delivered.failures;
+  } catch {
+    failures++;
+    console.error("Trainer reminder reconciliation failed");
+  }
   // Recovery for previously verified expiry with a stranded hold; never expire by clock.
   const expiredHolds = await db.booking.findMany({ where: { status: "EXPIRED",
     OR: [{ voucherRedemption: { is: { status: "RESERVED" } } }, { voucherBalanceUses: { some: { status: "RESERVED" } } }],
@@ -40,5 +51,5 @@ export async function POST(request: Request) {
   failures += mails.failures;
   let cancellations = 0;
   try { cancellations = await reconcileCancellationRefunds(); failures += await deliverCancellationMails(); } catch { failures++; console.error("Cancellation reconciliation failed"); }
-  return Response.json({ voucherRefunds: voucherRefunds.checked, cancellations, checked: pending.length, mails: mails.checked, failures }, { status: failures ? 503 : 200 });
+  return Response.json({ voucherRefunds: voucherRefunds.checked, cancellations, checked: pending.length, mails: mails.checked, trainerReminders, failures }, { status: failures ? 503 : 200 });
 }

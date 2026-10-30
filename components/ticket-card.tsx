@@ -30,10 +30,10 @@ export function TicketCard({ ticket, bookingNumber, qrCode, children }: TicketCa
     {ticket.venue && <p className="break-words">{ticket.venue}</p>}
     <p><span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${ticket.status === "Gültig" ? "bg-green-100 text-green-800" : ticket.status === "Storniert" || ticket.status === "Nicht gültig" ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"}`}>{ticket.status}</span></p>
     {ticket.checkedInAt && <p className="text-sm">Bereits eingelöst am {checkedInDate.format(new Date(ticket.checkedInAt))} Uhr (Berlin)</p>}
-    {qrCode && <figure className="flex flex-col items-center gap-4 rounded-lg bg-white p-4 text-zinc-900">
+    {qrCode && ticket.status === "Gültig" && <figure className="flex flex-col items-center gap-4 rounded-lg bg-white p-4 text-zinc-900">
       <QRCodeSVG value={qrCode.value} size={260} level="M" marginSize={4} title={`QR-Code für Ticket #${ticketNumber}`} className="h-auto max-w-full" />
       <figcaption className="text-center text-sm">Dein Ticket-QR-Code
-        {ticket.status === "Gültig" && <span className="block">Zeige diesen QR-Code beim Einlass vor.</span>}
+        <span className="block">Zeige diesen QR-Code beim Einlass vor.</span>
       </figcaption>
     </figure>}
     {children}
