@@ -14,6 +14,39 @@ const input = "mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3
 const primary = "rounded-lg bg-primary-600 px-4 py-2 text-sm text-white hover:bg-primary-700 disabled:opacity-50";
 const statuses = { DRAFT: "Entwurf", PUBLISHED: "Veröffentlicht", CANCELLED: "Abgesagt", COMPLETED: "Abgeschlossen" };
 const statusColors = { DRAFT: "bg-yellow-100 text-yellow-800", PUBLISHED: "bg-green-100 text-green-800", CANCELLED: "bg-red-100 text-red-800", COMPLETED: "bg-zinc-200 text-zinc-700" };
+const eventDateTime = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+const berlinDateParts = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" });
+function berlinWeek(value: string) {
+ const parts = Object.fromEntries(berlinDateParts.formatToParts(new Date(value)).map(part => [part.type, part.value]));
+ const date = new Date(Date.UTC(Number(parts.year), Number(parts.month) - 1, Number(parts.day)));
+ const mondayOffset = (date.getUTCDay() + 6) % 7; date.setUTCDate(date.getUTCDate() - mondayOffset);
+ return date.toISOString().slice(0, 10);
+}
+function missingWeeks(fromMonday: string, toMonday: string) {
+ const direction = fromMonday < toMonday ? 1 : -1;
+ const cursor = new Date(`${fromMonday}T00:00:00Z`);
+ const destination = new Date(`${toMonday}T00:00:00Z`).getTime();
+ const weeks: string[] = [];
+ cursor.setUTCDate(cursor.getUTCDate() + 7 * direction);
+ while (cursor.getTime() !== destination) {
+  weeks.push(cursor.toISOString().slice(0, 10));
+  cursor.setUTCDate(cursor.getUTCDate() + 7 * direction);
+ }
+ return weeks;
+}
+function weekLabel(monday: string) {
+ const thursday = new Date(`${monday}T00:00:00Z`);
+ thursday.setUTCDate(thursday.getUTCDate() + 3);
+ const year = thursday.getUTCFullYear();
+ const week = Math.floor((thursday.getTime() - Date.UTC(year, 0, 1)) / (7 * 24 * 60 * 60 * 1000)) + 1;
+ return `KW ${week}/${year}`;
+}
+type SortKey = "number" | "name" | "beginsAt" | "series" | "venue" | "status" | "remainingSeats" | "price" | "bookings";
+const columns: { key: SortKey; label: string }[] = [
+ { key: "number", label: "Nr." }, { key: "name", label: "Event" }, { key: "beginsAt", label: "Beginn (Europe/Berlin)" },
+ { key: "series", label: "Veranstaltungsreihe" }, { key: "venue", label: "Orte" }, { key: "status", label: "Status" },
+ { key: "remainingSeats", label: "(freie) Plätze" }, { key: "price", label: "Preis" }, { key: "bookings", label: "Buchungen" },
+];
 function RequiredMark() { return <><span aria-hidden="true" className="ml-1 text-xs text-red-600 dark:text-red-400">*</span><span className="sr-only"> (zum Veröffentlichen erforderlich)</span></>; }
 function StatusTag({ status }: { status: EventValues["status"] }) { return <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[status]}`}>{statuses[status]}</span>; }
 type Props = { defaultSeriesId?: string; seriesDetails?: React.ReactNode; canManage: boolean; company: { name: string; slug: string }; events: EventRow[]; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[] };
@@ -122,7 +155,40 @@ function DeleteEvent({ slug, row, onDeleted }: { slug: string; row: EventRow; on
 export function EventsTable({ company, events, series, venues, trainers, canManage, seriesDetails, defaultSeriesId }: Props) {
  const [editor, setEditor] = useState<{ row?: EventRow } | null>(null);
  const [query, setQuery] = useState(""); const [message, setMessage] = useState("");
- const visible = events.filter((e) => `${e.name} ${e.number}`.toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
+ const [sort, setSort] = useState<{ key: SortKey; direction: "asc" | "desc" } | null>(null);
+ const filtered = events.filter((e) => `${e.name} ${e.number}`.toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
+ function sortValue(row: EventRow, key: SortKey): string | number | null {
+  if (key === "number") return row.number; if (key === "name") return row.name || "";
+  if (key === "beginsAt") return row.beginsAt ? new Date(row.beginsAt).getTime() : null;
+  if (key === "series") return series.find(item => item.id === row.eventSeriesId)?.name ?? null;
+  if (key === "venue") return venues.find(item => item.id === row.venueId)?.name ?? null;
+  if (key === "status") return statuses[row.status]; if (key === "remainingSeats") return row.remainingSeats;
+  if (key === "price") return row.ticketPrice === null || row.ticketPrice === "" ? null : Number(row.ticketPrice);
+  return row._count.bookings;
+ }
+ const visible = sort ? filtered.map((row, index) => ({ row, index })).sort((left, right) => {
+  const a = sortValue(left.row, sort.key), b = sortValue(right.row, sort.key);
+  if (a === null || a === "") return b === null || b === "" ? left.index - right.index : 1;
+  if (b === null || b === "") return -1;
+  const compared = typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b), "de-DE", { numeric: true, sensitivity: "base" });
+  return (sort.direction === "asc" ? compared : -compared) || left.index - right.index;
+ }).map(item => item.row) : filtered;
+ function changeSort(key: SortKey) { setSort(current => current?.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" }); }
+ function groupValue(row: EventRow) {
+  if (sort?.key === "beginsAt") return row.beginsAt ? berlinWeek(row.beginsAt) : "NO_DATE";
+  if (sort?.key === "venue") return venues.find(item => item.id === row.venueId)?.name ?? "NO_VENUE";
+  if (sort?.key === "status") return row.status;
+  return null;
+ }
+ const displayRows: ({ kind: "event"; row: EventRow; index: number } | { kind: "empty-week"; monday: string })[] = [];
+ visible.forEach((row, index) => {
+  if (sort?.key === "beginsAt" && index > 0 && row.beginsAt && visible[index - 1].beginsAt) {
+   const previousWeek = berlinWeek(visible[index - 1].beginsAt!);
+   const currentWeek = berlinWeek(row.beginsAt);
+   if (previousWeek !== currentWeek) missingWeeks(previousWeek, currentWeek).forEach(monday => displayRows.push({ kind: "empty-week", monday }));
+  }
+  displayRows.push({ kind: "event", row, index });
+ });
  return <main className={`flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black ${editor ? "xl:mr-[28rem]" : ""}`}>
   {seriesDetails && <div className="relative flex flex-col gap-6 [&>a]:mr-16 [&>a]:min-h-10 [&>a]:content-center">
    {seriesDetails}
@@ -133,7 +199,7 @@ export function EventsTable({ company, events, series, venues, trainers, canMana
   {canManage && editor && <EventForm key={editor.row?.id ?? "new"} slug={company.slug} row={editor.row} defaultSeries={series.find((item) => item.id === defaultSeriesId)} series={series} venues={venues} trainers={trainers} onCancel={() => setEditor(null)} onSaved={(text) => { setEditor(null); setMessage(text); }} />}
   <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
    <div className="flex items-center justify-between gap-4 p-4"><label><span className="sr-only">Events durchsuchen</span><input type="search" placeholder="Events durchsuchen …" value={query} onChange={(e) => setQuery(e.target.value)} className={input} /></label><span className="text-sm text-zinc-500">{visible.length} von {events.length} Events</span></div>
-   <table className="w-full text-left text-sm"><caption className="sr-only">Events von {company.name}</caption><thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Nr.", "Event", "Beginn (Europe/Berlin)", "Veranstaltungsreihe", "Orte", "Status", "(freie) Plätze", "Preis", "Buchungen", "Aktionen"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label}</th>)}</tr></thead><tbody>{visible.map((row) => <tr key={row.id} className="border-t border-zinc-200 align-top dark:border-zinc-800"><td className="px-4 py-4">{row.number}</td><th scope="row" className="px-4 py-4 font-medium">{row.name || "Unbenannter Entwurf"}</th><td className="whitespace-nowrap px-4 py-4">{row.beginsAt ? new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(row.beginsAt)) : "Noch offen"}</td><td className="px-4 py-4">{(() => { const eventSeries = series.find((s) => s.id === row.eventSeriesId); return eventSeries ? `${eventSeries.name} #${eventSeries.number}` : "—"; })()}</td><td className="px-4 py-4">{venues.find((v) => v.id === row.venueId)?.name ?? "—"}</td><td className="px-4 py-4"><StatusTag status={row.status} /></td><td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}/tickets`} aria-label={`Ticketverwaltung: ${row.remainingSeats} von ${row.maxSeats} Plätzen frei`} className="text-primary-700 underline dark:text-primary-300">{row.remainingSeats ?? "?"} / {row.maxSeats ?? "?"}</Link></td><td className="whitespace-nowrap px-4 py-4">{row.ticketPrice ? `${row.ticketPrice.replace(".", ",")} ${row.currency}` : "Noch offen"}</td><td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}/bookings`} aria-label={`Buchungen für ${row.name || "Unbenannter Entwurf"}: ${row._count.bookings}`} className="text-primary-700 underline dark:text-primary-300">{row._count.bookings}</Link></td><td className="px-4 py-4"><div className="flex items-start gap-2">{canManage && <button type="button" disabled={!!editor} title="Event bearbeiten" aria-label={`${row.name || "Unbenannter Entwurf"} bearbeiten`} onClick={() => { setEditor({ row }); setMessage(""); }} className="rounded-lg px-2 py-0.5 text-primary-700 hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-40 dark:text-primary-300 dark:hover:bg-primary-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 5 5L8 21H3v-5ZM13 6l5 5" /></svg></button>}{canManage && !editor && <DeleteEvent slug={company.slug} row={row} onDeleted={setMessage} />}</div></td></tr>)}</tbody></table>
+   <table className="w-full text-left text-sm"><caption className="sr-only">Events von {company.name}</caption><thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{columns.map(column => <th key={column.key} scope="col" aria-sort={sort?.key === column.key ? sort.direction === "asc" ? "ascending" : "descending" : "none"} className={`px-2 py-2 ${column.key === "remainingSeats" ? "text-center" : column.key === "price" || column.key === "bookings" ? "text-right" : ""}`}><button type="button" onClick={() => changeSort(column.key)} className={`flex w-full items-center gap-1 rounded px-2 py-1 font-semibold ${column.key === "remainingSeats" ? "justify-center text-center" : column.key === "price" || column.key === "bookings" ? "justify-end text-right" : "text-left"} hover:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-primary-600 dark:hover:bg-zinc-800`}>{column.label}<span aria-hidden="true" className="w-3">{sort?.key === column.key ? sort.direction === "asc" ? "↑" : "↓" : "↕"}</span></button></th>)}<th scope="col" className="px-4 py-3">Aktionen</th></tr></thead><tbody>{displayRows.map(item => item.kind === "empty-week" ? <tr key={`empty-${item.monday}`} className="border-t-2 border-zinc-300 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/60"><td colSpan={10} className="px-4 py-1.5 text-center text-xs text-zinc-500 dark:text-zinc-400">{weekLabel(item.monday)} · keine Events</td></tr> : (() => { const { row, index } = item; return <tr key={row.id} className={`${index > 0 && groupValue(row) !== groupValue(visible[index - 1]) ? "border-t-2 border-zinc-400 dark:border-zinc-600" : "border-t border-zinc-200 dark:border-zinc-800"} align-top`}><td className="px-4 py-4">{row.number}</td><th scope="row" className="px-4 py-4 font-medium">{row.name || "Unbenannter Entwurf"}</th><td className="whitespace-nowrap px-4 py-4">{row.beginsAt ? eventDateTime.format(new Date(row.beginsAt)) : "Noch offen"}</td><td className="px-4 py-4">{(() => { const eventSeries = series.find((s) => s.id === row.eventSeriesId); return eventSeries ? `${eventSeries.name} #${eventSeries.number}` : "—"; })()}</td><td className="px-4 py-4">{venues.find((v) => v.id === row.venueId)?.name ?? "—"}</td><td className="px-4 py-4"><StatusTag status={row.status} /></td><td className="px-4 py-4 text-center tabular-nums"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}/tickets`} aria-label={`Ticketverwaltung: ${row.remainingSeats} von ${row.maxSeats} Plätzen frei`} className="text-primary-700 underline dark:text-primary-300">{row.remainingSeats ?? "?"} / {row.maxSeats ?? "?"}</Link></td><td className="whitespace-nowrap px-4 py-4 text-right tabular-nums">{row.ticketPrice === null || row.ticketPrice === "" ? "Noch offen" : Number(row.ticketPrice) === 0 ? "kostenlos" : `${row.ticketPrice.replace(".", ",")} ${row.currency}`}</td><td className="px-4 py-4 text-right tabular-nums"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}/bookings`} aria-label={`Buchungen für ${row.name || "Unbenannter Entwurf"}: ${row._count.bookings}`} className="text-primary-700 underline dark:text-primary-300">{row._count.bookings}</Link></td><td className="px-4 py-4"><div className="flex items-start gap-2">{canManage && <button type="button" disabled={!!editor} title="Event bearbeiten" aria-label={`${row.name || "Unbenannter Entwurf"} bearbeiten`} onClick={() => { setEditor({ row }); setMessage(""); }} className="rounded-lg px-2 py-0.5 text-primary-700 hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-40 dark:text-primary-300 dark:hover:bg-primary-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 5 5L8 21H3v-5ZM13 6l5 5" /></svg></button>}{canManage && !editor && <DeleteEvent slug={company.slug} row={row} onDeleted={setMessage} />}</div></td></tr>; })())}</tbody></table>
    {!visible.length && <p className="p-8 text-center text-sm text-zinc-500">{events.length ? "Keine passenden Events gefunden." : seriesDetails ? "Dieser Eventserie sind noch keine Events zugeordnet." : "Noch keine Events vorhanden. Erstelle das erste Event über den Button oben."}</p>}
   </div>
  </main>;
