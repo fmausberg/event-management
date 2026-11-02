@@ -7,6 +7,8 @@ import { getPrisma } from "@/lib/db/prisma";
 import { eventSchema, publishEventSchema, emptyEvent, type EventState } from "@/lib/company-events/model";
 import { uploadEventImage, deleteEventImage, EventImageError, type UploadedEventImage } from "@/lib/events/images";
 import { requestTrainerReminderNow } from "@/lib/trainers/reminders";
+import { calendarRange, parseBatchSchedule, type BatchOccurrence } from "@/lib/company-events/batch-schedule";
+import { occupiedSeriesDates } from "@/lib/company-events/batch-conflicts";
 export type TrainerReminderActionState = { success?: boolean; sent?: boolean; sentAt?: string | null; message?: string };
 function refresh(slug: string) {
  revalidatePath("/company/[companyKey]/event-series/[seriesId]", "page");
@@ -20,16 +22,29 @@ function refresh(slug: string) {
 function failure(error: unknown): EventState {
  if (error instanceof MemberAccessError) return { message: error.message };
  if (error instanceof EventImageError) return { message: error.message };
+ if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return { message: "Die Daten wurden gleichzeitig geändert. Es wurde nichts gespeichert. Bitte prüfe die Termine und versuche es erneut." };
  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") return { message: "Das Event ist noch verknüpft oder eine Zuordnung wurde geändert. Bitte lade die Seite neu." };
  return { message: "Die Änderung konnte nicht gespeichert werden. Bitte versuche es erneut." };
 }
 function validId(id: unknown): id is string { return typeof id === "string" && !!id.trim() && id.length <= 191; }
+export async function getSeriesDateConflicts(slug: string, seriesId: string, from: string, to: string): Promise<{ dates: string[]; message?: string }> {
+ try {
+  const { company } = await requireCompanyAccess(slug);
+  if (!validId(seriesId) || !calendarRange(from, to).length) return { dates: [], message: "Bitte einen gültigen Zeitraum von höchstens 366 Tagen auswählen." };
+  const db = getPrisma();
+  if (!await db.eventSeries.findFirst({ where: { id: seriesId, companyId: company.id }, select: { id: true } })) return { dates: [], message: "Bitte wähle eine Eventreihe dieser Company." };
+  return { dates: await occupiedSeriesDates(db, company.id, seriesId, from, to) };
+ } catch (error) { return { dates: [], message: failure(error).message }; }
+}
 export async function saveEvent(slug: string, id: string | null, _previous: EventState, form: FormData): Promise<EventState> {
  const intent = form.get("intent") ?? (id === null ? "draft" : "save");
+ const multiple = form.get("creationMode") === "multiple";
+ if (multiple && (id !== null || !["draft", "publish"].includes(String(intent)))) return { message: "Mehrfacherstellung ist nur für neue Events möglich." };
  if (intent === "cancel") return cancelEvent(slug, id);
  if (!["draft", "publish", "save"].includes(String(intent))) return { message: "Ungültige Aktion." };
  let uploaded: UploadedEventImage | undefined;
  let saved = false;
+ let createdCount = 0;
  try {
   const { company } = await requireCompanyAccess(slug);
   if (id !== null && !validId(id)) return { message: "Ungültiges Event." };
@@ -37,8 +52,26 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
   const existing = id === null ? null : await db.event.findFirst({ where: { id, companyId: company.id }, select: { status: true, imageUrl: true } });
   if (id !== null && (!existing || (intent !== "save" && existing.status !== "DRAFT"))) return { message: "Das Event ist nicht verfügbar. Bitte lade die Seite neu." };
   const schema = intent === "publish" || existing?.status === "PUBLISHED" ? publishEventSchema : eventSchema;
-  const parsed = schema.safeParse(Object.fromEntries(Object.keys(emptyEvent).map((key) => [key, key === "currency" ? "EUR" : key === "status" ? "DRAFT" : key === "trainerIds" ? form.getAll(key) : form.get(key) ?? ""])));
+  let occurrences: BatchOccurrence[] = [];
+  if (multiple) {
+   if (!validId(form.get("eventSeriesId"))) return { message: "Bitte zuerst eine Eventreihe auswählen." };
+   const schedule = parseBatchSchedule(form);
+   if (schedule.message) return { message: schedule.message, dateErrors: schedule.dateErrors };
+   occurrences = schedule.occurrences;
+  }
+  const raw = Object.fromEntries(Object.keys(emptyEvent).map((key) => [key, key === "currency" ? "EUR" : key === "status" ? "DRAFT" : key === "trainerIds" ? form.getAll(key) : form.get(key) ?? ""]));
+  const parsed = schema.safeParse({ ...raw, ...(multiple ? { beginsAt: occurrences[0].beginsAt, endsAt: occurrences[0].endsAt } : {}) });
   if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
+  if (multiple) {
+   const dateErrors: Record<string, string> = {};
+   const now = new Date();
+   for (const occurrence of occurrences) {
+    const validation = schema.safeParse({ ...raw, beginsAt: occurrence.beginsAt, endsAt: occurrence.endsAt });
+    if (!validation.success) dateErrors[occurrence.date] = validation.error.issues.map(issue => issue.message).join(" ");
+    else if (intent === "publish" && new Date(occurrence.endsAt) <= now) dateErrors[occurrence.date] = "Ein bereits beendetes Event kann nicht veröffentlicht werden.";
+   }
+   if (Object.keys(dateErrors).length) return { message: "Nicht alle Termine können gespeichert werden. Bitte die markierten Termine prüfen.", dateErrors };
+  }
   if (intent === "publish" && new Date(parsed.data.endsAt) <= new Date()) return { message: "Ein bereits beendetes Event kann nicht veröffentlicht werden.", errors: { endsAt: ["Das Ende muss für die Veröffentlichung in der Zukunft liegen."] } };
   const { eventSeriesId, venueId } = parsed.data;
   const series = eventSeriesId ? await db.eventSeries.findFirst({ where: { id: eventSeriesId, companyId: company.id }, select: { id: true, imageUrl: true } }) : null;
@@ -65,7 +98,29 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
   if (id === null) {
    const session = await auth();
    if (!session?.user?.id) return { message: "Bitte melde dich erneut an." };
-   await db.event.create({ data: { ...data, status: intent === "publish" ? "PUBLISHED" : "DRAFT", companyId: company.id, createdById: session.user.id, trainers: { create: trainerIds.map((trainerId) => ({ trainerId })) } } });
+   const creationData = { ...data, status: intent === "publish" ? "PUBLISHED" as const : "DRAFT" as const, companyId: company.id, createdById: session.user.id, trainers: { create: trainerIds.map((trainerId) => ({ trainerId })) } };
+   if (multiple) {
+    const actorId = session.user.id;
+    const result = await db.$transaction(async (tx): Promise<EventState> => {
+     const actor = await tx.user.findUnique({ where: { id: actorId }, select: { role: true } });
+     if (!actor) throw new MemberAccessError("UNAUTHENTICATED");
+     if (actor.role !== "ADMIN") {
+      const member = await tx.companyMembership.findUnique({ where: { companyId_userId: { companyId: company.id, userId: actorId } }, select: { role: true, status: true } });
+      if (member?.status !== "ACTIVE" || !["COMPANY_ADMIN", "COMPANY_USER"].includes(member.role)) throw new MemberAccessError("FORBIDDEN");
+     }
+     const currentSeries = await tx.eventSeries.findFirst({ where: { id: eventSeriesId!, companyId: company.id }, select: { id: true, imageUrl: true } });
+     if (!currentSeries) return { message: "Die ausgewählte Eventreihe ist nicht mehr verfügbar." };
+     if (venueId && !await tx.venue.findFirst({ where: { id: venueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle eine Venue dieser Company." };
+     const currentTrainers = await tx.trainer.findMany({ where: { id: { in: trainerIds }, companyId: company.id }, select: { id: true } });
+     if (currentTrainers.length !== trainerIds.length) return { message: "Mindestens ein Trainer ist nicht mehr verfügbar.", errors: { trainerIds: ["Bitte die Trainerzuordnung prüfen."] } };
+     if (!hasUpload && !removeImage && currentSeries.imageUrl !== series?.imageUrl) return { message: "Das Bild der Reihe wurde geändert. Bitte die Auswahl prüfen und erneut speichern." };
+     if (intent === "publish" && occurrences.some(item => new Date(item.endsAt) <= new Date())) return { message: "Mindestens ein Termin ist inzwischen beendet. Bitte die Auswahl prüfen. Es wurde nichts angelegt." };
+     for (const occurrence of occurrences) await tx.event.create({ data: { ...creationData, beginsAt: new Date(occurrence.beginsAt), endsAt: occurrence.endsAt ? new Date(occurrence.endsAt) : null } });
+     return { success: true };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30000 });
+    if (!result.success) return result;
+    createdCount = occurrences.length;
+   } else await db.event.create({ data: creationData });
   } else {
    const result = await db.$transaction(async (tx) => {
     const current = await tx.event.findFirst({ where: { id, companyId: company.id }, select: { status: true, imagePublicId: true } });
@@ -82,6 +137,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
  } catch (error) { return failure(error); }
  finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
  refresh(slug);
+ if (multiple) return { success: true, message: `${createdCount} Events wurden ${intent === "publish" ? "veröffentlicht" : "als Entwurf erstellt"}.` };
  return { success: true, message: intent === "publish" ? "Event wurde veröffentlicht." : id === null ? "Entwurf wurde erstellt." : "Event wurde gespeichert." };
 }
 async function cancelEvent(slug: string, id: string | null): Promise<EventState> {

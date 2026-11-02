@@ -26,14 +26,21 @@ export function PublicBookingForm({ slug, eventId, token, price, currency, avail
             <div><label htmlFor="guest-email" className="text-sm font-medium">E-Mail-Adresse</label><input id="guest-email" name="email" value={email} onChange={e => setEmail(e.target.value)} type="email" required maxLength={254} autoComplete="email" className={input} /></div>
             <div><label htmlFor="guest-quantity" className="text-sm font-medium">Anzahl Plätze</label><input id="guest-quantity" name="quantity" type="number" min={1} max={Math.min(available, 100)} step={1} required value={quantity} onChange={(e) => setQuantity(e.target.value)} className={input} /></div>
             <div><label htmlFor="voucher-code" className="text-sm font-medium">Gutscheincode (optional)</label><input id="voucher-code" name="code" value={code} onChange={e => setCode(e.target.value)} maxLength={128} autoComplete="off" spellCheck={false} className={input} />
-                <button type="button" disabled={!code.trim()} className="mt-2 text-sm font-medium text-primary-700 disabled:opacity-50" onClick={e => {
+                <button type="button" disabled={!code.trim() || checking} aria-busy={checking} className="mt-2 inline-flex items-center gap-2 rounded-md border border-primary-600 px-4 py-2 text-sm font-medium text-primary-700 hover:bg-primary-50 disabled:opacity-50" onClick={e => {
                     const data = new FormData(e.currentTarget.form!);
                     const key = previewKey;
                     startChecking(async () => {
-                        try { setPreview({ key, result: await previewPublicVoucher(slug, eventId, data) }); }
-                        catch { setPreview({ key, result: { message: "Die Gutscheinprüfung ist derzeit nicht verfügbar." } }); }
+                        const [result] = await Promise.all([
+                            previewPublicVoucher(slug, eventId, data).catch((): PublicVoucherState => ({
+                                message: "Die Gutscheinprüfung ist derzeit nicht verfügbar.",
+                            })),
+                            new Promise<void>(resolve => setTimeout(resolve, 5000)),
+                        ]);
+                        setPreview({ key, result });
                     });
-                }}>{checking ? "Preis wird geprüft …" : "Preis mit Gutschein prüfen"}</button>
+                }}>{checking && <span aria-hidden="true" className="size-4 animate-spin rounded-full border-2 border-current border-r-transparent" />}{checking ? "Gutschein wird geprüft …" : "Gutschein prüfen"}</button>
+                {currentPreview?.message && <p role="alert" className="mt-2 text-sm text-red-700">{currentPreview.message}</p>}
+                {currentPreview?.message && !currentPreview.price && <p className="mt-2 text-xs text-zinc-500">Mehrere fehlerhafte Gutscheinangaben führen zur Sperrung des Zugangs zu dieser Seite.</p>}
             </div>
         </fieldset>
         <div aria-live="polite" className="space-y-2 border-t border-zinc-100 pt-4">
@@ -45,7 +52,6 @@ export function PublicBookingForm({ slug, eventId, token, price, currency, avail
             <div className="flex justify-between font-semibold"><span>Zu zahlen</span><span>{quoted ? money(quoted.payableAmountMinor) : total} {currency}</span></div>
             {code.trim() && !quoted && <p className="text-xs text-zinc-600">Bitte prüfe den Gutschein für die aktuelle Anzahl und E-Mail-Adresse.</p>}
             {quoted && <p className="text-xs text-zinc-600">Der Gutschein wird beim Buchen erneut geprüft. {quoted.requiresCheckout ? "Den Restbetrag bezahlst du über Stripe." : "Es ist keine Online-Zahlung nötig."}</p>}
-            {currentPreview?.message && <p role="alert" className="text-sm text-red-700">{currentPreview.message}</p>}
         </div>
         <p className="text-xs leading-relaxed text-zinc-500">Hier buchst du deine Plätze direkt beim Veranstalter. Kostenpflichtige Tickets bezahlst du im nächsten Schritt sicher über Stripe. Deine Tickets erhältst du nach bestätigter Zahlung per E-Mail.</p>
         {state.message && <p role="alert" className="text-sm text-red-700">{state.message}</p>}

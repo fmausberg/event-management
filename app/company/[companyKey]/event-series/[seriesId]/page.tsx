@@ -1,5 +1,6 @@
 import { cancellationPolicyText } from "@/lib/cancellations/policy";
 import Link from "next/link";
+import { PageBreadcrumb } from "@/components/page-breadcrumb";
 import { notFound, redirect } from "next/navigation";
 import { MemberAccessError } from "@/lib/companies/members";
 import { getCompanyEvents } from "@/lib/company-events/data";
@@ -37,6 +38,7 @@ export default async function CompanyEventSeriesDetailPage({ params }: {
     ["Events", result.events.length],
   ];
   return <EventsTable {...result} defaultSeriesId={series.id} seriesDetails={<>
+    <PageBreadcrumb label={series.name} />
     <Link href={`/company/${encodeURIComponent(result.company.slug)}/event-series`} className="self-start text-sm text-primary-700 underline dark:text-primary-300">← Zurück zu den Eventserien</Link>
     <section aria-labelledby="series-title" className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
       <h1 id="series-title" className="text-2xl font-semibold">{series.name}</h1>

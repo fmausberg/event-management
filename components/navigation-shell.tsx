@@ -6,6 +6,7 @@ import { useRef, useState } from "react";
 import { logout } from "@/app/(auth)/actions";
 import { isNavigationItemActive, type NavigationData } from "@/lib/navigation/model";
 import { NavigationIcon } from "./navigation-icon";
+import { PageBreadcrumbContext, type PageBreadcrumbValue } from "./page-breadcrumb";
 
 function NavigationLinks({ data, pathname, onNavigate }: {
   data: NavigationData; pathname: string; onNavigate?: () => void;
@@ -48,6 +49,8 @@ function UserFooter({ data, onNavigate }: { data: NavigationData; onNavigate?: (
 export function NavigationShell({ data, children }: { data: NavigationData; children?: React.ReactNode }) {
   const pathname = usePathname();
   const [expanded, setExpanded] = useState(true);
+  const [pageBreadcrumb, setPageBreadcrumb] = useState<PageBreadcrumbValue | null>(null);
+  const detailLabel = pageBreadcrumb?.pathname === pathname ? pageBreadcrumb.label : null;
   const mobileMenu = useRef<HTMLDetailsElement>(null);
   const closeMobileMenu = () => { if (mobileMenu.current) mobileMenu.current.open = false; };
   const current = data.groups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label })))
@@ -71,7 +74,7 @@ export function NavigationShell({ data, children }: { data: NavigationData; chil
         <header className="sticky top-0 z-20 border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
           <div className="hidden h-14 items-center gap-4 px-5 md:flex">
             <button type="button" onClick={() => setExpanded(!expanded)} aria-expanded={expanded} aria-controls="desktop-navigation" aria-label={expanded ? "Navigation einklappen" : "Navigation ausklappen"} className="rounded-md p-2 hover:bg-zinc-100 focus-visible:outline-primary-600 dark:hover:bg-zinc-800"><NavigationIcon name="panel" /></button>
-            <div className="flex min-w-0 items-center gap-3 text-sm">{context && <><span className="truncate text-zinc-500">{context}</span><span aria-hidden="true" className="text-zinc-300">/</span></>}<span className="shrink-0 font-medium">{title}</span></div>
+            <nav aria-label="Breadcrumb" className="flex min-w-0 items-center gap-3 text-sm">{context && <><span className="truncate text-zinc-500">{context}</span><span aria-hidden="true" className="text-zinc-300">/</span></>}{detailLabel && current ? <><Link href={current.href} className="shrink-0 font-medium hover:underline focus-visible:outline-primary-600">{title}</Link><span aria-hidden="true" className="text-zinc-300">/</span><span aria-current="page" className="truncate font-medium">{detailLabel}</span></> : <span aria-current="page" className="shrink-0 font-medium">{title}</span>}</nav>
           </div>
           <details ref={mobileMenu} className="group md:hidden" onKeyDown={(event) => { if (event.key === "Escape") { closeMobileMenu(); mobileMenu.current?.querySelector("summary")?.focus(); } }}>
             <summary className="flex h-14 cursor-pointer list-none items-center gap-3 px-5 text-sm font-medium [&::-webkit-details-marker]:hidden"><NavigationIcon name="panel" /><span>Menü</span><span className="ml-auto truncate text-zinc-500">{title}</span></summary>
@@ -81,7 +84,7 @@ export function NavigationShell({ data, children }: { data: NavigationData; chil
             </div>
           </details>
         </header>
-        <div id="page-content" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">{children}</div>
+        <PageBreadcrumbContext.Provider value={setPageBreadcrumb}><div id="page-content" tabIndex={-1} className="flex min-w-0 flex-1 flex-col outline-none">{children}</div></PageBreadcrumbContext.Provider>
       </div>
     </div>
   );
