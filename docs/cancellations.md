@@ -1,5 +1,32 @@
 # Stornierungen und Erstattungen
 
+## Gastzugriff über die Buchungsbestätigung
+
+Neue und erneut versendete Ticketmails enthalten zusätzlich zu den einzelnen
+Ticketlinks einen separaten Link „Buchung verwalten / stornieren“ nach
+`/booking/manage#<token>`. Er zeigt ohne Anmeldung die Buchungsnummer, das Event,
+die gesamte Ticketanzahl sowie den aktuellen Stornierungs- und Erstattungsstatus.
+Das Öffnen storniert nichts. Ein bestätigtes Formular betrifft immer alle Tickets;
+innerhalb der Frist wird direkt storniert, sonst nur eine Anfrage angelegt.
+Kostenlose manuelle Buchungen verwenden denselben Ablauf ohne Stripe-Erstattung.
+
+Der HMAC-signierte Verwaltungslink ist an Buchungs-ID und gespeicherte
+Empfängeradresse gebunden und getrennt von Ticket- und Checkout-Tokens.
+`AUTH_SECRET` signiert ihn; eine Änderung des Secrets oder der Buchungsadresse
+macht alte Links ungültig. Er hat kein separates Zeitlimit: Der Status bleibt
+einsehbar, während die bestehenden Frist- und Statusprüfungen jede Mutation
+innerhalb der Transaktion begrenzen. Es ist keine zusätzliche Migration nötig.
+Der Token steht ausschließlich im URL-Fragment und wird per Server Action
+übermittelt. Die Seite verwendet No-Store-, No-Referrer-, Noindex- und
+Frame-Deny-Header. Ticket-APIs geben weder Verwaltungslink noch Buchungszugriff aus.
+
+Die öffentliche Ticketseite erklärt die Stornierung und verweist auf die
+ursprüngliche Bestätigung. Ein einzelner weitergeleiteter Ticketlink berechtigt
+nicht zum Stornieren. Für bereits versendete Bestätigungen ohne Verwaltungslink
+kann die Company über „Tickets erneut senden“ eine neue Mail beauftragen.
+Die bestehende Kontoverwaltung und Company-Genehmigung bleiben verfügbar;
+Gastanfragen verwenden dieselbe Transaktion, Deduplizierung und Erstattungslogik.
+
 ## Konfiguration und Migration
 
 Migration: `prisma/migrations/20261027120000_cancellation_requests/migration.sql`.

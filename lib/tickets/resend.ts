@@ -9,6 +9,7 @@ import { decryptTicketCode, TicketCodeError } from "./code-encryption";
 import { ticketLink } from "./public-link";
 import { ticketMailUnavailable, usableTicketWhere } from "./mail-policy";
 import { deliverTicketMail } from "./outbox";
+import { bookingManagementLink } from "@/lib/bookings/management-token";
 
 export type TicketMailState = { success?: boolean; message?: string };
 type Access = { ticketId: string } | { bookingId: string; eventId: string; companySlug: string };
@@ -54,6 +55,7 @@ async function queueResend(access: Access, requestId: string): Promise<TicketMai
           const encryptedMessage = encryptPaymentMail({ to: booking.customerEmail!, ...bookingConfirmation({
             customerName: booking.customerName ?? "", bookingNumber: booking.number, eventName: booking.event.name,
             beginsAt: booking.event.beginsAt, quantity: ticketLinks.length, ticketLinks,
+            managementLink: bookingManagementLink(booking),
           }) });
           const job = await tx.ticketMail.create({ data: { requestKey, bookingId: booking.id, requestedById: actorId, encryptedMessage }, select: { id: true } });
           return { created: true, bookingId: booking.id, jobId: job.id, sent: false };

@@ -55,6 +55,7 @@ it("confirms paid bookings and persists encrypted ticket mail atomically", async
   expect(encrypted).not.toContain("ada@example.com");
   const mail = decryptPaymentMail(encrypted);
   expect(mail.text).toContain("https://events.example.com/tickets#");
+  expect(mail.text).toContain("https://events.example.com/booking/manage#");
   expect(mail.to).toBe("ada@example.com");
   for (const ticket of tickets) {
     const code = decryptTicketCode(ticket.encryptedPublicToken, ticket.publicTokenHash);

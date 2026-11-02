@@ -77,6 +77,7 @@ it("selects only valid unused tickets, fixes the recipient and preserves codes a
   expect(decryptPaymentMail(db.ticketMail.create.mock.calls[1][0].data.encryptedMessage)).toEqual(first);
   for (const ticket of record.tickets) expect(first.text).toContain(`/tickets#${ticket.token}`);
   expect(first.text).toContain("Anzahl Plätze: 2");
+  expect(first.text).toContain("https://events.example.com/booking/manage#");
   expect(db.ticketMail.create.mock.calls[0][0].data.requestKey).not.toBe(db.ticketMail.create.mock.calls[1][0].data.requestKey);
 });
 it("deduplicates identical requests even for sent/locked jobs without rate consumption or resets", async () => {

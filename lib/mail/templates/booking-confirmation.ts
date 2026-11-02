@@ -5,6 +5,7 @@ export type BookingConfirmation = {
   beginsAt: Date | null;
   quantity: number;
   ticketLinks?: string[];
+  managementLink?: string;
 };
 
 function escapeHtml(value: string) {
@@ -33,6 +34,7 @@ Wir freuen uns auf dich!
 Dein Event-Management-Team`;
   const links = data.ticketLinks ?? [];
   const ticketText = links.length ? "\n\nDeine Tickets (ein Link pro Platz):\n" + links.map((url, index) => `Ticket ${index + 1}: ${url}`).join("\n") + "\nBitte behandle diese Links vertraulich." : "";
+  const managementText = data.managementLink ? `\n\nBuchung verwalten / stornieren:\n${data.managementLink}\nDieser Link funktioniert ohne Anmeldung und gilt für die gesamte Buchung mit allen Tickets. Gib beim Weiterleiten einzelner Tickets nur den jeweiligen Ticketlink weiter, nicht diesen Verwaltungslink.` : "";
   // HTML layout: greeting, booking details, closing, individual ticket buttons.
   const html = `
     <div style="font-family:Arial,sans-serif;line-height:1.6;color:#18181b;max-width:600px;margin:auto">
@@ -69,7 +71,13 @@ Dein Event-Management-Team`;
         `).join("")}
         <p>Bitte behandle diese Links vertraulich.</p>
       ` : ""}
+      ${data.managementLink ? `
+        <h2>Buchung verwalten / stornieren</h2>
+        <p><a href="${escapeHtml(data.managementLink)}">Buchung verwalten / stornieren</a></p>
+        <p>Hier kannst du ohne Anmeldung die gesamte Buchung mit allen Tickets gemäß den Stornierungsbedingungen stornieren oder eine Stornierung anfragen.</p>
+        <p>Gib beim Weiterleiten einzelner Tickets nur den jeweiligen Ticketlink weiter, nicht diesen Verwaltungslink.</p>
+      ` : ""}
     </div>
   `;
-  return { subject, text: text + ticketText, html };
+  return { subject, text: text + ticketText + managementText, html };
 }

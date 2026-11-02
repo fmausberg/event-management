@@ -4,6 +4,7 @@ import { createTicketToken } from "@/lib/tickets/public-token";
 import { ticketLink } from "@/lib/tickets/public-link";
 import { bookingConfirmation } from "@/lib/mail/templates/booking-confirmation";
 import { enqueueInitialTicketMail } from "@/lib/tickets/outbox";
+import { bookingManagementLink } from "./management-token";
 
 /** Only call on the atomic transition to CONFIRMED, never on an already confirmed replay. */
 export async function issueBookingTickets(tx: Prisma.TransactionClient, booking: {
@@ -17,5 +18,6 @@ export async function issueBookingTickets(tx: Prisma.TransactionClient, booking:
   return enqueueInitialTicketMail(tx, booking.id, { to: booking.customerEmail, ...bookingConfirmation({
     customerName: booking.customerName, bookingNumber: booking.number, eventName: event.name,
     beginsAt: event.beginsAt, quantity: booking.quantity, ticketLinks: tokens.map(({ token }) => ticketLink(token)),
+    managementLink: bookingManagementLink(booking),
   }) }, paymentId);
 }

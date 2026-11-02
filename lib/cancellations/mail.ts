@@ -29,7 +29,7 @@ export async function queueCancellationMail(tx: Prisma.TransactionClient, reques
   if (!recipients.length) console.error("Cancellation notification has no recipient", { requestId, kind });
   for (const to of new Set(recipients)) {
     const id = createHash("sha256").update(`${requestId}:${kind}:${request.refundAttempt}:${to.toLowerCase()}`).digest("hex");
-    const message = { to, subject: `Stornierung – Buchung #${booking.number}`, text: `Hallo,\n\n${messages[kind]}\n\nBuchung: #${booking.number}\nEvent: ${booking.event.name}\nVeranstalter: ${booking.event.company.name}\n\nDen aktuellen Stand findest du in deinem Konto unter „Meine Buchungen“ bzw. in der Company-Verwaltung unter „Stornierungen“.\n\nDein Event-Management-Team` };
+    const message = { to, subject: `Stornierung – Buchung #${booking.number}`, text: `Hallo,\n\n${messages[kind]}\n\nBuchung: #${booking.number}\nEvent: ${booking.event.name}\nVeranstalter: ${booking.event.company.name}\n\nDen aktuellen Stand findest du über den Link „Buchung verwalten / stornieren“ aus deiner Buchungsbestätigung (ohne Anmeldung), in deinem Konto unter „Meine Buchungen“ oder in der Company-Verwaltung unter „Stornierungen“.\n\nDein Event-Management-Team` };
     await tx.cancellationMail.upsert({ where: { id }, create: { id, requestId, encryptedMessage: encryptPaymentMail(message) }, update: {} });
   }
 }

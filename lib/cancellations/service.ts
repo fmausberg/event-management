@@ -7,6 +7,7 @@ import { MemberAccessError } from "@/lib/companies/members";
 import { cancellationPolicy } from "./policy";
 import { cancellationTransaction } from "./transaction";
 import { queueCancellationMail } from "./mail";
+import { managementTokenMatchesBooking, readBookingManagementToken } from "@/lib/bookings/management-token";
 
 export class CancellationError extends Error {}
 const idSchema = z.string().min(1).max(191);
@@ -39,13 +40,32 @@ async function cancelBooking(tx: Prisma.TransactionClient, bookingId: string) {
 }
 
 export async function requestCancellation(bookingId: string, reason: string, expected: "free" | "request") {
+  const actor = await cancellationActor();
+  return createCancellationRequest(bookingId, reason, expected, async (tx, booking) => {
+    await authorizeCancellation(tx, actor, booking, false);
+    return actor;
+  });
+}
+
+export async function requestCancellationWithToken(token: string, reason: string, expected: "free" | "request") {
+  const payload = readBookingManagementToken(token);
+  if (!payload) throw new CancellationError("Der Verwaltungslink ist ungültig oder nicht mehr verfügbar.");
+  return createCancellationRequest(payload.bookingId, reason, expected, async (_tx, booking) => {
+    if (!managementTokenMatchesBooking(payload, booking)) throw new CancellationError("Der Verwaltungslink ist ungültig oder nicht mehr verfügbar.");
+    return null;
+  });
+}
+
+async function createCancellationRequest(bookingId: string, reason: string, expected: "free" | "request", authorize: (
+  tx: Prisma.TransactionClient, booking: { id: string; customerEmail: string | null; userId: string | null; event: { companyId: string } },
+) => Promise<string | null>) {
   idSchema.parse(bookingId);
   const customerReason = noteSchema.parse(reason);
-  const actor = await cancellationActor();
+  z.enum(["free", "request"]).parse(expected);
   return cancellationTransaction(async (tx) => {
     const booking = await tx.booking.findUnique({ where: { id: bookingId }, include: { ...voucherHistory, event: true, payment: true, cancellationRequests: { where: { status: { in: ["PENDING", "APPROVED"] } } } } });
     if (!booking) throw new MemberAccessError("NOT_FOUND");
-    await authorizeCancellation(tx, actor, booking, false);
+    const actor = await authorize(tx, booking);
     // Idempotent replay returns the durable request instead of issuing another refund.
     if (booking.cancellationRequests.length) return booking.cancellationRequests[0];
     const now = new Date();
