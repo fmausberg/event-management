@@ -76,7 +76,7 @@ describe("company CRUD", () => {
     expect(await getCompaniesForAdmin()).toEqual(rows);
     expect(db.company.findMany).toHaveBeenCalledWith({
       orderBy: [{ name: "asc" }, { id: "asc" }],
-      select: { id: true, number: true, name: true, slug: true,
+      select: { id: true, number: true, name: true, slug: true, stripeAccountId: true,
         _count: { select: { memberships: true, venues: true, eventSeries: true, events: true } },
       },
     });

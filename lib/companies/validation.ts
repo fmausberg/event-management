@@ -18,6 +18,7 @@ export type CompanyRow = {
   number: number;
   name: string;
   slug: string;
+  stripeAccountId: string | null;
   _count: { memberships: number; venues: number; eventSeries: number; events: number };
 };
 

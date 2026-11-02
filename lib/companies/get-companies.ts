@@ -7,7 +7,7 @@ export async function getCompaniesForAdmin() {
   return getPrisma().company.findMany({
     orderBy: [{ name: "asc" }, { id: "asc" }],
     select: {
-      id: true, number: true, name: true, slug: true,
+      id: true, number: true, name: true, slug: true, stripeAccountId: true,
       _count: { select: { memberships: true, venues: true, eventSeries: true, events: true } },
     },
   });
