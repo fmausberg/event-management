@@ -10,7 +10,7 @@ import { requestTrainerReminderNow } from "@/lib/trainers/reminders";
 export type TrainerReminderActionState = { success?: boolean; sent?: boolean; sentAt?: string | null; message?: string };
 function refresh(slug: string) {
  revalidatePath("/company/[companyKey]/event-series/[seriesId]", "page");
- revalidatePath("/account/events");
+ revalidatePath("/account/eventmanagement");
  revalidatePath("/account/bookings");
  revalidatePath("/account");
  revalidatePath(`/company/${encodeURIComponent(slug)}/trainers`);

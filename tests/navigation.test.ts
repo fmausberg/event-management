@@ -27,7 +27,7 @@ describe("navigation visibility", () => {
   it("always links public events and uses company slugs for active memberships", () => {
     const result = buildNavigation(user);
     expect(result.groups.map((group) => group.label)).toEqual(["Allgemein", "Company A", "Company B"]);
-    expect(result.groups[0].items.map((item) => item.href)).toEqual(["/events", "/account/bookings", "/account/events"]);
+    expect(result.groups[0].items.map((item) => item.href)).toEqual(["/events", "/account/bookings", "/account/eventmanagement"]);
     expect(result.groups[1].items.map((item) => item.href)).toEqual([
       "/company/slug-company-a/event-series", "/company/slug-company-a/events", "/company/slug-company-a/venues", "/company/slug-company-a/trainers", "/company/slug-company-a/cancellations",
       "/company/slug-company-a/vouchers",

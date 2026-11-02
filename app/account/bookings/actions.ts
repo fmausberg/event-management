@@ -27,7 +27,7 @@ export async function cancellationAction(_previous: CancellationState, form: For
     console.error("Cancellation action failed");
     return { message: "Der Vorgang konnte nicht abgeschlossen werden. Lade die Seite neu und prüfe den gespeicherten Status, bevor du es erneut versuchst." };
   }
-  for (const path of ["/account", "/account/bookings", "/account/events", "/events"]) revalidatePath(path);
+  for (const path of ["/account", "/account/bookings", "/account/eventmanagement", "/events"]) revalidatePath(path);
   revalidatePath("/company/[companyKey]", "layout");
   revalidatePath("/events/[companySlug]/[eventId]", "page");
   let mailFailed = false;

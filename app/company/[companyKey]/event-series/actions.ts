@@ -12,7 +12,7 @@ import { uploadEventImage, deleteEventImage, EventImageError, type UploadedEvent
 
 function refresh(slug: string) {
  revalidatePath("/events/[companySlug]/[eventId]", "page");
-  for (const path of ["/events", `/events/${encodeURIComponent(slug)}`, "/account/events", "/account/bookings", "/account", "/admin/events"]) revalidatePath(path);
+  for (const path of ["/events", `/events/${encodeURIComponent(slug)}`, "/account/eventmanagement", "/account/bookings", "/account", "/admin/events"]) revalidatePath(path);
  revalidatePath("/company/[companyKey]/event-series/[seriesId]", "page");
   revalidatePath(`/company/${encodeURIComponent(slug)}/trainers`);
   revalidatePath(`/company/${encodeURIComponent(slug)}/events`);

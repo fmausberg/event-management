@@ -18,7 +18,7 @@ export async function getMyEvents() {
       { venue: { staff: { some: ownStaff } } },
       { trainers: { some: ownTrainer } },
     ] },
-    orderBy: [{ beginsAt: "desc" }, { id: "asc" }],
+    orderBy: [{ beginsAt: { sort: "asc", nulls: "last" } }, { id: "asc" }],
     select: {
       id: true, name: true, beginsAt: true, endsAt: true, status: true,
       company: { select: { name: true, slug: true } },

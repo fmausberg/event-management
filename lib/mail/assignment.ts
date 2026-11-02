@@ -47,7 +47,7 @@ export async function notifyAssignment(kind: AssignmentKind, slug: string, id: s
       accountStatus: !recipient ? "missing" : recipient.emailVerified ? "verified" : "unverified",
       eventUrl: eventId ? `${origin}/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}/tickets` : undefined,
       registrationUrl: `${origin}/register`, verificationUrl: `${origin}/verify-email`,
-      myEventsUrl: kind === "venue" ? `${origin}/account/events` : undefined,
+      myEventsUrl: kind === "venue" ? `${origin}/account/eventmanagement` : undefined,
     }) });
     return { success: true, message: "Benachrichtigung wurde gesendet." };
   } catch {

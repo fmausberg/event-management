@@ -13,7 +13,7 @@
 | `/tickets#<code>` | Öffentliches Ticket über geheimen Fragment-Link |
 | `/account` | Kontoübersicht |
 | `/account/bookings` | Eigene Buchungen und Stornierungsaktionen |
-| `/account/events` | Persönliche Eventübersicht |
+| `/account/eventmanagement` | Persönliche Eventübersicht |
 | `/account/tickets/[ticketId]` | Eigenes Ticket nach Eigentumsprüfung |
 | `/account/scan` | Tickets prüfen und bei Berechtigung einlösen |
 

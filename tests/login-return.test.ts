@@ -11,15 +11,15 @@ it("preserves internal paths and query parameters", () => {
   expect(safeReturnTo("/company/yoga/events/event-1/tickets?q=123")).toBe("/company/yoga/events/event-1/tickets?q=123");
 });
 it("remembers the protected page before redirecting a guest to login", async () => {
-  const request = new NextRequest("https://events.example/account/events?filter=trainer");
+  const request = new NextRequest("https://events.example/account/eventmanagement?filter=trainer");
   Object.assign(request, { auth: null });
   const response = await (proxy as unknown as (request: NextRequest) => Promise<Response>)(request);
   const target = new URL(response.headers.get("location")!);
   expect(target.pathname).toBe("/login");
-  expect(target.searchParams.get("returnTo")).toBe("/account/events?filter=trainer");
+  expect(target.searchParams.get("returnTo")).toBe("/account/eventmanagement?filter=trainer");
 });
 it("leaves authenticated page access to the existing authorization checks", async () => {
-  const request = new NextRequest("https://events.example/account/events");
+  const request = new NextRequest("https://events.example/account/eventmanagement");
   Object.assign(request, { auth: { user: { id: "user-1" } } });
   const response = await (proxy as unknown as (request: NextRequest) => Promise<Response>)(request);
   expect(response.headers.get("location")).toBeNull();
