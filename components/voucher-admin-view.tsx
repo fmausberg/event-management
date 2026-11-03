@@ -5,6 +5,7 @@ import type { VoucherAdministration } from "@/lib/vouchers/admin-data";
 import { formatBerlinDateTime } from "@/lib/events/berlin-date-time";
 import { VoucherCodesTable, VoucherStatusForm } from "./voucher-admin-forms";
 import { VoucherCampaignsTable } from "./voucher-campaigns-table";
+import { PageBreadcrumb } from "./page-breadcrumb";
 
 const money = (n: number) => `${(n / 100).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} EUR`;
 const date = (d: Date | null) => d ? new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" }).format(d) : "Unbegrenzt";
@@ -35,6 +36,7 @@ export function VoucherAdministrationView({ data, detail = false }: { data: Vouc
   if (!detail) return <VoucherCampaignsTable data={data} start={formatBerlinDateTime(new Date())} />;
   if (!row || !c) return <main className="min-w-0 flex-1 p-6 sm:p-10"><h1 className="text-2xl font-semibold">Kampagne nicht gefunden</h1></main>;
   return <main className="min-w-0 flex-1 space-y-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
+    <PageBreadcrumb label={`Kampagne ${c.name}`} />
     <header><h1 className="text-2xl font-semibold">{c.name}</h1>
       <p className="mt-2 text-sm text-zinc-500">Ein Code pro Buchung · explizite Ziele · alle Zeitangaben in Europe/Berlin</p>
       <Link className="mt-2 inline-block underline" href={base}>Zur Kampagnenübersicht</Link>
