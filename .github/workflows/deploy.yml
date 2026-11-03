@@ -68,4 +68,24 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
           ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
-            "cd '$DEPLOY_PATH' && git pull --ff-only origin main && IMAGE_TAG='$IMAGE_TAG' docker compose --env-file /opt/docker/event-management/.env.docker -f compose.yaml -f compose.traefik.yaml -p event-management pull app migrate && IMAGE_TAG='$IMAGE_TAG' docker compose --env-file /opt/docker/event-management/.env.docker -f compose.yaml -f compose.traefik.yaml -p event-management up -d --no-build"
+            "cd '$DEPLOY_PATH' && git pull --ff-only origin main && IMAGE_TAG='$IMAGE_TAG' docker compose --env-file /opt/docker/event-management/.env.docker -f compose.yaml -f compose.traefik.yaml -p event-management pull app migrate && IMAGE_TAG='$IMAGE_TAG' docker compose --env-file /opt/docker/event-management/.env.docker -f compose.yaml -f compose.traefik.yaml -p event-management up -d --no-build && IMAGE_TAG='$IMAGE_TAG' bash -s" <<'REMOTE'
+          set -euo pipefail
+          used_ids="$(docker ps -aq | xargs -r docker inspect --format '{{.Image}}' | sort -u)"
+
+          for repo in \
+            ghcr.io/fmausberg/event-management-app \
+            ghcr.io/fmausberg/event-management-migrate \
+            event-management-app \
+            event-management-migrate
+          do
+            docker image ls "$repo" --format '{{.ID}} {{.Repository}}:{{.Tag}}' |
+            while read -r image_id image_ref; do
+              [ -n "$image_id" ] || continue
+              [ "$image_ref" = "$repo:$IMAGE_TAG" ] && continue
+              if grep -Fxq "$image_id" <<<"$used_ids"; then
+                continue
+              fi
+              docker image rm "$image_ref"
+            done
+          done
+          REMOTE
