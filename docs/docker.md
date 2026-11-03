@@ -31,6 +31,8 @@ Die Platzhalter in den Env-Beispielen sind absichtlich keine gültigen Schlüsse
 SMTP für Verifizierung/Tickets und bei Bedarf Stripe/Cloudinary konfigurieren.
 `PAYMENTS_CRON_SECRET` wird für den regelmäßig aufzurufenden Abgleich benötigt.
 
+Für einen lokalen Start aus dem Quellcode:
+
 ```sh
 docker compose --env-file .env.docker up -d --build
 docker compose --env-file .env.docker ps -a
@@ -129,20 +131,47 @@ Es erwartet einen vorhandenen Traefik mit EntryPoints `web` und `websecure`
 sowie dem Zertifikatsresolver `myresolver`. Die Host-Regel enthält
 `events.mausberg.net`; für eine andere Domain Labels und AUTH_URL anpassen.
 
+`.github/workflows/deploy.yml` reagiert auf Pushes nach `main` und kann auch
+manuell gestartet werden. GitHub Actions baut zwei Images: das App-Image und
+das Prisma-Migrationsimage. Beide werden mit dem Commit-SHA als Tag in GHCR
+veröffentlicht. Anschließend verbindet sich der Workflow per SSH mit dem Server,
+holt den aktuellen Compose-Stand und lässt Compose die Images ziehen und starten.
+Der Produktionsserver führt dabei keinen Docker-Build aus.
+
+Der Workflow verwendet das Secret `DEPLOY_SSH_KEY` und die Repository-Variablen
+`DEPLOY_HOST`, `DEPLOY_USER` und `DEPLOY_PATH`. Der Env-Dateipfad ist fest auf
+`/opt/docker/event-management/.env.docker` gesetzt. In GitHub Actions muss
+`GITHUB_TOKEN` die Berechtigung `packages: write` haben; das ist im Workflow
+bereits gesetzt. Keine Produktiv-Secrets als Build-Argumente oder Image-Inhalt
+hinterlegen.
+
+### Einmalige GHCR-Anmeldung auf dem Server
+
+GHCR-Pakete sind beim ersten Veröffentlichen standardmäßig privat. Wenn die
+Images privat bleiben, muss sich derselbe Linux-Benutzer, der Docker und den
+Deploy-Workflow ausführt, einmal auf dem Server anmelden. Erzeuge dafür auf
+GitHub ein **Personal Access Token (classic)** mit ausschließlich
+`read:packages`. Führe auf dem Server als Deploy-Benutzer aus:
+
 ```sh
-docker compose --env-file .env.docker -f compose.yaml -f compose.traefik.yaml -p event-management up -d --build
+read -rsp "GitHub read:packages token: " GHCR_TOKEN
+printf '\n'
+printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username fmausberg --password-stdin
+unset GHCR_TOKEN
 ```
 
-Bei diesem Aufbau dieselben `--env-file`-, `-f`- und `-p`-Optionen auch bei
-den übrigen Compose-Befehlen verwenden.
+Docker speichert die Anmeldung in der Benutzerkonfiguration. Bei einem Root-Deploy
+liegt sie unter `/root/.docker/config.json`; das Token nicht in GitHub-Workflow-
+Dateien oder in die Compose-Datei schreiben. Alternativ können die GHCR-Pakete
+öffentlich gestellt werden; dann ist für den Image-Pull keine Anmeldung nötig.
+Da dieses Repository öffentlich ist, würde das Image in diesem Fall ebenfalls
+öffentlich abrufbar sein.
 
-`.github/workflows/deploy.yml` reagiert auf Pushes nach main. Der Workflow
-verbindet sich per SSH, führt `git pull --ff-only origin main` aus und startet
-Compose mit beiden Dateien. Er verwendet das Secret DEPLOY_SSH_KEY und die
-Repository-Variablen DEPLOY_HOST, DEPLOY_USER und DEPLOY_PATH. Der Env-Dateipfad
-ist dort fest auf `/opt/docker/event-management/.env.docker` gesetzt.
-Der Workflow enthält keine automatischen Tests oder Backup-Schritte;
-[Prüfungen](testing.md) vor einer Freigabe gesondert ausführen.
+Nach dem Merge kontrolliere in GitHub unter **Actions**, dass der Lauf für
+`main` erfolgreich abgeschlossen wurde. Bei einem Fehler auf dem Server zuerst
+`docker compose ... logs --tail=100 migrate app` ansehen. Der Workflow enthält
+keine automatischen Tests oder Backup-Schritte; [Prüfungen](testing.md) vor einer
+Freigabe gesondert ausführen.
 
 Der Compose-Migrationsservice wendet ausstehende Migrationen vor dem App-Start an.
 Für Änderungen, die einen koordinierten Stopp benötigen, gelten zusätzlich die

@@ -16,6 +16,7 @@ services:
       retries: 20
 
   migrate:
+    image: ghcr.io/fmausberg/event-management-migrate:${IMAGE_TAG:-latest}
     build:
       context: .
       target: migrate
@@ -27,6 +28,7 @@ services:
     restart: "no"
 
   app:
+    image: ghcr.io/fmausberg/event-management-app:${IMAGE_TAG:-latest}
     build:
       context: .
       target: runner
