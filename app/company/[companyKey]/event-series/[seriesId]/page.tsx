@@ -39,7 +39,6 @@ export default async function CompanyEventSeriesDetailPage({ params }: {
   ];
   return <EventsTable {...result} defaultSeriesId={series.id} seriesDetails={<>
     <PageBreadcrumb label={series.name} />
-    <Link href={`/company/${encodeURIComponent(result.company.slug)}/event-series`} className="self-start text-sm text-primary-700 underline dark:text-primary-300">← Zurück zu den Eventserien</Link>
     <section aria-labelledby="series-title" className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
       <h1 id="series-title" className="text-2xl font-semibold">{series.name}</h1>
       <p className="mt-1 text-sm text-zinc-500">{result.company.name}</p>
