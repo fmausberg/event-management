@@ -26,7 +26,7 @@ export async function AuthPage({ mode, error, registered, returnTo }: {
       <section className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-6 sm:p-8 dark:border-zinc-800 dark:bg-zinc-950">
         <Link href="/" className="text-sm text-zinc-600 hover:underline dark:text-zinc-400">← Startseite</Link>
         <h1 className="mt-6 text-2xl font-semibold">{registering ? "Konto erstellen" : "Willkommen zurück"}</h1>
-        <p className="mb-6 mt-2 text-sm text-zinc-600 dark:text-zinc-400">{registering ? "Registriere dich für die Eventverwaltung." : "Melde dich bei der Eventverwaltung an."}</p>
+        <p className="mb-6 mt-2 text-sm text-zinc-600 dark:text-zinc-400">{registering ? "Registriere dich für die Veranstaltungsverwaltung." : "Melde dich bei der Veranstaltungsverwaltung an."}</p>
         {error && <p role="alert" className="mb-5 text-sm text-red-700 dark:text-red-400">{errorMessage}</p>}
         {registered && <p role="status" className="mb-5 text-sm text-green-700 dark:text-green-400">Dein Konto wurde erstellt. Bitte bestätige deine E-Mail-Adresse, bevor du dich anmeldest.</p>}
         <AuthForm mode={mode} returnTo={destination} />

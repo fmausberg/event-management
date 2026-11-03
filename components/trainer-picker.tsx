@@ -44,7 +44,7 @@ export function TrainerPicker({ slug, trainers, value, onChange, name, multiple,
     {editing ? <div className="space-y-2 rounded-lg border border-zinc-300 p-3">
       <p className="text-sm font-medium">Neuen Trainer anlegen</p>
       {(["firstName", "lastName", "email"] as const).map((key) => <div key={key}><label htmlFor={`${id}-${key}`} className="text-sm">{key === "firstName" ? "Vorname" : key === "lastName" ? "Nachname" : "E-Mail-Adresse"}</label><input id={`${id}-${key}`} type={key === "email" ? "email" : "text"} maxLength={key === "email" ? 254 : 160} className={input} value={draft[key]} disabled={busy} aria-invalid={!!state.errors?.[key]} onChange={(e) => setDraft({ ...draft, [key]: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); if (!busy) void create(); } }} />{state.errors?.[key] && <p className="text-xs text-red-700">{state.errors[key]?.join(" ")}</p>}</div>)}
-      <p className="text-xs text-zinc-500">Der Trainer wird sofort für die Company angelegt, auch wenn du das Eventformular später abbrichst.</p>
+      <p className="text-xs text-zinc-500">Der Trainer wird sofort für die Company angelegt, auch wenn du die Veranstaltungsformular später abbrichst.</p>
       <div className="flex gap-3 text-sm"><button type="button" disabled={busy} onClick={() => void create()} className="underline">{busy ? "Wird angelegt …" : "Anlegen und auswählen"}</button><button type="button" disabled={busy} onClick={() => setEditing(false)} className="underline">Abbrechen</button></div>
     </div> : <button type="button" onClick={() => { setEditing(true); setState({}); }} className="text-sm underline">+ Neuen Trainer anlegen</button>}
     {state.message && <p role="status" className="text-sm">{state.message}</p>}

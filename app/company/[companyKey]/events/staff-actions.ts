@@ -15,7 +15,7 @@ async function access(slug: string, eventId: string) {
 function failure(error: unknown) {
  if (error instanceof MemberAccessError) return error.message;
  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return "Diese E-Mail-Adresse ist bereits zugeordnet.";
- return "EventStaff konnte nicht geladen oder gespeichert werden. Bitte versuche es erneut.";
+ return "Veranstaltungsteam konnte nicht geladen oder gespeichert werden. Bitte versuche es erneut.";
 }
 export async function listEventStaff(slug: string, eventId: string) {
  try {

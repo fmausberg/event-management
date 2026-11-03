@@ -18,8 +18,8 @@ function Targets({ row, data }: { row: VoucherAdministration["rows"][number]; da
   const names = [
     ...c.companyTargets.map(t => `Company: ${data.options.companies.find(o => o.id === t.companyId)?.name ?? t.companyId}`),
     ...c.eventSeriesTargets.map(t => `Reihe: ${data.options.series.find(o => o.id === t.eventSeriesId)?.name ?? t.eventSeriesId}`),
-    ...c.eventTargets.map(t => `Event: ${data.options.events.find(o => o.id === t.eventId)?.name ?? t.eventId}`),
-    ...c.venueTargets.map(t => `Venue: ${data.options.venues.find(o => o.id === t.venueId)?.name ?? t.venueId}`),
+    ...c.eventTargets.map(t => `Veranstaltung: ${data.options.events.find(o => o.id === t.eventId)?.name ?? t.eventId}`),
+    ...c.venueTargets.map(t => `Ort: ${data.options.venues.find(o => o.id === t.venueId)?.name ?? t.venueId}`),
   ];
   return <p className="text-sm text-zinc-500">{names.length ? names.join(" · ODER · ") : "Keine Ziele – nirgendwo gültig"}</p>;
 }

@@ -45,7 +45,7 @@ it.each(["draft", "publish"])("creates the entire %s batch with the form values 
   db.$transaction.mockImplementation(async fn => { inTransaction = true; try { return await fn(db); } finally { inTransaction = false; } });
   db.event.create.mockImplementation(async () => { expect(inTransaction).toBe(true); return { id: "created" }; });
   const result = await saveEvent("studio", null, {}, form(intent));
-  expect(result).toMatchObject({ success: true, message: expect.stringContaining("2 Events") });
+  expect(result).toMatchObject({ success: true, message: expect.stringContaining("2 Veranstaltungen") });
   expect(db.event.create).toHaveBeenCalledTimes(2);
   const rows = db.event.create.mock.calls.map(([args]) => args.data);
   expect(rows[0]).toMatchObject({ name: "Workshop", status: intent === "publish" ? "PUBLISHED" : "DRAFT", companyId: "company", createdById: "actor", eventSeriesId: "series", venueId: "venue", ticketPrice: "19.50", maxSeats: 20, freeCancellationUntilMinutesBeforeStart: 1440, imageUrl: "https://example.com/series.jpg", trainers: { create: [{ trainerId: "trainer" }] } });

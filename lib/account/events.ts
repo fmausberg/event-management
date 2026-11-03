@@ -31,8 +31,8 @@ export async function getMyEvents() {
     ...event,
     venueName: venue?.name ?? null,
     roles: [
-      ...(staff.length ? ["Event-Staff"] : []),
-      ...(venue?.staff.length ? ["Venue-Staff"] : []),
+      ...(staff.length ? ["Veranstaltungsteam"] : []),
+      ...(venue?.staff.length ? ["Ortsteam"] : []),
       ...(trainers.length ? ["Trainer"] : []),
     ],
   }));

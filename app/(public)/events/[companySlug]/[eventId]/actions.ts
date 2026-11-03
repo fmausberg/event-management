@@ -40,7 +40,7 @@ export async function previewPublicVoucher(slug: string, eventId: string, form: 
   try {
     if (!await consumeAuthAttempt(parsed.data.email, "voucher-quote")) return { message: "Zu viele Gutscheinprüfungen. Bitte versuche es in 15 Minuten erneut." };
     const event = await getPrisma().event.findFirst({ where: { id: eventId, company: { slug }, status: "PUBLISHED" }, select: { id: true } });
-    if (!event) return { message: "Dieses Event ist nicht buchbar." };
+    if (!event) return { message: "Diese Veranstaltung ist nicht buchbar." };
     const result = await quoteVoucher({ eventId, ...parsed.data });
     return result.ok ? { price: result.value } : { message: result.error.message };
   } catch { return { message: "Die Gutscheinprüfung ist derzeit nicht verfügbar." }; }
@@ -68,7 +68,7 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
             id: true, companyId: true, name: true, status: true, beginsAt: true, maxSeats: true, ticketPrice: true, currency: true,
             company: { select: { stripeAccountId: true, stripeChargesEnabled: true, stripePayoutsEnabled: true } },
           } });
-          if (!event) throw new BookingError("Dieses Event ist nicht buchbar.");
+          if (!event) throw new BookingError("Diese Veranstaltung ist nicht buchbar.");
           const existing = await tx.booking.findUnique({ where: { id: token.id }, include: {
             payment: true, price: true, voucherRedemption: true, voucherBalanceUses: true,
           } });
@@ -86,7 +86,7 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
             if (existing.status === "CONFIRMED") return { success: true, number: existing.number, message: "Deine Buchung wurde bestätigt." };
             throw new BookingError("Diese Buchung ist abgelaufen oder storniert. Bitte lade die Seite neu.");
           }
-          if (!event.beginsAt || event.ticketPrice === null || event.maxSeats === null || event.status !== "PUBLISHED" || event.beginsAt <= new Date()) throw new BookingError("Dieses Event ist nicht mehr buchbar.");
+          if (!event.beginsAt || event.ticketPrice === null || event.maxSeats === null || event.status !== "PUBLISHED" || event.beginsAt <= new Date()) throw new BookingError("Diese Veranstaltung ist nicht mehr buchbar.");
           if (event.ticketPrice.toFixed(2) !== token.price || event.currency !== token.currency) throw new VoucherError("PRICE_CHANGED");
           const reserved = await tx.booking.aggregate({ where: { eventId, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } }, _sum: { quantity: true } });
           if ((reserved._sum.quantity ?? 0) + parsed.data.quantity > event.maxSeats) throw new BookingError("Es sind nicht mehr genügend Plätze frei. Bitte wähle weniger Plätze oder lade die Seite neu.");

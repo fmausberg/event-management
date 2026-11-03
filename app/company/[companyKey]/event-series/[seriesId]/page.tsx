@@ -31,11 +31,11 @@ export default async function CompanyEventSeriesDetailPage({ params }: {
     ["Nummer", series.number],
     ["Stornofrist (Vorgabe)", cancellationPolicyText(series.suggestedFreeCancellationUntilMinutesBeforeStart)],
     ["Dauer (Vorgabe)", series.suggestedDuration ? `${series.suggestedDuration} Minuten` : "—"],
-    ["Venue (Vorgabe)", result.venues.find((row) => row.id === series.suggestedVenueId)?.name ?? "—"],
+    ["Ort (Vorgabe)", result.venues.find((row) => row.id === series.suggestedVenueId)?.name ?? "—"],
     ["Trainer (Vorgabe)", trainer ? `${trainer.firstName} ${trainer.lastName}` : series.suggestedTrainerName ?? "—"],
     ["Teilnehmerzahl (Vorgabe)", series.suggestedMaxSeats ?? "—"],
     ["Ticketpreis (Vorgabe)", series.suggestedTicketPrice === null ? "—" : `${series.suggestedTicketPrice.replace(".", ",")} ${series.suggestedCurrency}`],
-    ["Events", result.events.length],
+    ["Veranstaltungen", result.events.length],
   ];
   return <EventsTable {...result} defaultSeriesId={series.id} seriesDetails={<>
     <PageBreadcrumb label={series.name} />

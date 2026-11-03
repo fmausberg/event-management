@@ -6,7 +6,7 @@ export class EventMutationError extends Error {}
 
 function assertEventId(id: string) {
   if (typeof id !== "string" || !id.trim()) {
-    throw new EventMutationError("Eine gültige Event-ID ist erforderlich.");
+    throw new EventMutationError("Eine gültige Veranstaltungs-ID ist erforderlich.");
   }
 }
 
@@ -27,16 +27,16 @@ export async function removeEvent(id: string) {
   if (result.count === 0) {
     const event = await prisma.event.findUnique({ where: { id }, select: { id: true } });
     throw new EventMutationError(event
-      ? "Dieses Event kann nicht gelöscht werden, da Buchungen oder Plattformzuordnungen vorhanden sind."
-      : "Dieses Event existiert nicht mehr.");
+      ? "Diese Veranstaltung kann nicht gelöscht werden, da Buchungen oder Plattformzuordnungen vorhanden sind."
+      : "Diese Veranstaltung existiert nicht mehr.");
   }
 }
 
 export function eventMutationErrorMessage(error: unknown): string {
   if (error instanceof EventMutationError) return error.message;
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
-    if (error.code === "P2025") return "Dieses Event existiert nicht mehr.";
-    if (error.code === "P2003") return "Dieses Event kann nicht gelöscht werden, da Buchungen oder Plattformzuordnungen vorhanden sind.";
+    if (error.code === "P2025") return "Diese Veranstaltung existiert nicht mehr.";
+    if (error.code === "P2003") return "Diese Veranstaltung kann nicht gelöscht werden, da Buchungen oder Plattformzuordnungen vorhanden sind.";
   }
   return "Die Änderung konnte nicht gespeichert werden. Bitte versuche es erneut.";
 }

@@ -32,7 +32,7 @@ export async function getGuestBooking(token: string): Promise<GuestBooking | nul
   const latest = active ?? booking.cancellationRequests[0];
   const unavailableReason = booking.status === "CANCELLED" ? "Diese Buchung und alle zugehörigen Tickets sind storniert."
     : active ? "Für diese Buchung liegt bereits eine Stornierung oder Stornierungsanfrage vor."
-    : policy.started ? "Das Event hat bereits begonnen. Eine Stornierung ist nicht mehr möglich."
+    : policy.started ? "Die Veranstaltung hat bereits begonnen. Eine Stornierung ist nicht mehr möglich."
     : booking.status !== "CONFIRMED" || booking.payment && booking.payment.status !== "PAID" ? "Diese Buchung kann derzeit nicht storniert werden. Bitte wende dich an den Veranstalter."
     : null;
   return {

@@ -48,19 +48,19 @@ export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
         <caption className="sr-only">Companies mit verknüpften Datensätzen und Verwaltungsaktionen</caption>
         <thead className="bg-zinc-50 text-xs text-zinc-500 dark:bg-zinc-900">
           <tr>
-            {["Nr.", "Company", "Stripe Account-ID", "Mitglieder", "Venues", "Veranstaltungsreihen", "Events", "Aktionen"].map((label) => <th key={label} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{label}</th>)}
+            {["Nr.", "Company", "Stripe Account-ID", "Mitglieder", "Orte", "Veranstaltungsreihen", "Veranstaltungen", "Aktionen"].map((label) => <th key={label} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{label}</th>)}
           </tr>
         </thead>
         <tbody>{visible.map((company) => <tr key={company.id} className="border-t border-zinc-100 align-top dark:border-zinc-800">
           <td className="px-4 py-4 text-zinc-500">{company.number}</td>
           <th scope="row" className="min-w-48 px-4 py-4 font-medium"><span className="block">{company.name}</span><Link href={`/events/${encodeURIComponent(company.slug)}`} className="mt-1 block text-xs font-normal text-primary-700 hover:underline dark:text-primary-300">{company.slug}</Link></th>
           <td className="whitespace-nowrap px-4 py-4 font-mono text-xs">{company.stripeAccountId ?? <span className="font-sans text-zinc-500">Nicht verbunden</span>}</td>
-          <td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/members`} aria-label={`Mitglieder von ${company.name} verwalten`} className="text-primary-700 underline dark:text-primary-300">{company._count.memberships}</Link></td><td className="px-4 py-4">{company._count.venues}</td><td className="px-4 py-4">{company._count.eventSeries}</td><td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/events`} className="text-primary-700 underline dark:text-primary-300" aria-label={`Events von ${company.name} verwalten`}>{company._count.events}</Link></td>
+          <td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/members`} aria-label={`Mitglieder von ${company.name} verwalten`} className="text-primary-700 underline dark:text-primary-300">{company._count.memberships}</Link></td><td className="px-4 py-4">{company._count.venues}</td><td className="px-4 py-4">{company._count.eventSeries}</td><td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(company.slug)}/events`} className="text-primary-700 underline dark:text-primary-300" aria-label={`Veranstaltungen von ${company.name} verwalten`}>{company._count.events}</Link></td>
           <td className="px-4 py-4"><div className="flex flex-wrap gap-x-4 gap-y-2"><button type="button" disabled={editor !== null} aria-label={`${company.name} bearbeiten`} onClick={() => { setMessage(""); setEditor({ company }); }} className="text-primary-700 underline disabled:opacity-40 dark:text-primary-300">Bearbeiten</button><DeleteCompany company={company} onDeleted={setMessage} disabled={editor !== null} /></div></td>
         </tr>)}</tbody>
       </table></div>
       {visible.length === 0 && <p className="p-8 text-center text-sm text-zinc-500">{companies.length === 0 ? "Noch keine Companies vorhanden. Erstelle die erste Company über den Button oben." : "Keine Companies zu deiner Suche gefunden."}</p>}
     </div>
-    <p className="text-xs text-zinc-500">Löschen ist nur möglich, wenn keine Mitglieder, Venues, Veranstaltungsreihen oder Events mehr zugeordnet sind.</p>
+    <p className="text-xs text-zinc-500">Löschen ist nur möglich, wenn keine Mitglieder, Orte, Veranstaltungsreihen oder Veranstaltungen mehr zugeordnet sind.</p>
   </main>;
 }

@@ -24,7 +24,7 @@ export function BatchDates({ slug, seriesId, value, onChange, suggestedDuration,
     const timeout = setTimeout(() => {
       getSeriesDateConflicts(slug, seriesId, range.from, range.to).then(result => {
         if (active) setAvailability({ key: rangeKey, ...result });
-      }).catch(() => { if (active) setAvailability({ key: rangeKey, dates: [], message: "Belegte Tage konnten nicht geladen werden. Bereits vorhandene Events werden daher möglicherweise nicht angezeigt." }); });
+      }).catch(() => { if (active) setAvailability({ key: rangeKey, dates: [], message: "Belegte Tage konnten nicht geladen werden. Bereits vorhandene Veranstaltungen werden daher möglicherweise nicht angezeigt." }); });
     }, 250);
     return () => { active = false; clearTimeout(timeout); };
   }, [slug, seriesId, range.from, range.to, rangeKey]);
@@ -41,7 +41,7 @@ export function BatchDates({ slug, seriesId, value, onChange, suggestedDuration,
   }
   return <section aria-labelledby="batch-dates-title" className="space-y-4 rounded-xl border border-primary-200 bg-primary-50/30 p-4 dark:border-primary-900 dark:bg-primary-950/20">
     <h3 id="batch-dates-title" className="font-semibold">Termine auswählen</h3>
-    <p className="text-xs text-zinc-500">Montag bis Sonntag · Zeitraum bis 366 Tage · maximal {MAX_BATCH_EVENTS} Events je Speichervorgang. Alle Zeiten in Europe/Berlin.</p>
+    <p className="text-xs text-zinc-500">Montag bis Sonntag · Zeitraum bis 366 Tage · maximal {MAX_BATCH_EVENTS} Veranstaltungen je Speichervorgang. Alle Zeiten in Europe/Berlin.</p>
     <div className="grid grid-cols-2 gap-3">
       <label className="min-w-0 text-sm">Von<input type="date" value={range.from} onChange={event => { setRange({ ...range, from: event.target.value }); setPage(0); }} className={input} /></label>
       <label className="min-w-0 text-sm">Bis<input type="date" value={range.to} onChange={event => { setRange({ ...range, to: event.target.value }); setPage(0); }} className={input} /></label>
@@ -56,7 +56,7 @@ export function BatchDates({ slug, seriesId, value, onChange, suggestedDuration,
         {weekdayLabels.map(label => <div key={label} className="py-1 text-center text-xs font-semibold">{label}</div>)}
         {visibleDays.map(day => {
           const selected = value.dates.includes(day), blocked = occupied.has(day), inRange = day >= range.from && day <= range.to;
-          return <button key={day} type="button" aria-pressed={selected} aria-label={`${dayLabel(day)}${blocked ? " – bereits belegt" : ""}`} title={blocked ? "An diesem Tag gibt es bereits ein Event dieser Reihe." : dayLabel(day)}
+          return <button key={day} type="button" aria-pressed={selected} aria-label={`${dayLabel(day)}${blocked ? " – bereits belegt" : ""}`} title={blocked ? "An diesem Tag gibt es bereits eine Veranstaltung dieser Reihe." : dayLabel(day)}
             disabled={!inRange || !selected && value.dates.length >= MAX_BATCH_EVENTS} onClick={() => toggle(day)}
             className={`min-w-0 rounded-lg border py-2 text-center text-xs disabled:opacity-40 ${selected ? "border-primary-600 bg-primary-600 text-white" : blocked ? "border-amber-300 bg-amber-50 text-amber-900 dark:bg-amber-950 dark:text-amber-200" : "border-zinc-200 bg-white dark:border-zinc-700 dark:bg-zinc-950"}`}>
             {day.slice(8)}.{day.slice(5, 7)}.<span className="block text-[10px]">{blocked ? "belegt" : selected ? "✓" : " "}</span>
@@ -65,7 +65,7 @@ export function BatchDates({ slug, seriesId, value, onChange, suggestedDuration,
       </div>
       {availability?.key !== rangeKey ? <p role="status" className="text-xs text-zinc-500">Belegte Tage werden geprüft …</p> : availability.message && <p role="alert" className="text-xs text-amber-700">{availability.message}</p>}
     </>}
-    {conflicts.length > 0 && <div role="alert" className="space-y-2 text-sm text-amber-800 dark:text-amber-200"><p>{conflicts.length} ausgewählte Termine sind bereits belegt. Beim Speichern wird an diesen Tagen jeweils ein zusätzliches Event angelegt.</p><button type="button" className="underline" onClick={() => onChange({ ...value, dates: value.dates.filter(day => !occupied.has(day)) })}>Belegte Termine entfernen</button></div>}
+    {conflicts.length > 0 && <div role="alert" className="space-y-2 text-sm text-amber-800 dark:text-amber-200"><p>{conflicts.length} ausgewählte Termine sind bereits belegt. Beim Speichern wird an diesen Tagen jeweils ein zusätzliches Veranstaltung angelegt.</p><button type="button" className="underline" onClick={() => onChange({ ...value, dates: value.dates.filter(day => !occupied.has(day)) })}>Belegte Termine entfernen</button></div>}
     {outside.length > 0 && <div className="text-sm text-amber-800 dark:text-amber-200"><p>{outside.length} ausgewählte Termine liegen außerhalb des angezeigten Zeitraums und bleiben in der Vorschau erhalten.</p><button type="button" className="underline" onClick={() => onChange({ ...value, dates: value.dates.filter(day => rangeDates.includes(day)) })}>Termine außerhalb des Zeitraums entfernen</button></div>}
     <div className="grid grid-cols-2 gap-3">
       <label className="text-sm">Beginn (Uhrzeit)<input type="time" name="batchStartTime" value={value.startTime} onChange={event => onChange({ ...value, startTime: event.target.value })} className={input} /></label>

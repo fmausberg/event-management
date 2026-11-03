@@ -20,7 +20,7 @@ it("sorts event rows ascending and descending from column headers", async () => 
   await act(async () => root.render(createElement(EventsTable, { company: { name: "Studio", slug: "studio" }, events: [row("2", 2, "Zulu", "2099-02-01T10:00:00Z"), row("1", 1, "Alpha", "2099-01-01T10:00:00Z")], series: [], venues: [], trainers: [], canManage: false })));
   const names = () => [...host.querySelectorAll("tbody th[scope='row']")].map(cell => cell.textContent);
   expect(host.querySelector("tbody tr td:nth-of-type(2)")?.textContent).toMatch(/^(Mo|Di|Mi|Do|Fr|Sa|So)\./);
-  const eventHeader = [...host.querySelectorAll<HTMLButtonElement>("thead button")].find(button => button.textContent?.includes("Event"))!;
+  const eventHeader = [...host.querySelectorAll<HTMLButtonElement>("thead button")].find(button => button.textContent?.includes("Veranstaltung"))!;
   await act(async () => eventHeader.click());
   expect(names()).toEqual(["Alpha", "Zulu"]); expect(eventHeader.closest("th")?.getAttribute("aria-sort")).toBe("ascending");
   await act(async () => eventHeader.click());
@@ -46,7 +46,7 @@ it("separates week, venue and status groups for the active sort", async () => {
   expect(secondRow().className).toContain("border-t-2");
   await act(async () => header("Status").click());
   expect(secondRow().className).toContain("border-t-2");
-  await act(async () => header("Event").click());
+  await act(async () => header("Veranstaltung").click());
   expect(secondRow().className).not.toContain("border-t-2");
 });
 
@@ -59,11 +59,11 @@ it("shows placeholders for empty weeks when sorting by beginning", async () => {
   const beginningHeader = [...host.querySelectorAll<HTMLButtonElement>("thead button")].find(button => button.textContent?.includes("Beginn"))!;
 
   await act(async () => beginningHeader.click());
-  expect([...host.querySelectorAll("tbody tr")].filter(tableRow => tableRow.textContent?.includes("keine Events"))).toHaveLength(1);
-  expect(host.querySelector("tbody td[colspan='10']")?.textContent).toMatch(/^KW \d+\/2099 · keine Events$/);
+  expect([...host.querySelectorAll("tbody tr")].filter(tableRow => tableRow.textContent?.includes("keine Veranstaltungen"))).toHaveLength(1);
+  expect(host.querySelector("tbody td[colspan='10']")?.textContent).toMatch(/^KW \d+\/2099 · keine Veranstaltungen$/);
 
   await act(async () => beginningHeader.click());
-  expect([...host.querySelectorAll("tbody tr")].filter(tableRow => tableRow.textContent?.includes("keine Events"))).toHaveLength(1);
+  expect([...host.querySelectorAll("tbody tr")].filter(tableRow => tableRow.textContent?.includes("keine Veranstaltungen"))).toHaveLength(1);
 });
 
 it("labels a zero price as kostenlos", async () => {

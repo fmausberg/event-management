@@ -34,7 +34,7 @@ it("keeps events current until their end, even with a past start or completed st
 });
 it("renames the personal menu entry without requiring a company or admin role", () => {
   const navigation = buildNavigation({ name: "Ada", email: "ada@example.com", role: "USER", memberships: [] });
-  expect(navigation.groups[0].items).toContainEqual({ label: "Event Management", href: "/account/eventmanagement", icon: "calendar-check" });
+  expect(navigation.groups[0].items).toContainEqual({ label: "Veranstaltungsverwaltung", href: "/account/eventmanagement", icon: "calendar-check" });
 });
 it("redirects guests and deleted accounts before querying events", async () => {
   auth.mockResolvedValue(null); await expect(getMyEvents()).rejects.toThrow("LOGIN");
@@ -56,9 +56,9 @@ it("limits the query to own staff or linked trainer assignments, never bookings"
   expect(query.select.trainers).toEqual({ where: { trainer: { OR: [{ userId: "me" }] } }, select: { id: true }, take: 1 });
 });
 it.each([
-  [{ staff: [{ id: "private-staff" }] }, "Event-Staff"],
+  [{ staff: [{ id: "private-staff" }] }, "Veranstaltungsteam"],
   [{ trainers: [{ id: "private-trainer" }] }, "Trainer"],
-  [{ venue: { name: "Hall", staff: [{ id: "private-staff" }] } }, "Venue-Staff"],
+  [{ venue: { name: "Hall", staff: [{ id: "private-staff" }] } }, "Ortsteam"],
 ])("shows staff role and ticket management for %j", async (relations, role) => {
   db.event.findMany.mockResolvedValue([{ ...event, ...relations }]);
   expect((await getMyEvents())[0].roles).toEqual([role]);
@@ -71,15 +71,15 @@ it.each([
 });
 it("combines staff and trainer roles in a single row", async () => {
   db.event.findMany.mockResolvedValue([{ ...event, staff: [{ id: "s" }], trainers: [{ id: "t" }], venue: { name: "Hall", staff: [{ id: "v" }] } }]);
-  expect((await getMyEvents())[0].roles).toEqual(["Event-Staff", "Venue-Staff", "Trainer"]);
+  expect((await getMyEvents())[0].roles).toEqual(["Veranstaltungsteam", "Ortsteam", "Trainer"]);
   const html = renderToStaticMarkup(await Page());
   expect(html.match(/<tr/g)).toHaveLength(2);
   expect(html).toContain('href="/events/studio/event-1"');
 });
 it("renders a staff-specific empty state and links personal bookings separately", async () => {
   const html = renderToStaticMarkup(await Page());
-  expect(html).toContain("Event Management");
-  expect(html).toContain("als Event-Staff, Venue-Staff oder Trainer zugeordnet");
+  expect(html).toContain("Veranstaltungsverwaltung");
+  expect(html).toContain("als Veranstaltungsteam, Ortsteam oder Trainer zugeordnet");
   expect(html).toContain('href="/account/bookings"');
   expect(html).not.toContain("Ticketverwaltung");
 });
@@ -108,9 +108,9 @@ it("renders separate expandable lists with future events soonest first", async (
     { ...event, id: "next", name: "Next event", beginsAt: new Date("2099-01-01T10:00Z"), endsAt: null },
   ]);
   const html = renderToStaticMarkup(await Page());
-  expect(html).toContain("Account / Event Management");
-  const upcoming = html.match(/<details[^>]*aria-label="Kommende Events"[\s\S]*?<\/details>/)![0];
-  const past = html.match(/<details[^>]*aria-label="Vergangene Events"[\s\S]*?<\/details>/)![0];
+  expect(html).toContain("Account / Veranstaltungsverwaltung");
+  const upcoming = html.match(/<details[^>]*aria-label="Kommende Veranstaltungen"[\s\S]*?<\/details>/)![0];
+  const past = html.match(/<details[^>]*aria-label="Vergangene Veranstaltungen"[\s\S]*?<\/details>/)![0];
   expect(upcoming).toContain('open=""');
   expect(upcoming.indexOf("Next event")).toBeLessThan(upcoming.indexOf("Later event"));
   expect(upcoming).not.toContain("Past event");
@@ -125,7 +125,7 @@ it.each([
   const html = renderToStaticMarkup(await Page());
   expect(html).toContain(color);
   const cells = html.match(/<td[\s\S]*?<\/td>/g)!;
-  expect(cells[4]).toContain("Event-Staff"); expect(cells[4]).not.toContain("Ticketverwaltung");
+  expect(cells[4]).toContain("Veranstaltungsteam"); expect(cells[4]).not.toContain("Ticketverwaltung");
   expect(cells[5]).toContain("Ticketverwaltung");
   if (status !== "PUBLISHED") expect(html).not.toContain('href="/events/studio/event-1"');
 });

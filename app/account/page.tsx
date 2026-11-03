@@ -5,7 +5,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import { auth } from "@/auth";
 import { logout } from "@/app/(auth)/actions";
 
-export const metadata = { title: "Eventverwaltung" };
+export const metadata = { title: "Veranstaltungsverwaltung" };
 
 export default async function AccountPage() {
   const session = await auth();
@@ -82,11 +82,11 @@ export default async function AccountPage() {
         )}
       </section>
       {venueStaff.length > 0 && <section className="mt-10">
-        <h2 className="text-xl font-semibold">Meine VenueStaff-Einteilungen</h2>
+        <h2 className="text-xl font-semibold">Meine Ortsteam-Einteilungen</h2>
         <div className="mt-4 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
           <table className="w-full min-w-[36rem] text-left text-sm">
-            <caption className="sr-only">Deine VenueStaff-Einteilungen</caption>
-            <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Venuename", "Assigner-E-Mail", "Company"].map((label) => <th scope="col" key={label} className="px-4 py-3">{label}</th>)}</tr></thead>
+            <caption className="sr-only">Deine Ortsteam-Einteilungen</caption>
+            <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Ortsname", "Assigner-E-Mail", "Company"].map((label) => <th scope="col" key={label} className="px-4 py-3">{label}</th>)}</tr></thead>
             <tbody>{venueStaff.map((row) => <tr key={row.id} className="border-t border-zinc-200 dark:border-zinc-800">
               <th scope="row" className="px-4 py-3 font-medium">{row.venue.name}</th>
               <td className="px-4 py-3">{row.assignedBy.email}</td>
@@ -96,11 +96,11 @@ export default async function AccountPage() {
         </div>
       </section>}
       {eventStaff.length > 0 && <section className="mt-10">
-        <h2 className="text-xl font-semibold">Meine EventStaff-Einteilungen</h2>
+        <h2 className="text-xl font-semibold">Meine Veranstaltungsteam-Einteilungen</h2>
         <div className="mt-4 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
           <table className="w-full min-w-[36rem] text-left text-sm">
-            <caption className="sr-only">Deine EventStaff-Einteilungen</caption>
-            <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Eventname", "Eventbeginn (Europe/Berlin)", "Assigner-E-Mail", "Company"].map((label) => <th scope="col" key={label} className="px-4 py-3">{label}</th>)}</tr></thead>
+            <caption className="sr-only">Deine Veranstaltungsteam-Einteilungen</caption>
+            <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Veranstaltungsname", "Veranstaltungsbeginn (Europe/Berlin)", "Assigner-E-Mail", "Company"].map((label) => <th scope="col" key={label} className="px-4 py-3">{label}</th>)}</tr></thead>
             <tbody>{eventStaff.map((row) => <tr key={row.id} className="border-t border-zinc-200 dark:border-zinc-800">
               <th scope="row" className="px-4 py-3 font-medium"><Link href={`/events/${encodeURIComponent(row.event.company.slug)}/${encodeURIComponent(row.event.id)}`} className="text-primary-700 underline dark:text-primary-300">{row.event.name}</Link></th>
               <td className="whitespace-nowrap px-4 py-3">{row.event.beginsAt ? date.format(row.event.beginsAt) : "Noch offen"}</td>

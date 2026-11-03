@@ -23,7 +23,7 @@ export default async function CancellationsPage({ params }: { params: Promise<{ 
         <h3 className="font-semibold">{request.booking.event.name} · Buchung #{request.booking.number}</h3>
         <p className="text-sm">{request.booking.customerName} · {request.booking.customerEmail} · {request.booking.quantity} Platz/Plätze</p>
         <p className="mt-2 text-sm">{requestLabels[request.status]}{request.automatic ? " (kostenfreie Selbststornierung)" : ""}</p>
-        <p className="text-sm">Eingang: {date.format(request.requestedAt)} · Eventbeginn: {request.booking.event.beginsAt ? date.format(request.booking.event.beginsAt) : "Noch offen"}</p>
+        <p className="text-sm">Eingang: {date.format(request.requestedAt)} · Veranstaltungsbeginn: {request.booking.event.beginsAt ? date.format(request.booking.event.beginsAt) : "Noch offen"}</p>
         {request.decidedAt && <p className="text-sm">Bearbeitet: {date.format(request.decidedAt)} · {request.decidedBy?.name ?? request.decidedBy?.email ?? "Gelöschtes Konto"}</p>}
         {request.customerReason && <p className="mt-2 whitespace-pre-wrap text-sm">Kundenhinweis: {request.customerReason}</p>}
         {request.internalNote && <p className="mt-2 whitespace-pre-wrap text-sm">Interne Notiz: {request.internalNote}</p>}

@@ -21,10 +21,10 @@ export function VenueUpdateConfirmation({ eventCount, onDecision }: { eventCount
         </span>
         <button type="button" aria-label="Zurück zum Formular" onClick={() => onDecision(false)} className="rounded-lg px-3 py-1 text-2xl text-zinc-500 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-primary-600 dark:hover:bg-zinc-800">×</button>
       </div>
-      <h2 id="venue-update-confirm-title" className="text-xl font-semibold tracking-tight">Änderung für alle Events?</h2>
-      <p id="venue-update-confirm-description" className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">Diese Venue wird von {eventCount} {eventCount === 1 ? "Event verwendet" : "Events verwendet"}.</p>
-      <p className="my-5 rounded-xl border border-primary-100 bg-primary-50/60 p-4 text-sm leading-relaxed dark:border-zinc-700 dark:bg-zinc-800">Alle verknüpften Events zeigen nach dem Speichern die geänderten Venue-Daten, auch bereits bestehende oder vergangene Events.</p>
-      <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">Wenn das nicht gewollt ist, lege stattdessen eine neue Venue an und ordne sie nur den gewünschten Events zu.</p>
+      <h2 id="venue-update-confirm-title" className="text-xl font-semibold tracking-tight">Änderung für alle Veranstaltungen?</h2>
+      <p id="venue-update-confirm-description" className="mt-2 text-sm leading-relaxed text-zinc-600 dark:text-zinc-400">Dieser Ort wird von {eventCount} {eventCount === 1 ? "Veranstaltung verwendet" : "Veranstaltungen verwendet"}.</p>
+      <p className="my-5 rounded-xl border border-primary-100 bg-primary-50/60 p-4 text-sm leading-relaxed dark:border-zinc-700 dark:bg-zinc-800">Alle verknüpften Veranstaltungen zeigen nach dem Speichern die geänderten Ortsdaten, auch bereits bestehende oder vergangene Veranstaltungen.</p>
+      <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">Wenn das nicht gewollt ist, lege stattdessen einen neuen Ort an und ordne sie nur den gewünschten Veranstaltungen zu.</p>
       <div className="mt-6 flex flex-col gap-3">
         <button ref={back} type="button" onClick={() => onDecision(false)} className="rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600">Zurück zum Bearbeiten</button>
         <button type="button" onClick={() => onDecision(true)} className="rounded-xl border border-zinc-300 px-4 py-3 text-sm font-medium hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-primary-600 dark:border-zinc-600 dark:hover:bg-zinc-800">Änderung für alle übernehmen</button>

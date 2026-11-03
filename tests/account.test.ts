@@ -39,7 +39,7 @@ it("shows the signed-in user's bookings without the event overview link", async 
   expect(html).toContain("Yoga");
   expect(html).toContain("#42");
   expect(html).toContain("Bestätigt");
-  expect(html).not.toContain("Zur Eventübersicht");
+  expect(html).not.toContain("Zur Veranstaltungsübersicht");
   expect(html.indexOf("Abmelden")).toBeLessThan(html.indexOf("Meine Buchungen"));
 });
 
@@ -49,19 +49,19 @@ it("shows an empty state when the user has no bookings", async () => {
   const html = renderToStaticMarkup(await AccountPage());
 
   expect(html).toContain("Du hast noch keine Buchungen.");
-  expect(html).not.toContain("Meine VenueStaff-Einteilungen");
-  expect(html).not.toContain("Meine EventStaff-Einteilungen");
+  expect(html).not.toContain("Meine Ortsteam-Einteilungen");
+  expect(html).not.toContain("Meine Veranstaltungsteam-Einteilungen");
 });
 
 it("shows only personal staff assignments below bookings with company and event link", async () => {
- venues.mockResolvedValue([{ id: "v1", venue: { name: "Studio", company: { name: "Venue Company" } }, assignedBy: { email: "venue-admin@example.com" } }]);
- events.mockResolvedValue([{ id: "e1", event: { id: "event-1", name: "Event Yoga", beginsAt: new Date("2026-10-16T08:00:00Z"), company: { name: "Event Company", slug: "yoga" } }, assignedBy: { email: "event-admin@example.com" } }]);
+ venues.mockResolvedValue([{ id: "v1", venue: { name: "Studio", company: { name: "Ort Company" } }, assignedBy: { email: "venue-admin@example.com" } }]);
+ events.mockResolvedValue([{ id: "e1", event: { id: "event-1", name: "Veranstaltung Yoga", beginsAt: new Date("2026-10-16T08:00:00Z"), company: { name: "Veranstaltung Company", slug: "yoga" } }, assignedBy: { email: "event-admin@example.com" } }]);
  const html = renderToStaticMarkup(await AccountPage());
  for (const query of [venues, events]) expect(query).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: "user-1" } }));
- for (const value of ["Studio", "Venue Company", "Event Company", "venue-admin@example.com", "event-admin@example.com", "16.10.2026, 10:00"]) expect(html).toContain(value);
+ for (const value of ["Studio", "Ort Company", "Veranstaltung Company", "venue-admin@example.com", "event-admin@example.com", "16.10.2026, 10:00"]) expect(html).toContain(value);
  expect(html).toContain('href="/events/yoga/event-1"');
- expect(html.indexOf("Meine Buchungen")).toBeLessThan(html.indexOf("Meine VenueStaff-Einteilungen"));
- expect(html.indexOf("Meine VenueStaff-Einteilungen")).toBeLessThan(html.indexOf("Meine EventStaff-Einteilungen"));
+ expect(html.indexOf("Meine Buchungen")).toBeLessThan(html.indexOf("Meine Ortsteam-Einteilungen"));
+ expect(html.indexOf("Meine Ortsteam-Einteilungen")).toBeLessThan(html.indexOf("Meine Veranstaltungsteam-Einteilungen"));
 });
 
 it("rejects sessions without an account ID before querying bookings", async () => {

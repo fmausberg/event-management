@@ -38,7 +38,7 @@ export async function saveSeries(slug: string, id: string | null, _previous: Ser
     const parsed = seriesSchema.safeParse(Object.fromEntries(Object.keys(seriesSchema.shape).map((key) => [key, key === "suggestedCurrency" ? "EUR" : key === "imageUrl" ? "" : form.get(key) ?? ""])));
     if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
     const db = getPrisma();
-    if (parsed.data.suggestedVenueId && !await db.venue.findFirst({ where: { id: parsed.data.suggestedVenueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle eine Venue dieser Company.", errors: { suggestedVenueId: ["Die Venue gehört nicht zu dieser Company."] } };
+    if (parsed.data.suggestedVenueId && !await db.venue.findFirst({ where: { id: parsed.data.suggestedVenueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle einen Ort dieser Company.", errors: { suggestedVenueId: ["Der Ort gehört nicht zu dieser Company."] } };
     if (parsed.data.suggestedTrainerId && !await db.trainer.findFirst({ where: { id: parsed.data.suggestedTrainerId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle einen Trainer dieser Company.", errors: { suggestedTrainerId: ["Der Trainer ist nicht verfügbar."] } };
     const file = form.get("coverImage");
     const removeImage = form.get("removeImage") === "yes";
@@ -71,7 +71,7 @@ export async function deleteSeries(slug: string, id: string, _previous: SeriesSt
     const { company } = await requireCompanyAccess(slug);
     if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen einer gültigen Veranstaltungsreihe." };
     const result = await getPrisma().eventSeries.deleteMany({ where: { id, companyId: company.id, events: { none: {} } } });
-    if (!result.count) return { message: "Die Veranstaltungsreihe hat noch Events oder existiert nicht in dieser Company." };
+    if (!result.count) return { message: "Die Veranstaltungsreihe hat noch Veranstaltungen oder existiert nicht in dieser Company." };
   } catch (error) { return failure(error); }
   refresh(slug);
   return { success: true, message: "Veranstaltungsreihe wurde gelöscht." };

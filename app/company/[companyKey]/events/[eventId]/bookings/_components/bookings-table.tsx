@@ -44,7 +44,7 @@ export function BookingsTable({ company, event, bookings, revenue }: { revenue: 
     const visible = bookings.filter((b) => [b.number, b.customerName, b.customerEmail, b.externalBookingId, b.platform].join(" ").toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
     const seats = bookings.filter((b) => b.status === "CONFIRMED").reduce((sum, b) => sum + b.quantity, 0);
     return <main className={`flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black ${editor ? "xl:mr-96" : ""}`}>
-        <Link href={`/company/${encodeURIComponent(company.slug)}/events`} className="text-sm text-primary-700 underline dark:text-primary-300">Zur Eventübersicht</Link>
+        <Link href={`/company/${encodeURIComponent(company.slug)}/events`} className="text-sm text-primary-700 underline dark:text-primary-300">Zur Veranstaltungsübersicht</Link>
         <header className="flex flex-wrap items-center justify-between gap-4">
             <div>
                 <h1 className="text-2xl font-semibold">Buchungen - {event.name} ({event.beginsAt ? new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" }).format(new Date(event.beginsAt)) : "Noch offen"} Uhr)</h1>

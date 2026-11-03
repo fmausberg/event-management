@@ -21,7 +21,7 @@ function validId(id: unknown): id is string { return typeof id === "string" && !
 export async function saveVenue(slug: string, id: string | null, _previous: VenueState, form: FormData): Promise<VenueState> {
   try {
     const { company } = await requireCompanyAccess(slug);
-    if (id !== null && !validId(id)) return { message: "Ungültige Venue." };
+    if (id !== null && !validId(id)) return { message: "Ungültiger Ort." };
     const parsed = venueSchema.safeParse(Object.fromEntries(Object.keys(venueSchema.shape).map((key) => [key, form.get(key)])));
     if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
     const db = getPrisma();
@@ -29,20 +29,20 @@ export async function saveVenue(slug: string, id: string | null, _previous: Venu
       await db.venue.create({ data: { ...parsed.data, companyId: company.id } });
     } else {
       const result = await db.venue.updateMany({ where: { id, companyId: company.id }, data: parsed.data });
-      if (!result.count) return { message: "Diese Venue existiert nicht in dieser Company." };
+      if (!result.count) return { message: "Dieser Ort existiert nicht in dieser Company." };
     }
   } catch (error) { return failure(error); }
   refresh(slug);
-  return { success: true, message: id === null ? "Venue wurde erstellt." : "Venue wurde gespeichert." };
+  return { success: true, message: id === null ? "Ort wurde erstellt." : "Ort wurde gespeichert." };
 }
 
 export async function deleteVenue(slug: string, id: string, _previous: VenueState, form: FormData): Promise<VenueState> {
   try {
     const { company } = await requireCompanyAccess(slug);
-    if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen einer gültigen Venue." };
+    if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen eines gültigen Ortes." };
     const result = await getPrisma().venue.deleteMany({ where: { id, companyId: company.id, events: { none: {} }, suggestedForSeries: { none: {} } } });
-    if (!result.count) return { message: "Die Venue hat noch Events oder Veranstaltungsreihen oder existiert nicht in dieser Company." };
+    if (!result.count) return { message: "Der Ort hat noch Veranstaltungen oder Veranstaltungsreihen oder existiert nicht in dieser Company." };
   } catch (error) { return failure(error); }
   refresh(slug);
-  return { success: true, message: "Venue wurde gelöscht." };
+  return { success: true, message: "Ort wurde gelöscht." };
 }

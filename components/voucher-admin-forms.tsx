@@ -75,11 +75,11 @@ export function VoucherCampaignForm({ slug, options, row, start, drawer = false,
       <input type="hidden" name="currency" value="EUR" />
       <p className="text-sm text-zinc-500">Währung: EUR. Bei 100 % Rabatt ist ohne Ticketlimit genau ein Ticket kostenlos. Wertguthaben hat kein Ticketlimit. Gäste werden nur weich über ihre Buchungs-E-Mail begrenzt.</p>
       <div className="space-y-4">
-        {options.companies.map(company => <div key={company.id} className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 font-medium"><input type="checkbox" name="companyIds" value={company.id} checked={targets.companyIds.includes(company.id)} onChange={event => setTargets(old => ({ ...old, companyIds: event.target.checked ? [company.id] : [] }))} disabled={locked} />Gesamtes Unternehmen</label><FieldInfo label="Gesamtes Unternehmen">Wählt alle bestehenden und später angelegten Events von {company.name} aus.</FieldInfo>{locked && targets.companyIds.map(id => <input key={id} type="hidden" name="companyIds" value={id} />)}</div>)}
+        {options.companies.map(company => <div key={company.id} className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 font-medium"><input type="checkbox" name="companyIds" value={company.id} checked={targets.companyIds.includes(company.id)} onChange={event => setTargets(old => ({ ...old, companyIds: event.target.checked ? [company.id] : [] }))} disabled={locked} />Gesamtes Unternehmen</label><FieldInfo label="Gesamtes Unternehmen">Wählt alle bestehenden und später angelegten Veranstaltungen von {company.name} aus.</FieldInfo>{locked && targets.companyIds.map(id => <input key={id} type="hidden" name="companyIds" value={id} />)}</div>)}
         {([
-          ["seriesIds", "Veranstaltungsreihen", options.series, "Die Kampagne gilt für alle Events, die einer ausgewählten Veranstaltungsreihe zugeordnet sind. Später zugeordnete Events werden ebenfalls erfasst."],
-          ["eventIds", "Einzelne Events", options.events, "Die Kampagne gilt nur für die konkret ausgewählten einzelnen Events. Andere Events derselben Company oder Reihe sind dadurch nicht automatisch enthalten."],
-          ["venueIds", "Venues", options.venues, "Die Kampagne gilt für Events, deren tatsächlich zugewiesene Venue ausgewählt ist. Später dort stattfindende Events werden ebenfalls erfasst."],
+          ["seriesIds", "Veranstaltungsreihen", options.series, "Die Kampagne gilt für alle Veranstaltungen, die einer ausgewählten Veranstaltungsreihe zugeordnet sind. Später zugeordnete Veranstaltungen werden ebenfalls erfasst."],
+          ["eventIds", "Einzelne Veranstaltungen", options.events, "Die Kampagne gilt nur für die konkret ausgewählten einzelnen Veranstaltungen. Andere Veranstaltungen derselben Company oder Reihe sind dadurch nicht automatisch enthalten."],
+          ["venueIds", "Orte", options.venues, "Die Kampagne gilt für Veranstaltungen, deren tatsächlich zugewiesene Ort ausgewählt ist. Später dort stattfindende Veranstaltungen werden ebenfalls erfasst."],
         ] as const).map(([key, label, choices, help]) => <details key={key} className="rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
           <summary className="cursor-pointer select-none px-4 py-3 font-medium">{label} <span className="text-sm font-normal text-zinc-500">({targets[key].length} ausgewählt)</span></summary>
           <div className="border-t border-zinc-200 p-4 dark:border-zinc-800"><div className="mb-3"><FieldInfo label={label}>{help}</FieldInfo></div><div className="max-h-64 space-y-2 overflow-y-auto">
@@ -89,7 +89,7 @@ export function VoucherCampaignForm({ slug, options, row, start, drawer = false,
           </div></div>
         </details>)}
       </div>
-      <p className="text-sm text-zinc-500">Ziele gelten per ODER; Überschneidungen erhöhen den Rabatt nicht. Company-, Reihen- und Venue-Ziele erfassen auch spätere Zuordnungen. Wertguthaben ist auf die ausstellende Company beschränkt. Ein Entwurf darf ohne Ziel gespeichert, aber nicht aktiviert oder mit Codes ausgestattet werden.</p>
+      <p className="text-sm text-zinc-500">Ziele gelten per ODER; Überschneidungen erhöhen den Rabatt nicht. Company-, Reihen- und Ortsziele erfassen auch spätere Zuordnungen. Wertguthaben ist auf die ausstellende Company beschränkt. Ein Entwurf darf ohne Ziel gespeichert, aber nicht aktiviert oder mit Codes ausgestattet werden.</p>
       <div className="flex gap-3"><button className={button} disabled={pending || row?.archived}>{pending ? "Wird gespeichert …" : "Kampagne speichern"}</button>{drawer && <button type="button" disabled={pending} onClick={onCancel} className="text-sm underline">Abbrechen</button>}</div>
     </fieldset>
     {state.message && <p role="status" className="text-sm">{state.message}</p>}

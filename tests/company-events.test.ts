@@ -27,7 +27,7 @@ it("scopes series events to the company and renders series details and the empty
  expect(html).toContain("Workshopreihe");
  expect(html).toContain("Kurztext");
  expect(html).toContain("Ausführliche Beschreibung");
- expect(html).toContain("Dieser Veranstaltungsreihe sind noch keine Events zugeordnet.");
+ expect(html).toContain("Dieser Veranstaltungsreihe sind noch keine Veranstaltungen zugeordnet.");
 });
 it("returns not found for a series outside the company", async () => {
  await expect(SeriesPage({ params: Promise.resolve({ companyKey: "yoga", seriesId: "foreign-series" }) })).rejects.toThrow("NOT_FOUND");
@@ -194,7 +194,7 @@ it.each([{ maxSeats: "1.5" }, { maxSeats: "0" }, { ticketPrice: "-2" }, { ticket
 it("renders empty table and create option, and redirects guests", async () => {
  const props = { params: Promise.resolve({ companyKey: "yoga" }) };
  const html = renderToStaticMarkup(await Page(props));
- expect(html).toContain("Noch keine Events vorhanden"); expect(html).toContain("+ Event erstellen");
+ expect(html).toContain("Noch keine Veranstaltungen vorhanden"); expect(html).toContain("+ Veranstaltung erstellen");
  auth.mockResolvedValue(null); await expect(Page(props)).rejects.toThrow("LOGIN");
  expect((await saveEvent("yoga", null, {}, form())).success).toBeUndefined();
 });

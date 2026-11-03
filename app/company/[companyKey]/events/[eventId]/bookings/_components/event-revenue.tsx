@@ -11,7 +11,7 @@ export function EventRevenueSummary({ revenue }: { revenue: EventRevenue }) {
     { label: "Nettoumsatz (kalkulatorisch)", value: revenue.net, formula: "Brutto − MwSt. − Stripe-Gebühren" },
   ];
   return <section aria-labelledby="event-revenue-title" className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
-    <h2 id="event-revenue-title" className="font-semibold">Kalkulatorische Event-Umsatzübersicht</h2>
+    <h2 id="event-revenue-title" className="font-semibold">Kalkulatorische Veranstaltungsumsatzübersicht</h2>
     <p className="mt-1 text-sm text-zinc-500">Interne Kalkulation für die Trainerbeteiligung · {revenue.bookingCount} berücksichtigte Buchungen. Alle Beträge in EUR, auf Cent gerundet.</p>
     <dl className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-5">
       {items.map((item, index) => <div key={item.label} className={`min-w-0 rounded-lg p-4 ${index === items.length - 1 ? "bg-primary-50 dark:bg-primary-950" : "bg-zinc-50 dark:bg-zinc-900"}`}>

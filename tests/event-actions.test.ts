@@ -18,7 +18,7 @@ vi.mock("next/navigation", () => ({ redirect }));
 const initial: EventFormState = { values: { name: "", beginsAt: "", endsAt: "", maxSeats: "" } };
 function form() {
   const data = new FormData();
-  Object.entries({ name: "  Event  ", beginsAt: "2026-07-10T18:00", endsAt: "2026-07-10T20:00", maxSeats: "30", number: "999" })
+  Object.entries({ name: "  Veranstaltung  ", beginsAt: "2026-07-10T18:00", endsAt: "2026-07-10T20:00", maxSeats: "30", number: "999" })
     .forEach(([key, value]) => data.set(key, value));
   return data;
 }
@@ -38,7 +38,7 @@ describe("create and update actions", () => {
     expect(db.event.update).not.toHaveBeenCalled();
   });
   it("directs legacy creation to the complete company event form", async () => {
-    expect((await createEvent(initial, form())).message).toContain("Eventverwaltung");
+    expect((await createEvent(initial, form())).message).toContain("Veranstaltungsverwaltung");
     expect(db.event.create).not.toHaveBeenCalled();
   });
 
@@ -53,7 +53,7 @@ describe("create and update actions", () => {
 
   it("updates only the requested event", async () => {
     await expect(updateEvent("event-1", initial, form())).rejects.toThrow("REDIRECT:/admin/events");
-    expect(db.event.update).toHaveBeenCalledWith({ where: { id: "event-1" }, data: expect.objectContaining({ name: "Event", maxSeats: 30 }) });
+    expect(db.event.update).toHaveBeenCalledWith({ where: { id: "event-1" }, data: expect.objectContaining({ name: "Veranstaltung", maxSeats: 30 }) });
     expect(revalidatePath).toHaveBeenCalledWith("/admin/events");
   });
 
@@ -82,7 +82,7 @@ describe("create and update actions", () => {
   it("does not expose database errors to the user", async () => {
     db.event.create.mockRejectedValueOnce(new Error("postgresql://secret-credentials"));
     const result = await createEvent(initial, form());
-    expect(result.message).toContain("Eventverwaltung");
+    expect(result.message).toContain("Veranstaltungsverwaltung");
     expect(JSON.stringify(result)).not.toContain("secret-credentials");
     expect(revalidatePath).not.toHaveBeenCalled();
   });
@@ -91,7 +91,7 @@ describe("create and update actions", () => {
 describe("deletion safeguards", () => {
   it.each([undefined, null, "", " "])("rejects a missing or invalid ID %j without an unfiltered delete", async (id) => {
     const data = new FormData(); data.set("confirmed", "yes");
-    expect((await deleteEvent(id as string, {}, data)).message).toContain("Event-ID");
+    expect((await deleteEvent(id as string, {}, data)).message).toContain("Veranstaltungs-ID");
     expect(db.event.deleteMany).not.toHaveBeenCalled();
   });
 

@@ -55,7 +55,7 @@ it.each([{ name: " " }, { countryCode: "DEU" }, { countryCode: "12" }, { city: "
 it("renders empty table and create option, and redirects guests", async () => {
  const props = { params: Promise.resolve({ companyKey: "yoga" }) };
  const html = renderToStaticMarkup(await Page(props));
- expect(html).toContain("Noch keine Venues vorhanden"); expect(html).toContain("+ Venue erstellen");
+ expect(html).toContain("Noch keine Orte vorhanden"); expect(html).toContain("+ Ort erstellen");
  auth.mockResolvedValue(null); await expect(Page(props)).rejects.toThrow("LOGIN");
  expect((await saveVenue("yoga", null, {}, form())).success).toBeUndefined();
 });

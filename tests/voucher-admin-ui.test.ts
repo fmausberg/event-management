@@ -31,19 +31,19 @@ it("shows plaintext only after issuance and removes it on leaving the form", asy
 });
 it("offers all four combinable targets and describes the one-ticket 100-percent default", async () => {
   await act(async () => root.render(createElement(VoucherCampaignForm, { slug: "studio", start: "2099-01-01T12:00", options: {
-    companies: [{ id: "company", name: "Company" }], series: [{ id: "series", number: 12, name: "Reihe" }], events: [{ id: "event", number: 34, name: "Event", beginsAt: new Date("2099-01-02T18:30:00Z") }], venues: [{ id: "venue", name: "Venue" }],
+    companies: [{ id: "company", name: "Company" }], series: [{ id: "series", number: 12, name: "Reihe" }], events: [{ id: "event", number: 34, name: "Veranstaltung", beginsAt: new Date("2099-01-02T18:30:00Z") }], venues: [{ id: "venue", name: "Ort" }],
   } })));
   for (const name of ["companyIds", "seriesIds", "eventIds", "venueIds"]) expect(host.querySelector(`input[name="${name}"]`)).not.toBeNull();
   expect(host.textContent).toContain("Gesamtes Unternehmen");
   expect(host.querySelectorAll('input[name="companyIds"]')).toHaveLength(1);
   expect(host.querySelector('input[name="companyIds"]')?.closest("details")).toBeNull();
   expect([...host.querySelectorAll("details > summary")].map(summary => summary.textContent)).toEqual([
-    "Veranstaltungsreihen (0 ausgewählt)", "Einzelne Events (0 ausgewählt)", "Venues (0 ausgewählt)",
+    "Veranstaltungsreihen (0 ausgewählt)", "Einzelne Veranstaltungen (0 ausgewählt)", "Orte (0 ausgewählt)",
   ]);
   const events = host.querySelectorAll("details")[1];
   expect(events.open).toBe(false); await act(async () => events.querySelector("summary")?.click()); expect(events.open).toBe(true);
   expect(host.textContent).toContain("#12 · Reihe");
-  expect(host.textContent).toContain("#34 · Event · 02.01.2099, 19:30");
+  expect(host.textContent).toContain("#34 · Veranstaltung · 02.01.2099, 19:30");
   expect(host.textContent).toContain("ODER"); expect(host.textContent).toContain("genau ein Ticket kostenlos");
 });
 it("never offers public shared balances in the stored-value issuance form", async () => {

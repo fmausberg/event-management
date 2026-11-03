@@ -33,9 +33,9 @@ export async function saveBooking(slug: string, eventId: string, id: string | nu
   }
   const result = await getPrisma().$transaction(async (tx) => {
    const event = await tx.event.findUniqueOrThrow({ where: { id: eventId }, select: { maxSeats: true, companyId: true, name: true, beginsAt: true, status: true, ticketPrice: true, currency: true } });
-   if (id === null && event.status === "CANCELLED") return { message: "Für ein storniertes Event können keine Tickets erstellt werden." };
+   if (id === null && event.status === "CANCELLED") return { message: "Für ein storniertes Veranstaltung können keine Tickets erstellt werden." };
    const existing = id === null ? null : await tx.booking.findFirst({ where: { id, eventId }, select: { id: true, quantity: true, status: true, price: { select: { bookingId: true } }, voucherRedemption: { select: { id: true } }, voucherBalanceUses: { select: { id: true } }, payment: { select: { id: true } }, cancellationRequests: { where: { status: { in: ["PENDING", "APPROVED"] } }, select: { id: true } } } });
-   if (id !== null && !existing) return { message: "Diese Buchung gehört nicht zu diesem Event oder existiert nicht mehr." };
+   if (id !== null && !existing) return { message: "Diese Buchung gehört nicht zu dieser Veranstaltung oder existiert nicht mehr." };
    if (existing?.cancellationRequests?.length) return { message: "Diese Buchung hat einen Stornierungsvorgang. Bitte verwende die Stornierungsverwaltung." };
    if (existing?.price || existing?.voucherRedemption || existing?.voucherBalanceUses?.length) return { message: "Buchungen mit Preis- oder Gutscheinhistorie können nur über die Stornierungsverwaltung rückabgewickelt werden." };
    if (existing?.payment) return { message: "Stripe-Buchungen können hier nicht geändert werden. Erstattungen bitte in der Stornierungsverwaltung durchführen." };
@@ -46,7 +46,7 @@ export async function saveBooking(slug: string, eventId: string, id: string | nu
     if ((reserved._sum.quantity ?? 0) + nextSeats > (event.maxSeats ?? 0)) return { message: "Für diese Buchung sind nicht genügend freie Plätze vorhanden." };
    }
    if (id === null) {
-    if (event.ticketPrice == null) return { message: "Bitte hinterlege zuerst den Listenpreis des Events (bei kostenlosen Events 0 Euro)." };
+    if (event.ticketPrice == null) return { message: "Bitte hinterlege zuerst den Listenpreis der Veranstaltung (bei kostenlosen Veranstaltungen 0 Euro)." };
     const unitPriceMinor = Number(event.ticketPrice.times(100).toFixed(0));
     const originalAmountMinor = unitPriceMinor * parsed.data.quantity;
     if (!Number.isSafeInteger(originalAmountMinor) || originalAmountMinor < 0 || originalAmountMinor > 2147483647) return { message: "Der Gesamtlistenpreis ist zu hoch oder ungültig." };

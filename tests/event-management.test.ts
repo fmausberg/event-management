@@ -121,8 +121,8 @@ describe("central capacity and booking imports", () => {
   });
 
   it("does not pretend a missing event has zero capacity", async () => {
-    db.event.findUniqueOrThrow.mockRejectedValueOnce(new Error("Event not found"));
-    await expect(getEventCapacity("missing")).rejects.toThrow("Event not found");
+    db.event.findUniqueOrThrow.mockRejectedValueOnce(new Error("Veranstaltung not found"));
+    await expect(getEventCapacity("missing")).rejects.toThrow("Veranstaltung not found");
     expect(db.booking.aggregate).not.toHaveBeenCalled();
   });
 

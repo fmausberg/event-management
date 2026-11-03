@@ -71,8 +71,8 @@ export function ReviewForm() {
     finally { setBusy(false); }
   }
   if (state === "loading") return <p role="status">Bewertung wird geladen …</p>;
-  if (state === "completed") return <><h1 className="text-2xl font-semibold">Vielen Dank!</h1><p className="my-5">Deine Bewertung ist eingegangen und abgeschlossen.</p><Link href="/events" className="underline">Zu den Events</Link></>;
-  if (state === "invalid") return <><h1 className="text-2xl font-semibold">Dieser Bewertungslink ist nicht verfügbar</h1><p className="my-5">Der Link ist ungültig, abgelaufen oder das Event ist noch nicht beendet. Bitte prüfe den Link aus deiner E-Mail.</p><Link href="/events" className="underline">Zu den Events</Link></>;
+  if (state === "completed") return <><h1 className="text-2xl font-semibold">Vielen Dank!</h1><p className="my-5">Deine Bewertung ist eingegangen und abgeschlossen.</p><Link href="/events" className="underline">Zu den Veranstaltungen</Link></>;
+  if (state === "invalid") return <><h1 className="text-2xl font-semibold">Dieser Bewertungslink ist nicht verfügbar</h1><p className="my-5">Der Link ist ungültig, abgelaufen oder die Veranstaltung ist noch nicht beendet. Bitte prüfe den Link aus deiner E-Mail.</p><Link href="/events" className="underline">Zu den Veranstaltungen</Link></>;
   if (!review || state === "error") return <p role="alert">Die Bewertung konnte nicht geladen werden. Bitte lade die Seite erneut.</p>;
   return <>
     <h1 className="text-2xl font-semibold">Wie war {review.eventName}?</h1>

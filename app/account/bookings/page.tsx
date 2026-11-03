@@ -26,12 +26,12 @@ export default async function MyBookingsPage() {
   return <main className="min-w-0 flex-1 bg-zinc-50 p-4 sm:p-6 dark:bg-black">
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div><h1 className="text-2xl font-semibold">Meine Buchungen</h1><p className="mt-1 text-xs text-zinc-500">Deine Events und Tickets im Überblick. Alle Uhrzeiten in Europe/Berlin.</p></div>
+        <div><h1 className="text-2xl font-semibold">Meine Buchungen</h1><p className="mt-1 text-xs text-zinc-500">Deine Veranstaltungen und Tickets im Überblick. Alle Uhrzeiten in Europe/Berlin.</p></div>
         <RefreshStatusButton />
       </header>
       {!bookings.length ? <p className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">Noch keine Buchungen mit deinem Konto verknüpft.</p> : ([
-        { title: "Kommende Events", items: groups.upcoming, empty: "Keine kommenden Events gebucht.", open: true },
-        { title: "Vergangene Events", items: groups.past, empty: "Noch keine vergangenen Events.", open: false },
+        { title: "Kommende Veranstaltungen", items: groups.upcoming, empty: "Keine kommenden Veranstaltungen gebucht.", open: true },
+        { title: "Vergangene Veranstaltungen", items: groups.past, empty: "Noch keine vergangenen Veranstaltungen.", open: false },
       ]).map((group) => <details key={group.title} open={group.open} className="space-y-4" aria-label={group.title}>
         <summary className="cursor-pointer rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4"><h2 className="inline-flex items-center gap-3 text-lg font-semibold">{group.title}<span className="rounded-full bg-zinc-200 px-2.5 py-0.5 text-xs dark:bg-zinc-800">{group.items.length}</span></h2></summary>
         {!group.items.length && <p className="text-sm text-zinc-500">{group.empty}</p>}
@@ -49,9 +49,9 @@ export default async function MyBookingsPage() {
                 <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${statusColors[booking.status]}`}>{statuses[booking.status]}</span>
               </div>
               <div><h3 className="break-words text-base font-semibold leading-snug">{event.name}</h3><p className="mt-1 break-words text-xs text-zinc-500">{event.company.name}</p></div>
-              {event.status === "CANCELLED" && <p className="text-xs text-red-700 dark:text-red-300">Das Event wurde abgesagt.</p>}
+              {event.status === "CANCELLED" && <p className="text-xs text-red-700 dark:text-red-300">Die Veranstaltung wurde abgesagt.</p>}
               <dl className="grid grid-cols-[minmax(0,1fr)_auto] gap-x-3 gap-y-2 text-xs">
-                <div><dt className="sr-only">Eventbeginn</dt><dd className="font-medium">{event.beginsAt ? date.format(event.beginsAt) : "Termin noch offen"}</dd></div>
+                <div><dt className="sr-only">Veranstaltungsbeginn</dt><dd className="font-medium">{event.beginsAt ? date.format(event.beginsAt) : "Termin noch offen"}</dd></div>
                 <div><dt className="sr-only">Dauer</dt><dd className="font-medium">{eventDuration(event.beginsAt, event.endsAt)}</dd></div>
                 <div className="col-span-2 min-w-0"><dt className="sr-only">Location / Adresse</dt><dd className="break-words font-medium">{venue?.name ?? "Noch offen"}{address && <span className="mt-0.5 block font-normal text-zinc-500">{address}</span>}</dd></div>
               </dl>
@@ -65,13 +65,13 @@ export default async function MyBookingsPage() {
             </div>
             <div className="space-y-3 border-t border-zinc-200 px-4 py-3 dark:border-zinc-800">
               <div className="flex flex-wrap items-start justify-between gap-2">
-                <Link href={`/events/${event.company.slug}/${event.id}`} className="py-2 text-xs font-medium underline underline-offset-4">Event ansehen <span aria-hidden="true">↗</span></Link>
+                <Link href={`/events/${event.company.slug}/${event.id}`} className="py-2 text-xs font-medium underline underline-offset-4">Veranstaltung ansehen <span aria-hidden="true">↗</span></Link>
                 {eligible && <BookingCancellation id={booking.id} free={policy.free} />}
               </div>
               <details className="text-xs text-zinc-500"><summary className="cursor-pointer font-medium text-zinc-700 dark:text-zinc-300">{shortCancellationPolicy(event.freeCancellationUntilMinutesBeforeStart)}</summary><div className="mt-2 space-y-1">
                 {eligible && policy.free && <p>Kostenfrei stornierbar bis einschließlich {date.format(policy.deadline!)}.</p>}
                 {eligible && !policy.free && <p>{event.beginsAt ? "Eine Stornierung muss vom Veranstalter genehmigt werden." : "Ohne Starttermin ist nur eine Anfrage möglich."}</p>}
-                {policy.started && <p>Event bereits begonnen · keine Stornierung mehr möglich.</p>}
+                {policy.started && <p>Veranstaltung bereits begonnen · keine Stornierung mehr möglich.</p>}
               </div></details>
               {booking.cancellationRequests.map((request) => <details key={request.id} className="rounded-lg bg-zinc-100 p-3 text-xs dark:bg-zinc-900">
                 <summary className="cursor-pointer font-medium">{requestLabels[request.status]}{request.status === "APPROVED" && <span className="mt-1 block font-normal">{refundLabels[request.refundStatus]}</span>}</summary>

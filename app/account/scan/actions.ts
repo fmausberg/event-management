@@ -42,7 +42,7 @@ async function processTicket(token: string, redeem: boolean): Promise<ScanResult
    const allowed = event.trainers.length > 0 || event.staff.length > 0 || (event.venue?.staff.length ?? 0) > 0;
    const cancelled = ticket.status === "CANCELLED" || ticket.booking.status === "CANCELLED" || event.status === "CANCELLED";
    let checkedInAt = ticket.checkedInAt;
-   let message = !allowed ? "Du darfst dieses Ticket nicht einlösen. Du bist diesem Event weder als Trainer noch als Event-Staff oder Venue-Staff zugeteilt." : undefined;
+   let message = !allowed ? "Du darfst dieses Ticket nicht einlösen. Du bist dieser Veranstaltung weder als Trainer noch als Veranstaltungsteam oder Ortsteam zugeteilt." : undefined;
    if (redeem && allowed && !cancelled && !checkedInAt) {
     const timestamp = new Date();
     const result = await tx.ticket.updateMany({

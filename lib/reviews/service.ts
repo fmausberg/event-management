@@ -61,7 +61,7 @@ export async function saveReviewRating(token: unknown, field: unknown, value: un
     if (entry?.status === "COMPLETED") return { state: "completed" as const };
     const now = new Date();
     if (!entry || !eligible(entry, now)) return { state: "invalid" as const };
-    if (field === "trainerRating" && !entry.event.trainerName && !entry.event.trainers.length) return { state: "error" as const, message: "Für dieses Event ist keine Trainerbewertung vorgesehen." };
+    if (field === "trainerRating" && !entry.event.trainerName && !entry.event.trainers.length) return { state: "error" as const, message: "Für diese Veranstaltung ist keine Trainerbewertung vorgesehen." };
     const updated = await tx.eventReview.updateMany({ where: { tokenHash: entry.tokenHash, status: "PROVISIONAL", submittedAt: null, expiresAt: { gt: now } }, data: { [field]: value as number | null } });
     return { state: updated.count ? "saved" as const : "completed" as const };
   });

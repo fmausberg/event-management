@@ -23,7 +23,7 @@ function failure(error: unknown): EventState {
  if (error instanceof MemberAccessError) return { message: error.message };
  if (error instanceof EventImageError) return { message: error.message };
  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return { message: "Die Daten wurden gleichzeitig geändert. Es wurde nichts gespeichert. Bitte prüfe die Termine und versuche es erneut." };
- if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") return { message: "Das Event ist noch verknüpft oder eine Zuordnung wurde geändert. Bitte lade die Seite neu." };
+ if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2003") return { message: "Die Veranstaltung ist noch verknüpft oder eine Zuordnung wurde geändert. Bitte lade die Seite neu." };
  return { message: "Die Änderung konnte nicht gespeichert werden. Bitte versuche es erneut." };
 }
 function validId(id: unknown): id is string { return typeof id === "string" && !!id.trim() && id.length <= 191; }
@@ -39,7 +39,7 @@ export async function getSeriesDateConflicts(slug: string, seriesId: string, fro
 export async function saveEvent(slug: string, id: string | null, _previous: EventState, form: FormData): Promise<EventState> {
  const intent = form.get("intent") ?? (id === null ? "draft" : "save");
  const multiple = form.get("creationMode") === "multiple";
- if (multiple && (id !== null || !["draft", "publish"].includes(String(intent)))) return { message: "Mehrfacherstellung ist nur für neue Events möglich." };
+ if (multiple && (id !== null || !["draft", "publish"].includes(String(intent)))) return { message: "Mehrfacherstellung ist nur für neue Veranstaltungen möglich." };
  if (intent === "cancel") return cancelEvent(slug, id);
  if (!["draft", "publish", "save"].includes(String(intent))) return { message: "Ungültige Aktion." };
  let uploaded: UploadedEventImage | undefined;
@@ -47,10 +47,10 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
  let createdCount = 0;
  try {
   const { company } = await requireCompanyAccess(slug);
-  if (id !== null && !validId(id)) return { message: "Ungültiges Event." };
+  if (id !== null && !validId(id)) return { message: "Ungültige Veranstaltung." };
   const db = getPrisma();
   const existing = id === null ? null : await db.event.findFirst({ where: { id, companyId: company.id }, select: { status: true, imageUrl: true } });
-  if (id !== null && (!existing || (intent !== "save" && existing.status !== "DRAFT"))) return { message: "Das Event ist nicht verfügbar. Bitte lade die Seite neu." };
+  if (id !== null && (!existing || (intent !== "save" && existing.status !== "DRAFT"))) return { message: "Die Veranstaltung ist nicht verfügbar. Bitte lade die Seite neu." };
   const schema = intent === "publish" || existing?.status === "PUBLISHED" ? publishEventSchema : eventSchema;
   let occurrences: BatchOccurrence[] = [];
   if (multiple) {
@@ -68,15 +68,15 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
    for (const occurrence of occurrences) {
     const validation = schema.safeParse({ ...raw, beginsAt: occurrence.beginsAt, endsAt: occurrence.endsAt });
     if (!validation.success) dateErrors[occurrence.date] = validation.error.issues.map(issue => issue.message).join(" ");
-    else if (intent === "publish" && new Date(occurrence.endsAt) <= now) dateErrors[occurrence.date] = "Ein bereits beendetes Event kann nicht veröffentlicht werden.";
+    else if (intent === "publish" && new Date(occurrence.endsAt) <= now) dateErrors[occurrence.date] = "Ein bereits beendetes Veranstaltung kann nicht veröffentlicht werden.";
    }
    if (Object.keys(dateErrors).length) return { message: "Nicht alle Termine können gespeichert werden. Bitte die markierten Termine prüfen.", dateErrors };
   }
-  if (intent === "publish" && new Date(parsed.data.endsAt) <= new Date()) return { message: "Ein bereits beendetes Event kann nicht veröffentlicht werden.", errors: { endsAt: ["Das Ende muss für die Veröffentlichung in der Zukunft liegen."] } };
+  if (intent === "publish" && new Date(parsed.data.endsAt) <= new Date()) return { message: "Ein bereits beendetes Veranstaltung kann nicht veröffentlicht werden.", errors: { endsAt: ["Das Ende muss für die Veröffentlichung in der Zukunft liegen."] } };
   const { eventSeriesId, venueId } = parsed.data;
   const series = eventSeriesId ? await db.eventSeries.findFirst({ where: { id: eventSeriesId, companyId: company.id }, select: { id: true, imageUrl: true } }) : null;
   if (eventSeriesId && !series) return { message: "Bitte wähle eine Veranstaltungsreihe dieser Company." };
-  if (venueId && !await db.venue.findFirst({ where: { id: venueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle eine Venue dieser Company." };
+  if (venueId && !await db.venue.findFirst({ where: { id: venueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle einen Ort dieser Company." };
   const { trainerIds, status: ignoredStatus, ...fields } = parsed.data;
   void ignoredStatus;
   const trainers = await db.trainer.findMany({ where: { id: { in: trainerIds }, companyId: company.id }, select: { id: true } });
@@ -110,7 +110,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
      }
      const currentSeries = await tx.eventSeries.findFirst({ where: { id: eventSeriesId!, companyId: company.id }, select: { id: true, imageUrl: true } });
      if (!currentSeries) return { message: "Die ausgewählte Veranstaltungsreihe ist nicht mehr verfügbar." };
-     if (venueId && !await tx.venue.findFirst({ where: { id: venueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle eine Venue dieser Company." };
+     if (venueId && !await tx.venue.findFirst({ where: { id: venueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle einen Ort dieser Company." };
      const currentTrainers = await tx.trainer.findMany({ where: { id: { in: trainerIds }, companyId: company.id }, select: { id: true } });
      if (currentTrainers.length !== trainerIds.length) return { message: "Mindestens ein Trainer ist nicht mehr verfügbar.", errors: { trainerIds: ["Bitte die Trainerzuordnung prüfen."] } };
      if (!hasUpload && !removeImage && currentSeries.imageUrl !== series?.imageUrl) return { message: "Das Bild der Reihe wurde geändert. Bitte die Auswahl prüfen und erneut speichern." };
@@ -131,24 +131,24 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
     if (trainerIds.length) await tx.eventTrainer.createMany({ data: trainerIds.map((trainerId) => ({ eventId: id, trainerId })), skipDuplicates: true });
     return updated;
    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-   if (!result.count) return { message: "Das Event existiert nicht in dieser Company oder sein Status hat sich geändert. Bitte lade die Seite neu." };
+   if (!result.count) return { message: "Die Veranstaltung existiert nicht in dieser Company oder sein Status hat sich geändert. Bitte lade die Seite neu." };
   }
   saved = true;
  } catch (error) { return failure(error); }
  finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
  refresh(slug);
- if (multiple) return { success: true, message: `${createdCount} Events wurden ${intent === "publish" ? "veröffentlicht" : "als Entwurf erstellt"}.` };
- return { success: true, message: intent === "publish" ? "Event wurde veröffentlicht." : id === null ? "Entwurf wurde erstellt." : "Event wurde gespeichert." };
+ if (multiple) return { success: true, message: `${createdCount} Veranstaltungen wurden ${intent === "publish" ? "veröffentlicht" : "als Entwurf erstellt"}.` };
+ return { success: true, message: intent === "publish" ? "Veranstaltung wurde veröffentlicht." : id === null ? "Entwurf wurde erstellt." : "Veranstaltung wurde gespeichert." };
 }
 async function cancelEvent(slug: string, id: string | null): Promise<EventState> {
  try {
   const { company } = await requireCompanyAccess(slug);
-  if (!validId(id)) return { message: "Ungültiges Event." };
+  if (!validId(id)) return { message: "Ungültige Veranstaltung." };
   const result = await getPrisma().event.updateMany({ where: { id, companyId: company.id, status: "PUBLISHED", endsAt: { gt: new Date() } }, data: { status: "CANCELLED" } });
-  if (!result.count) return { message: "Nur veröffentlichte, noch nicht beendete Events können abgesagt werden. Bitte lade die Seite neu." };
+  if (!result.count) return { message: "Nur veröffentlichte, noch nicht beendete Veranstaltungen können abgesagt werden. Bitte lade die Seite neu." };
  } catch (error) { return failure(error); }
  refresh(slug);
- return { success: true, message: "Event wurde abgesagt." };
+ return { success: true, message: "Veranstaltung wurde abgesagt." };
 }
 export async function deleteEvent(slug: string, id: string, _previous: EventState, form: FormData): Promise<EventState> {
  try {
@@ -158,18 +158,18 @@ export async function deleteEvent(slug: string, id: string, _previous: EventStat
    const deleted = await tx.event.deleteMany({ where: { id, companyId: company.id, bookings: { none: {} }, platformEvents: { none: {} } } });
    return deleted;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
-  if (!result.count) return { message: "Das Event hat noch Buchungen oder Plattformzuordnungen oder existiert nicht in dieser Company." };
+  if (!result.count) return { message: "Die Veranstaltung hat noch Buchungen oder Plattformzuordnungen oder existiert nicht in dieser Company." };
  } catch (error) { return failure(error); }
  refresh(slug);
- return { success: true, message: "Event wurde gelöscht." };
+ return { success: true, message: "Veranstaltung wurde gelöscht." };
 }
 
 export async function sendTrainerInfo(slug: string, id: string, requestId: string, _previous: TrainerReminderActionState): Promise<TrainerReminderActionState> {
  try {
   const { company } = await requireCompanyAccess(slug);
-  if (!validId(id)) return { message: "Ungültiges Event." };
+  if (!validId(id)) return { message: "Ungültige Veranstaltung." };
   const result = await requestTrainerReminderNow(id, company.id, requestId);
-  if (!result.available) return { message: "Das veröffentlichte Event ist nicht versandbereit. Prüfe Beginn und Trainerzuordnung." };
+  if (!result.available) return { message: "Die veröffentlichte Veranstaltung ist nicht versandbereit. Prüfe Beginn und Trainerzuordnung." };
   refresh(slug);
   if (result.sent) return { success: true, sent: true, sentAt: result.sentAt, message: "Trainer-Info wurde versendet." };
   return { sent: false, message: "Der Versand wurde beauftragt, konnte aber noch nicht für alle Trainer abgeschlossen werden. Der Cron versucht es erneut." };

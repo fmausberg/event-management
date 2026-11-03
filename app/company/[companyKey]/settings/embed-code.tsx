@@ -36,7 +36,7 @@ export function EmbedCode({ slug, companyName }: { slug: string; companyName: st
 
   return <section className="max-w-2xl space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
     <h2 className="text-xl font-semibold">Veranstaltungen auf deiner Website einbinden</h2>
-    <p className="text-sm">Füge diesen HTML-Code auf deiner Website ein. Die Übersicht zeigt beim Laden die aktuellen veröffentlichten Veranstaltungen deiner Company. Eventdetails und Buchung öffnen sich in einem neuen Tab.</p>
+    <p className="text-sm">Füge diesen HTML-Code auf deiner Website ein. Die Übersicht zeigt beim Laden die aktuellen veröffentlichten Veranstaltungen deiner Company. Veranstaltungsdetails und Buchung öffnen sich in einem neuen Tab.</p>
     <div><label htmlFor="company-embed-code" className="text-sm font-medium">iframe-Code</label>
       <textarea ref={field} id="company-embed-code" readOnly rows={9} value={code} placeholder="Einbettungscode wird geladen …" spellCheck={false} onFocus={(event) => event.currentTarget.select()} className="mt-2 block w-full rounded-lg border border-zinc-300 bg-zinc-50 p-3 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900" />
     </div>

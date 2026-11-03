@@ -12,9 +12,9 @@ export function cancellationPolicy(beginsAt: Date | null, minutes: number | null
 }
 
 export function cancellationPolicyText(minutes: number | null | undefined) {
-  if (minutes == null) return "Kostenfreie Selbststornierung deaktiviert. Eine Stornierungsanfrage ist vor Eventbeginn möglich.";
+  if (minutes == null) return "Kostenfreie Selbststornierung deaktiviert. Eine Stornierungsanfrage ist vor Veranstaltungsbeginn möglich.";
   const duration = minutes % 1440 === 0 && minutes > 0 ? `${minutes / 1440} Tag(en)` : minutes % 60 === 0 ? `${minutes / 60} Stunde(n)` : `${minutes} Minuten`;
-  return `Kostenfreie Stornierung bis ${duration} vor Eventbeginn; danach ist eine Anfrage erforderlich. Nach Eventbeginn ist keine Stornierung möglich.`;
+  return `Kostenfreie Stornierung bis ${duration} vor Veranstaltungsbeginn; danach ist eine Anfrage erforderlich. Nach Veranstaltungsbeginn ist keine Stornierung möglich.`;
 }
 
 export const requestLabels = { PENDING: "Anfrage offen", APPROVED: "Stornierung genehmigt", REJECTED: "Anfrage abgelehnt", WITHDRAWN: "Anfrage zurückgezogen" };

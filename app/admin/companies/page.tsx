@@ -3,7 +3,7 @@ import { AdminAccessError } from "@/lib/auth/require-admin";
 import { getCompaniesForAdmin } from "@/lib/companies/get-companies";
 import { CompaniesTable } from "./_components/companies-table";
 
-export const metadata = { title: "Eventverwaltung" };
+export const metadata = { title: "Veranstaltungsverwaltung" };
 
 export default async function AdminCompaniesPage() {
   let companies;

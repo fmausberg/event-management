@@ -20,7 +20,7 @@ export function eventDuration(beginsAt: Date | null, endsAt: Date | null) {
 
 export function shortCancellationPolicy(minutes: number | null) {
   if (minutes == null) return "Stornierung nur auf Anfrage";
-  if (minutes === 0) return "Kostenfrei bis Eventbeginn";
+  if (minutes === 0) return "Kostenfrei bis Veranstaltungsbeginn";
   const duration = minutes % 1440 === 0 ? `${minutes / 1440} ${minutes === 1440 ? "Tag" : "Tage"}` : minutes % 60 === 0 ? `${minutes / 60} Std.` : `${minutes} Min.`;
   return `Kostenfrei bis ${duration} vor Beginn`;
 }

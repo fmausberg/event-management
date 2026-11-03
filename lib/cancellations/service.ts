@@ -31,7 +31,7 @@ export async function authorizeCancellation(tx: Prisma.TransactionClient, actor:
 
 export function assertCancellable(booking: { status: string; payment: { status: string } | null; event: { beginsAt: Date | null } }, now: Date) {
   if (booking.status !== "CONFIRMED" || booking.payment && booking.payment.status !== "PAID") throw new CancellationError("Nur bestätigte, vollständig bezahlte Buchungen können storniert werden.");
-  if (booking.event.beginsAt && booking.event.beginsAt <= now) throw new CancellationError("Das Event hat bereits begonnen. Eine Stornierung ist nicht mehr möglich.");
+  if (booking.event.beginsAt && booking.event.beginsAt <= now) throw new CancellationError("Die Veranstaltung hat bereits begonnen. Eine Stornierung ist nicht mehr möglich.");
 }
 
 async function cancelBooking(tx: Prisma.TransactionClient, bookingId: string) {

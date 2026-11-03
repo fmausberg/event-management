@@ -11,7 +11,7 @@ export default async function ReviewsPage({ params }: { params: Promise<{ compan
     throw error;
   }
   return <main className="mx-auto w-full max-w-3xl flex-1 p-6">
-    <a className="underline" href={`/company/${encodeURIComponent(companyKey)}/events`}>Zur Eventverwaltung</a>
+    <a className="underline" href={`/company/${encodeURIComponent(companyKey)}/events`}>Zur Veranstaltungsverwaltung</a>
     <h1 className="my-6 text-2xl font-semibold">Bewertungen: {data.event.name}</h1>
     <dl className="grid grid-cols-2 gap-4">
       {[["Einladungen erstellt", data.invited], ["Einladungen versendet", data.sent], ["Vorläufig", data.provisional], ["Abgeschlossen", data.completed]].map(([label, value]) => <div className="rounded-lg border p-4" key={label}><dt>{label}</dt><dd className="text-2xl font-semibold">{value}</dd></div>)}

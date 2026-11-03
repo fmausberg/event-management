@@ -28,7 +28,7 @@ it("calculates elapsed duration across the DST change in UTC", () => {
 
 it("labels disabled, immediate, day, hour and minute cancellation policies", () => {
   expect(shortCancellationPolicy(null)).toBe("Stornierung nur auf Anfrage");
-  expect(shortCancellationPolicy(0)).toBe("Kostenfrei bis Eventbeginn");
+  expect(shortCancellationPolicy(0)).toBe("Kostenfrei bis Veranstaltungsbeginn");
   expect(shortCancellationPolicy(1440)).toContain("1 Tag vor");
   expect(shortCancellationPolicy(120)).toContain("2 Std.");
   expect(shortCancellationPolicy(90)).toContain("90 Min.");

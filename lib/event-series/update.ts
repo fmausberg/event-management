@@ -12,7 +12,7 @@ type Fields = Omit<z.output<typeof seriesSchema>, "imageUrl"> & { imageUrl?: str
 const include = { trainers: { include: { trainer: true }, orderBy: { trainerId: "asc" as const } }, venue: true };
 type Event = Prisma.EventGetPayload<{ include: typeof include }>;
 export class SeriesConflict extends Error {
-  constructor(message = "Die Veranstaltungsreihe oder ihre Events wurden inzwischen geändert oder ein Event hat begonnen. Bitte lade die Seite neu und prüfe die Änderungen erneut.") { super(message); }
+  constructor(message = "Die Veranstaltungsreihe oder ihre Veranstaltungen wurden inzwischen geändert oder eine Veranstaltung hat begonnen. Bitte lade die Seite neu und prüfe die Änderungen erneut.") { super(message); }
 }
 function digest(value: unknown) { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 function signature(value: string) {
@@ -52,7 +52,7 @@ async function snapshot(tx: Prisma.TransactionClient, companyId: string, id: str
   const events = await tx.event.findMany({ where: { companyId, eventSeriesId: id, beginsAt: { gt: new Date() } }, include, orderBy: [{ beginsAt: "asc" }, { id: "asc" }] });
   const venue = data.suggestedVenueId ? await tx.venue.findFirst({ where: { id: data.suggestedVenueId, companyId } }) : null;
   const trainer = data.suggestedTrainerId ? await tx.trainer.findFirst({ where: { id: data.suggestedTrainerId, companyId } }) : null;
-  if (data.suggestedVenueId && !venue || data.suggestedTrainerId && !trainer) throw new SeriesConflict("Venue oder Trainer ist nicht mehr verfügbar.");
+  if (data.suggestedVenueId && !venue || data.suggestedTrainerId && !trainer) throw new SeriesConflict("Ort oder Trainer ist nicht mehr verfügbar.");
   const tabs: SeriesPreview["tabs"] = keys.map((key) => ({ key, label: seriesLabels[key], rows: events.filter((event) => JSON.stringify(eventValue(event, key)) !== JSON.stringify(proposedValue(data, key)) || key === "suggestedTrainerId" && !!event.trainerName).map((event) => ({
     id: event.id,
     date: new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "short" }).format(event.beginsAt!),
@@ -73,7 +73,7 @@ export async function updateSeriesWithPreview(companyId: string, id: string, fie
   const selection = confirmation ? selectionSchema.parse(JSON.parse(String(form.get("seriesSelection")))) : {};
   for (const [key, ids] of Object.entries(selection)) {
     const tab = initial.tabs.find((tab) => tab.key === key);
-    if (!tab || ids.some((id) => !tab.rows.some((row) => row.id === id))) throw new SeriesConflict("Die Event-Auswahl ist ungültig. Bitte erstelle die Vorschau erneut.");
+    if (!tab || ids.some((id) => !tab.rows.some((row) => row.id === id))) throw new SeriesConflict("Die Veranstaltungsauswahl ist ungültig. Bitte erstelle die Vorschau erneut.");
   }
   let uploaded: UploadedEventImage | undefined;
   let saved = false;
@@ -91,13 +91,13 @@ export async function updateSeriesWithPreview(companyId: string, id: string, fie
         for (const key of selected) {
           if (key === "suggestedDuration") {
             data.endsAt = fields.suggestedDuration === null ? null : new Date(event.beginsAt!.getTime() + fields.suggestedDuration * 60000);
-            if (data.endsAt && data.endsAt.getUTCFullYear() > 9999) throw new SeriesConflict("Die Dauer ergibt ein ungültiges Event-Ende.");
+            if (data.endsAt && data.endsAt.getUTCFullYear() > 9999) throw new SeriesConflict("Die Dauer ergibt ein ungültiges Veranstaltungsende.");
           } else if (key === "suggestedTrainerId") data.trainerName = null;
           else if (key === "imageUrl") { data.imageUrl = uploaded?.imageUrl ?? fields.imageUrl; data.imagePublicId = null; }
           else Object.assign(data, { [mapping[key]]: fields[key] });
         }
         // Preserve the same required fields as the published-event editor.
-        if (event.status === "PUBLISHED" && (data.endsAt === null || data.maxSeats === null || data.ticketPrice === null || data.venueId === null || data.shortdescription === null)) throw new SeriesConflict("Ein veröffentlichtes Event benötigt Kurzbeschreibung, Ende, Teilnehmerzahl, Ticketpreis und Venue. Bitte wähle es beim Leeren dieser Vorgabe ab.");
+        if (event.status === "PUBLISHED" && (data.endsAt === null || data.maxSeats === null || data.ticketPrice === null || data.venueId === null || data.shortdescription === null)) throw new SeriesConflict("Ein veröffentlichtes Veranstaltung benötigt Kurzbeschreibung, Ende, Teilnehmerzahl, Ticketpreis und Ort. Bitte wähle es beim Leeren dieser Vorgabe ab.");
         const updated = await tx.event.updateMany({ where: { id: event.id, companyId, eventSeriesId: id, updatedAt: event.updatedAt, beginsAt: { gt: new Date() } }, data });
         if (updated.count !== 1) throw new SeriesConflict();
         if (selected.includes("suggestedTrainerId")) {
@@ -107,6 +107,6 @@ export async function updateSeriesWithPreview(companyId: string, id: string, fie
       }
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     saved = true;
-    return { success: true, message: "Veranstaltungsreihe und ausgewählte Event-Attribute wurden gespeichert." };
+    return { success: true, message: "Veranstaltungsreihe und ausgewählte Veranstaltungsattribute wurden gespeichert." };
   } finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
 }

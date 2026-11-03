@@ -29,6 +29,6 @@ export default async function PaymentPage({ params, searchParams }: {
       <form action={updateCheckout.bind(null, token, false)}><button className="rounded bg-primary-700 px-4 py-2 text-white">Zahlung prüfen / fortsetzen</button></form>
       <form action={updateCheckout.bind(null, token, true)}><button className="px-4 py-2 underline">Offene Reservierung abbrechen</button></form>
     </div>}
-    <Link className="block underline" href={`/events/${encodeURIComponent(payment.booking.event.company.slug)}/${payment.booking.event.id}`}>Zum Event</Link>
+    <Link className="block underline" href={`/events/${encodeURIComponent(payment.booking.event.company.slug)}/${payment.booking.event.id}`}>Zum Veranstaltung</Link>
   </main>;
 }

@@ -11,7 +11,7 @@ export async function createEvent(_previous: EventFormState, formData: FormData)
   const values = readEventFormData(formData);
   const result = validateEvent(values);
   if (!result.success) return { values, errors: result.errors, message: "Bitte korrigiere die markierten Felder." };
-  return { values, message: "Bitte erstelle Events in der Eventverwaltung der jeweiligen Company. Dort kannst du Company, Preis und Veranstaltungsreihe korrekt zuordnen." };
+  return { values, message: "Bitte erstelle Veranstaltungen in der Veranstaltungsverwaltung der jeweiligen Company. Dort kannst du Company, Preis und Veranstaltungsreihe korrekt zuordnen." };
 }
 
 export async function updateEvent(id: string, _previous: EventFormState, formData: FormData): Promise<EventFormState> {
@@ -19,7 +19,7 @@ export async function updateEvent(id: string, _previous: EventFormState, formDat
   try {
     await requireAdmin();
     const original = await getEvent(id);
-    if (!original) return { values, message: "Dieses Event existiert nicht mehr." };
+    if (!original) return { values, message: "Diese Veranstaltung existiert nicht mehr." };
     const result = validateEvent(values, original);
     if (!result.success) return { values, errors: result.errors, message: "Bitte korrigiere die markierten Felder." };
     await saveEventChanges(id, result.data);

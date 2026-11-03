@@ -26,7 +26,7 @@ it("requires visits, keeps attribute selections independent and cancels without 
  await act(async () => button("Übernehmen").click());
  expect(apply).toHaveBeenCalledWith({ name: [], suggestedTicketPrice: ["one"], description: [] });
  await act(async () => (host.querySelectorAll('[role="tab"]')[2] as HTMLButtonElement).click());
- expect(host.textContent).toContain("keine betroffenen zukünftigen Events");
+ expect(host.textContent).toContain("keine betroffenen zukünftigen Veranstaltungen");
  await act(async () => button("Abbrechen").click());
  expect(cancel).toHaveBeenCalledOnce(); expect(apply).toHaveBeenCalledOnce();
  await act(async () => root.unmount()); host.remove();

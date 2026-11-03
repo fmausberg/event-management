@@ -43,7 +43,7 @@ export function EventImage({ imageUrl, seriesImageUrl, onFileChange }: { imageUr
     }} />
     <input type="hidden" name="removeImage" value={removed ? "yes" : "no"} />
     <p id="event-cover-help" className="text-xs text-zinc-500">JPEG, PNG oder WebP, maximal 8 MB. Das Bild wird mittig auf 16:9 zugeschnitten (1600 × 900 Pixel). Änderungen werden erst beim Speichern übernommen.</p>
-    {!preview && !removed && !imageUrl && seriesImageUrl && <p className="text-xs text-zinc-500">Das Bild der Veranstaltungsreihe wird beim Erstellen in das Event übernommen.</p>}
+    {!preview && !removed && !imageUrl && seriesImageUrl && <p className="text-xs text-zinc-500">Das Bild der Veranstaltungsreihe wird beim Erstellen in die Veranstaltung übernommen.</p>}
     <div className="flex flex-wrap gap-3 text-sm">
       {preview && <button type="button" className="underline" onClick={clearSelection}>Auswahl verwerfen</button>}
       {(imageUrl || seriesImageUrl) && !removed && <button type="button" className="text-red-700 underline dark:text-red-300" onClick={() => { clearSelection(); setRemoved(true); }}>Titelbild entfernen</button>}

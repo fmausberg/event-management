@@ -20,7 +20,7 @@ it("shows requested event information and links, with cancellation form initiall
   const html = renderToStaticMarkup(await MyBookingsPage());
   for (const value of ["Yoga am Abend", "Buchung #42", "1 Std. 30 Min.", "Teststraße 1", "41460 Neuss", 'href="/events/yoga/event"', 'href="/account/tickets/ticket"', "Ticket #7", "Kostenfrei bis 1 Tag vor Beginn", "Stornieren", 'aria-expanded="false"']) expect(html).toContain(value);
   expect(html).not.toContain("textarea");
-  expect(html.indexOf("Kommende Events")).toBeLessThan(html.indexOf("Vergangene Events"));
+  expect(html.indexOf("Kommende Veranstaltungen")).toBeLessThan(html.indexOf("Vergangene Veranstaltungen"));
 });
 it("retains past cancelled bookings and refund information without a cancellation button", async () => {
   getMyBookings.mockResolvedValue([{ ...booking, status: "CANCELLED", event: { ...booking.event, beginsAt: new Date("2020-05-05T16:00Z"), endsAt: new Date("2020-05-05T17:30Z") }, cancellationRequests: [{ id: "request", status: "APPROVED", requestedAt: new Date(), decidedAt: new Date(), refundStatus: "PENDING" }] }]);
@@ -28,5 +28,5 @@ it("retains past cancelled bookings and refund information without a cancellatio
   expect(html).toContain("Erstattung ausstehend");
   expect(html).toContain("Storniert");
   expect(html).not.toContain('aria-expanded="false"');
-  expect(html.indexOf("Vergangene Events")).toBeLessThan(html.indexOf("Yoga am Abend"));
+  expect(html.indexOf("Vergangene Veranstaltungen")).toBeLessThan(html.indexOf("Yoga am Abend"));
 });

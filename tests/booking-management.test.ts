@@ -162,7 +162,7 @@ it("renders empty bookings and exposes event management to company users", async
  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companyKey: "yoga", eventId: "event-1" }) }));
  expect(html).toContain("Noch keine Buchungen vorhanden"); expect(html).toContain("+ Buchung erstellen");
  const events = renderToStaticMarkup(await EventsPage({ params: Promise.resolve({ companyKey: "yoga" }) }));
- expect(events).toContain("+ Event erstellen");
+ expect(events).toContain("+ Veranstaltung erstellen");
  expect((await saveEvent("yoga", null, {}, form())).success).toBeUndefined();
 });
 it("shows resend availability from stored booking email rather than the profile fallback", async () => {
@@ -185,7 +185,7 @@ it("loads stored payment totals and displays the event revenue above the booking
  expect(db.booking.findMany.mock.calls[0][0].select.payment).toEqual({ select: { status: true, amount: true, currency: true } });
  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companyKey: "yoga", eventId: "event-1" }) }));
  expect(html).toContain("31,55");
- expect(html.indexOf("Kalkulatorische Event-Umsatzübersicht")).toBeLessThan(html.indexOf("<table"));
+ expect(html.indexOf("Kalkulatorische Veranstaltungsumsatzübersicht")).toBeLessThan(html.indexOf("<table"));
 });
 
 it("calculates Austrian event revenue using the venue country", async () => {

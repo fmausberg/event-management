@@ -21,11 +21,11 @@ it("queries only published events that have not ended and selects no private dat
  } });
 });
 it("scopes company listings in the database and renders the shared search and filters", async () => {
- company.mockResolvedValue({ name: "Event Yoga" });
+ company.mockResolvedValue({ name: "Veranstaltung Yoga" });
  const html = renderToStaticMarkup(await CompanyPage({ params: Promise.resolve({ companySlug: "event-yoga" }) }));
  expect(company).toHaveBeenCalledWith({ where: { slug: "event-yoga" }, select: { name: true } });
  expect(findMany).toHaveBeenCalledWith(expect.objectContaining({ where: { status: "PUBLISHED", endsAt: { gt: expect.any(Date) }, company: { slug: "event-yoga" } } }));
- for (const label of ["Events – Event Yoga", "Name oder Ort", "Alle Städte", "Sortierung", "Noch keine veröffentlichten Events"]) expect(html).toContain(label);
+ for (const label of ["Veranstaltungen – Veranstaltung Yoga", "Name oder Ort", "Alle Städte", "Sortierung", "Noch keine veröffentlichten Veranstaltungen"]) expect(html).toContain(label);
 });
 it("returns not found for unknown company slugs without querying all events", async () => {
  company.mockResolvedValue(null);
@@ -33,13 +33,13 @@ it("returns not found for unknown company slugs without querying all events", as
  expect(findMany).not.toHaveBeenCalled();
 });
 it("keeps the company scope when retrying a failed listing", async () => {
- company.mockResolvedValue({ name: "Event Yoga" }); findMany.mockRejectedValue(new Error("offline"));
+ company.mockResolvedValue({ name: "Veranstaltung Yoga" }); findMany.mockRejectedValue(new Error("offline"));
  const html = renderToStaticMarkup(await CompanyPage({ params: Promise.resolve({ companySlug: "event-yoga" }) }));
  expect(html).toContain("konnten gerade nicht geladen werden"); expect(html).toContain('href="/events/event-yoga"');
 });
 it("renders the embedded listing without menus and opens event links outside the iframe", async () => {
- company.mockResolvedValue({ name: "Event Yoga" });
- findMany.mockResolvedValue([{ id: "event-1", maxSeats: 10, name: "Yoga", shortdescription: null, beginsAt: new Date("2026-10-16T08:00:00Z"), ticketPrice: { toFixed: () => "19.50" }, currency: "EUR", company: { name: "Event Yoga", slug: "event-yoga" }, venue: null, eventSeries: null }]);
+ company.mockResolvedValue({ name: "Veranstaltung Yoga" });
+ findMany.mockResolvedValue([{ id: "event-1", maxSeats: 10, name: "Yoga", shortdescription: null, beginsAt: new Date("2026-10-16T08:00:00Z"), ticketPrice: { toFixed: () => "19.50" }, currency: "EUR", company: { name: "Veranstaltung Yoga", slug: "event-yoga" }, venue: null, eventSeries: null }]);
  const html = renderToStaticMarkup(await CompanyPage({ params: Promise.resolve({ companySlug: "event-yoga" }), searchParams: Promise.resolve({ embed: "1" }) }));
  expect(html).not.toContain("Öffentliches Menü"); expect(html).not.toContain("min-h-dvh");
  expect(html).toContain("Alle Städte"); expect(html).not.toContain("Entdecke dein nächstes Erlebnis.");
@@ -66,7 +66,7 @@ it("uses the copied event cover and never restores a removed image from its seri
  expect(renderToStaticMarkup(await Page())).not.toContain('src="https://images.example/series.jpg"');
 });
 it("shows distinct empty and error states", async () => {
- expect(renderToStaticMarkup(await Page())).toContain("Noch keine veröffentlichten Events");
+ expect(renderToStaticMarkup(await Page())).toContain("Noch keine veröffentlichten Veranstaltungen");
  findMany.mockRejectedValue(new Error("offline"));
  expect(renderToStaticMarkup(await Page())).toContain("konnten gerade nicht geladen werden");
 });

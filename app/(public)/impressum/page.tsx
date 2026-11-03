@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { SiteFrame } from "@/components/site-frame";
-export const metadata: Metadata = { title: "Eventverwaltung" };
+export const metadata: Metadata = { title: "Veranstaltungsverwaltung" };
 export default function ImpressumPage() {
     return <SiteFrame><main className="mx-auto w-full max-w-6xl flex-1 px-5 py-12 sm:px-8">
         <h1 className="text-3xl font-semibold">Impressum</h1>

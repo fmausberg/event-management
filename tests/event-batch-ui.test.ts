@@ -29,7 +29,7 @@ async function change(element: HTMLInputElement | HTMLSelectElement, value: stri
 }
 async function openForm(withSeries = true) {
   await act(async () => root.render(createElement(EventsTable, { company: { name: "Studio", slug: "studio" }, events: [], series: [series], venues: [{ id: "venue", name: "Studio" }], trainers: [], canManage: true, defaultSeriesId: withSeries ? "series" : undefined })));
-  await act(async () => [...host.querySelectorAll("button")].find(button => button.textContent === "+ Event erstellen")!.click());
+  await act(async () => [...host.querySelectorAll("button")].find(button => button.textContent === "+ Veranstaltung erstellen")!.click());
 }
 async function chooseMultiple() {
   await act(async () => host.querySelector<HTMLInputElement>('input[value="multiple"]')!.click());
@@ -59,7 +59,7 @@ it("requires a series and preserves common form values when switching creation m
 
 it("retains selection and inputs after server errors, then closes with the batch success message", async () => {
   await openForm(); await chooseMultiple(); await chooseTwo();
-  vi.mocked(saveEvent).mockResolvedValueOnce({ message: "Bitte korrigieren.", errors: { name: ["Ungültiger Name"] } }).mockResolvedValueOnce({ success: true, message: "2 Events wurden als Entwurf erstellt." });
+  vi.mocked(saveEvent).mockResolvedValueOnce({ message: "Bitte korrigieren.", errors: { name: ["Ungültiger Name"] } }).mockResolvedValueOnce({ success: true, message: "2 Veranstaltungen wurden als Entwurf erstellt." });
   const submit = () => host.querySelector<HTMLFormElement>("dialog form")!.requestSubmit(host.querySelector<HTMLButtonElement>('button[value="draft"]')!);
   await act(async () => submit());
   expect(host.textContent).toContain("Bitte korrigieren.");
@@ -72,19 +72,19 @@ it("retains selection and inputs after server errors, then closes with the batch
   expect(submitted.get("beginsAt")).toBeNull();
   await act(async () => submit());
   expect(host.querySelector("dialog")).toBeNull();
-  expect(host.textContent).toContain("2 Events wurden als Entwurf erstellt.");
+  expect(host.textContent).toContain("2 Veranstaltungen wurden als Entwurf erstellt.");
 });
 
 it("asks once for optional fields across the whole batch before resubmitting publication", async () => {
   await openForm(); await chooseMultiple(); await chooseTwo();
-  vi.mocked(saveEvent).mockResolvedValueOnce({ warnings: ["Titelbild", "Trainer"] }).mockResolvedValueOnce({ success: true, message: "2 Events wurden veröffentlicht." });
+  vi.mocked(saveEvent).mockResolvedValueOnce({ warnings: ["Titelbild", "Trainer"] }).mockResolvedValueOnce({ success: true, message: "2 Veranstaltungen wurden veröffentlicht." });
   await act(async () => host.querySelector<HTMLFormElement>("dialog form")!.requestSubmit(host.querySelector<HTMLButtonElement>('button[value="publish"]')!));
-  expect(host.textContent).toContain("2 Events sind bereit zur Veröffentlichung");
+  expect(host.textContent).toContain("2 Veranstaltungen sind bereit zur Veröffentlichung");
   expect(saveEvent).toHaveBeenCalledOnce();
   await act(async () => [...host.querySelectorAll("button")].find(button => button.textContent === "Trotzdem veröffentlichen")!.click());
   expect(saveEvent).toHaveBeenCalledTimes(2);
   expect(vi.mocked(saveEvent).mock.calls[1][3].get("confirmMissingOptional")).toBe("yes");
-  expect(host.textContent).toContain("2 Events wurden veröffentlicht.");
+  expect(host.textContent).toContain("2 Veranstaltungen wurden veröffentlicht.");
 });
 
 it("shows Monday-to-Sunday calendar pages and lets users remove a selected conflicting date", async () => {
@@ -106,7 +106,7 @@ it("shows Monday-to-Sunday calendar pages and lets users remove a selected confl
   await act(async () => occupiedDay.click());
   expect(occupiedDay.getAttribute("aria-pressed")).toBe("true");
   expect(host.querySelectorAll('input[name="batchDate"]')).toHaveLength(1);
-  expect(host.textContent).toContain("ein zusätzliches Event angelegt");
+  expect(host.textContent).toContain("ein zusätzliches Veranstaltung angelegt");
   const rangeEnd = host.querySelectorAll<HTMLInputElement>('input[type="date"]')[1];
   await change(rangeEnd, "2027-06-01");
   const next = [...host.querySelectorAll("button")].find(button => button.textContent === "Weiter →")!;

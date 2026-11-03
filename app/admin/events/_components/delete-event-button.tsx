@@ -13,7 +13,7 @@ export function DeleteEventButton({ id, name }: { id: string; name: string }) {
         <button type="button" onClick={() => setConfirming(true)} aria-label={`${name} löschen`} className="text-red-700 underline dark:text-red-400">Löschen</button>
       ) : (
         <form action={formAction} className="space-y-2">
-          <p>Event wirklich löschen?</p>
+          <p>Veranstaltung wirklich löschen?</p>
           <input type="hidden" name="confirmed" value="yes" />
           <div className="flex gap-3">
             <button type="submit" disabled={pending} className="text-red-700 underline disabled:opacity-50 dark:text-red-400">{pending ? "Wird gelöscht …" : "Ja, löschen"}</button>
