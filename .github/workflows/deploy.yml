@@ -4,21 +4,63 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 concurrency:
   group: deploy-production
   cancel-in-progress: false
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: ghcr.io/fmausberg/event-management-app:${{ github.sha }}
+          cache-from: type=gha,scope=app
+          cache-to: type=gha,mode=max,scope=app
+
+      - name: Build and publish migration image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: migrate
+          push: true
+          tags: ghcr.io/fmausberg/event-management-migrate:${{ github.sha }}
+          cache-from: type=gha,scope=migrate
+          cache-to: type=gha,mode=max,scope=migrate
+
   deploy:
+    needs: build
     runs-on: ubuntu-latest
     steps:
-      - name: Deploy on server
+      - name: Deploy image on server
         env:
           DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
           DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
           DEPLOY_USER: ${{ vars.DEPLOY_USER }}
           DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          IMAGE_TAG: ${{ github.sha }}
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
@@ -26,4 +68,4 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
           ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
-            "cd '$DEPLOY_PATH' && git pull --ff-only origin main && docker compose --env-file /opt/docker/event-management/.env.docker -f compose.yaml -f compose.traefik.yaml -p event-management up -d --build"
+            "cd '$DEPLOY_PATH' && git pull --ff-only origin main && IMAGE_TAG='$IMAGE_TAG' docker compose --env-file /opt/docker/event-management/.env.docker -f compose.yaml -f compose.traefik.yaml -p event-management pull app migrate && IMAGE_TAG='$IMAGE_TAG' docker compose --env-file /opt/docker/event-management/.env.docker -f compose.yaml -f compose.traefik.yaml -p event-management up -d --no-build"
