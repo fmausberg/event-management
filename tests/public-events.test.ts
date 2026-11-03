@@ -1,4 +1,5 @@
 import { PublicHeader } from "@/components/public-events";
+import { auth } from "@/auth";
 import { beforeEach, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
@@ -7,7 +8,7 @@ import Page from "@/app/(public)/events/page";
 import CompanyPage from "@/app/(public)/events/[companySlug]/page";
 import { NavigationShell } from "@/components/navigation-shell";
 const { findMany, groupBy, pathname, company } = vi.hoisted(() => ({ findMany: vi.fn(), groupBy: vi.fn(), pathname: vi.fn(), company: vi.fn() }));
-vi.mock("@/auth", () => ({ auth: async () => null }));
+vi.mock("@/auth", () => ({ auth: vi.fn(async () => null) }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => ({ event: { findMany }, booking: { groupBy }, company: { findUnique: company } }) }));
 vi.mock("next/navigation", () => ({ usePathname: pathname, notFound: () => { throw new Error("NOT_FOUND"); } }));
@@ -55,7 +56,7 @@ it("renders cards, prices, dates, links and the requested menu", async () => {
  const html = renderToStaticMarkup(await Page());
  expect(html).toContain("Yoga"); expect(html).toContain("19,50"); expect(html).toContain("Fr., 16.10.2026, 10:00");
  expect(html).toContain('href="/events/studio/event-1"');
- for (const label of ["Einloggen", "Registrieren", "Information"]) expect(html).toContain(label);
+ for (const label of ["Login", "Registrieren", "Information"]) expect(html).toContain(label);
 });
 it("uses the copied event cover and never restores a removed image from its series", async () => {
  const event = { id: "event-1", maxSeats: 10, name: "Yoga", shortdescription: null, beginsAt: new Date("2026-10-16T08:00:00Z"), ticketPrice: { toFixed: () => "19.50" }, currency: "EUR", company: { name: "Studio", slug: "studio" }, venue: null, eventSeries: { imageUrl: "https://images.example/series.jpg" } };
@@ -81,9 +82,21 @@ it.each([10, 12])("disables the card button when %i seats are booked out of 10",
  expect(available).not.toContain("ausgebucht");
  expect(available).toContain('aria-label="Details zu Yoga"');
 });
-it("hides the management sidebar for signed-in visitors", () => {
+it("shows the sidebar and top navigation for signed-in event visitors", () => {
  const html = renderToStaticMarkup(createElement(NavigationShell, { data: { user: { name: "Ada", email: "ada@example.com" }, groups: [] } }, "Public content"));
- expect(html).toBe("Public content");
+ expect(html).toContain('aria-label="Seitenleiste"');
+ expect(html).toContain('aria-label="Breadcrumb"');
+ expect(html).toContain("Public content");
+});
+
+it("omits the guest header for signed-in visitors, including load failures", async () => {
+ vi.mocked(auth).mockResolvedValue({ user: { id: "user-1" } } as never);
+ expect(renderToStaticMarkup(await Page())).not.toContain('href="/login"');
+ expect(renderToStaticMarkup(await Page())).not.toContain('<summary');
+ findMany.mockRejectedValue(new Error("offline"));
+ const html = renderToStaticMarkup(await Page());
+ expect(html).toContain("konnten gerade nicht geladen werden");
+ expect(html).not.toContain('<summary');
 });
 
 it("shows profile and management links only when signed in", () => {
