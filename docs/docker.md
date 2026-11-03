@@ -169,9 +169,13 @@ Da dieses Repository öffentlich ist, würde das Image in diesem Fall ebenfalls
 
 Nach dem Merge kontrolliere in GitHub unter **Actions**, dass der Lauf für
 `main` erfolgreich abgeschlossen wurde. Bei einem Fehler auf dem Server zuerst
-`docker compose ... logs --tail=100 migrate app` ansehen. Der Workflow enthält
-keine automatischen Tests oder Backup-Schritte; [Prüfungen](testing.md) vor einer
-Freigabe gesondert ausführen.
+`docker compose ... logs --tail=100 migrate app` ansehen. Nach erfolgreichem Start
+entfernt der Workflow ungenutzte App- und Migrationsimages dieses Projekts vom
+Server, darunter die alten lokalen `event-management-*:latest`-Images. Er prüft
+zuerst, ob ein Container ein Image noch verwendet. Images anderer Projekte auf
+dem Server bleiben davon unberührt. GHCR-Tags auf GitHub werden durch diese
+Serverbereinigung nicht gelöscht. Der Workflow enthält keine automatischen Tests
+oder Backup-Schritte; [Prüfungen](testing.md) vor einer Freigabe gesondert ausführen.
 
 Der Compose-Migrationsservice wendet ausstehende Migrationen vor dem App-Start an.
 Für Änderungen, die einen koordinierten Stopp benötigen, gelten zusätzlich die
