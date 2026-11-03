@@ -12,7 +12,7 @@ type Fields = Omit<z.output<typeof seriesSchema>, "imageUrl"> & { imageUrl?: str
 const include = { trainers: { include: { trainer: true }, orderBy: { trainerId: "asc" as const } }, venue: true };
 type Event = Prisma.EventGetPayload<{ include: typeof include }>;
 export class SeriesConflict extends Error {
-  constructor(message = "Die Serie oder ihre Events wurden inzwischen geändert oder ein Event hat begonnen. Bitte lade die Seite neu und prüfe die Änderungen erneut.") { super(message); }
+  constructor(message = "Die Veranstaltungsreihe oder ihre Events wurden inzwischen geändert oder ein Event hat begonnen. Bitte lade die Seite neu und prüfe die Änderungen erneut.") { super(message); }
 }
 function digest(value: unknown) { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
 function signature(value: string) {
@@ -46,7 +46,7 @@ function format(value: unknown, key: SeriesAttribute, currency: string) {
 }
 async function snapshot(tx: Prisma.TransactionClient, companyId: string, id: string, fields: Fields) {
   const series = await tx.eventSeries.findFirst({ where: { id, companyId } });
-  if (!series) throw new SeriesConflict("Diese Eventserie ist nicht verfügbar.");
+  if (!series) throw new SeriesConflict("Diese Veranstaltungsreihe ist nicht verfügbar.");
   const data = { ...fields, imageUrl: fields.imageUrl === undefined ? series.imageUrl : fields.imageUrl };
   const keys = (Object.keys(seriesLabels) as SeriesAttribute[]).filter((key) => normalized(series[key], key) !== normalized(data[key], key));
   const events = await tx.event.findMany({ where: { companyId, eventSeriesId: id, beginsAt: { gt: new Date() } }, include, orderBy: [{ beginsAt: "asc" }, { id: "asc" }] });
@@ -107,6 +107,6 @@ export async function updateSeriesWithPreview(companyId: string, id: string, fie
       }
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     saved = true;
-    return { success: true, message: "Eventserie und ausgewählte Event-Attribute wurden gespeichert." };
+    return { success: true, message: "Veranstaltungsreihe und ausgewählte Event-Attribute wurden gespeichert." };
   } finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
 }

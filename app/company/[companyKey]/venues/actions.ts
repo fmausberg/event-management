@@ -41,7 +41,7 @@ export async function deleteVenue(slug: string, id: string, _previous: VenueStat
     const { company } = await requireCompanyAccess(slug);
     if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen einer gültigen Venue." };
     const result = await getPrisma().venue.deleteMany({ where: { id, companyId: company.id, events: { none: {} }, suggestedForSeries: { none: {} } } });
-    if (!result.count) return { message: "Die Venue hat noch Events oder Eventserien oder existiert nicht in dieser Company." };
+    if (!result.count) return { message: "Die Venue hat noch Events oder Veranstaltungsreihen oder existiert nicht in dieser Company." };
   } catch (error) { return failure(error); }
   refresh(slug);
   return { success: true, message: "Venue wurde gelöscht." };

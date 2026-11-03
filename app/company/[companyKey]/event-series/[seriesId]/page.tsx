@@ -19,8 +19,8 @@ export default async function CompanyEventSeriesDetailPage({ params }: {
       notFound();
     }
     return <main className="flex-1 p-6 sm:p-10">
-      <h1 className="text-2xl font-semibold">Eventserie</h1>
-      <p role="alert" className="mt-4">Die Eventserie konnte gerade nicht geladen werden.</p>
+      <h1 className="text-2xl font-semibold">Veranstaltungsreihe</h1>
+      <p role="alert" className="mt-4">Die Veranstaltungsreihe konnte gerade nicht geladen werden.</p>
       <Link href={`/company/${encodeURIComponent(companyKey)}/event-series/${encodeURIComponent(seriesId)}`} className="mt-4 inline-block underline">Erneut versuchen</Link>
     </main>;
   }

@@ -7,7 +7,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import { companySchema, companyIdSchema, readCompanyForm, type CompanyFormState } from "@/lib/companies/validation";
 
 const duplicateSlug = "Dieses URL-Kürzel wird bereits von einer anderen Company verwendet.";
-const dependentRecords = "Diese Company hat noch Mitglieder, Venues, Event-Series oder Events und kann deshalb nicht gelöscht werden.";
+const dependentRecords = "Diese Company hat noch Mitglieder, Venues, Veranstaltungsreihen oder Events und kann deshalb nicht gelöscht werden.";
 
 function mutationError(error: unknown): CompanyFormState {
   if (error instanceof AdminAccessError) return { message: error.message };

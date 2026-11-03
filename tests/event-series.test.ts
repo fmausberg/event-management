@@ -89,7 +89,7 @@ it.each([{ suggestedMaxSeats: "1.5" }, { suggestedMaxSeats: "-1" }, { suggestedT
 it("renders empty table and create option, and redirects guests", async () => {
  const props = { params: Promise.resolve({ companyKey: "yoga" }) };
  const html = renderToStaticMarkup(await Page(props));
- expect(html).toContain("Noch keine Eventserien vorhanden"); expect(html).toContain("+ Eventserie erstellen");
+ expect(html).toContain("Noch keine Veranstaltungsreihen vorhanden"); expect(html).toContain("+ Veranstaltungsreihe erstellen");
  auth.mockResolvedValue(null); await expect(Page(props)).rejects.toThrow("LOGIN");
  expect((await saveSeries("yoga", null, {}, form())).success).toBeUndefined();
 });

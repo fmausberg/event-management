@@ -34,7 +34,7 @@ export async function saveSeries(slug: string, id: string | null, _previous: Ser
   let saved = false;
   try {
     const { company } = await requireCompanyAccess(slug);
-    if (id !== null && !validId(id)) return { message: "Ungültige Eventserie." };
+    if (id !== null && !validId(id)) return { message: "Ungültige Veranstaltungsreihe." };
     const parsed = seriesSchema.safeParse(Object.fromEntries(Object.keys(seriesSchema.shape).map((key) => [key, key === "suggestedCurrency" ? "EUR" : key === "imageUrl" ? "" : form.get(key) ?? ""])));
     if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
     const db = getPrisma();
@@ -63,16 +63,16 @@ export async function saveSeries(slug: string, id: string | null, _previous: Ser
   } catch (error) { return failure(error); }
   finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
   refresh(slug);
-  return { success: true, message: id === null ? "Eventserie wurde erstellt." : "Eventserie wurde gespeichert." };
+  return { success: true, message: id === null ? "Veranstaltungsreihe wurde erstellt." : "Veranstaltungsreihe wurde gespeichert." };
 }
 
 export async function deleteSeries(slug: string, id: string, _previous: SeriesState, form: FormData): Promise<SeriesState> {
   try {
     const { company } = await requireCompanyAccess(slug);
-    if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen einer gültigen Eventserie." };
+    if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen einer gültigen Veranstaltungsreihe." };
     const result = await getPrisma().eventSeries.deleteMany({ where: { id, companyId: company.id, events: { none: {} } } });
-    if (!result.count) return { message: "Die Eventserie hat noch Events oder existiert nicht in dieser Company." };
+    if (!result.count) return { message: "Die Veranstaltungsreihe hat noch Events oder existiert nicht in dieser Company." };
   } catch (error) { return failure(error); }
   refresh(slug);
-  return { success: true, message: "Eventserie wurde gelöscht." };
+  return { success: true, message: "Veranstaltungsreihe wurde gelöscht." };
 }

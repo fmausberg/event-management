@@ -11,7 +11,7 @@ export async function createEvent(_previous: EventFormState, formData: FormData)
   const values = readEventFormData(formData);
   const result = validateEvent(values);
   if (!result.success) return { values, errors: result.errors, message: "Bitte korrigiere die markierten Felder." };
-  return { values, message: "Bitte erstelle Events in der Eventverwaltung der jeweiligen Company. Dort kannst du Company, Preis und Eventreihe korrekt zuordnen." };
+  return { values, message: "Bitte erstelle Events in der Eventverwaltung der jeweiligen Company. Dort kannst du Company, Preis und Veranstaltungsreihe korrekt zuordnen." };
 }
 
 export async function updateEvent(id: string, _previous: EventFormState, formData: FormData): Promise<EventFormState> {

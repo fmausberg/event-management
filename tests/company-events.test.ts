@@ -19,7 +19,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
-vi.mock("next/navigation", () => ({ redirect: () => { throw new Error("LOGIN"); }, notFound: () => { throw new Error("NOT_FOUND"); } }));
+vi.mock("next/navigation", () => ({ usePathname: () => "/company/studio/event-series/series-1", redirect: () => { throw new Error("LOGIN"); }, notFound: () => { throw new Error("NOT_FOUND"); } }));
 it("scopes series events to the company and renders series details and the empty state", async () => {
  db.eventSeries.findMany.mockResolvedValue([{ id: "series-1", number: 7, name: "Workshopreihe", shortdescription: "Kurztext", description: "Ausführliche Beschreibung", suggestedTicketPrice: null, _count: { events: 0 } }]);
  const html = renderToStaticMarkup(await SeriesPage({ params: Promise.resolve({ companyKey: "yoga", seriesId: "series-1" }) }));
@@ -27,7 +27,7 @@ it("scopes series events to the company and renders series details and the empty
  expect(html).toContain("Workshopreihe");
  expect(html).toContain("Kurztext");
  expect(html).toContain("Ausführliche Beschreibung");
- expect(html).toContain("Dieser Eventserie sind noch keine Events zugeordnet.");
+ expect(html).toContain("Dieser Veranstaltungsreihe sind noch keine Events zugeordnet.");
 });
 it("returns not found for a series outside the company", async () => {
  await expect(SeriesPage({ params: Promise.resolve({ companyKey: "yoga", seriesId: "foreign-series" }) })).rejects.toThrow("NOT_FOUND");

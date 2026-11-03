@@ -48,7 +48,7 @@ export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
         <caption className="sr-only">Companies mit verknüpften Datensätzen und Verwaltungsaktionen</caption>
         <thead className="bg-zinc-50 text-xs text-zinc-500 dark:bg-zinc-900">
           <tr>
-            {["Nr.", "Company", "Stripe Account-ID", "Mitglieder", "Venues", "Event-Series", "Events", "Aktionen"].map((label) => <th key={label} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{label}</th>)}
+            {["Nr.", "Company", "Stripe Account-ID", "Mitglieder", "Venues", "Veranstaltungsreihen", "Events", "Aktionen"].map((label) => <th key={label} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{label}</th>)}
           </tr>
         </thead>
         <tbody>{visible.map((company) => <tr key={company.id} className="border-t border-zinc-100 align-top dark:border-zinc-800">
@@ -61,6 +61,6 @@ export function CompaniesTable({ companies }: { companies: CompanyRow[] }) {
       </table></div>
       {visible.length === 0 && <p className="p-8 text-center text-sm text-zinc-500">{companies.length === 0 ? "Noch keine Companies vorhanden. Erstelle die erste Company über den Button oben." : "Keine Companies zu deiner Suche gefunden."}</p>}
     </div>
-    <p className="text-xs text-zinc-500">Löschen ist nur möglich, wenn keine Mitglieder, Venues, Event-Series oder Events mehr zugeordnet sind.</p>
+    <p className="text-xs text-zinc-500">Löschen ist nur möglich, wenn keine Mitglieder, Venues, Veranstaltungsreihen oder Events mehr zugeordnet sind.</p>
   </main>;
 }

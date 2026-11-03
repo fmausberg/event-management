@@ -12,7 +12,7 @@ export default async function CompanyEventSeriesPage({ params }: { params: Promi
       if (error.reason === "UNAUTHENTICATED") redirect("/login");
       notFound();
     }
-    return <main className="flex-1 p-6 sm:p-10"><h1 className="text-2xl font-semibold">Eventserien</h1><p role="alert" className="mt-4">Die Eventserien konnten gerade nicht geladen werden.</p><a href={`/company/${encodeURIComponent(companyKey)}/event-series`} className="mt-4 inline-block underline">Erneut versuchen</a></main>;
+    return <main className="flex-1 p-6 sm:p-10"><h1 className="text-2xl font-semibold">Veranstaltungsreihen</h1><p role="alert" className="mt-4">Die Veranstaltungsreihen konnten gerade nicht geladen werden.</p><a href={`/company/${encodeURIComponent(companyKey)}/event-series`} className="mt-4 inline-block underline">Erneut versuchen</a></main>;
   }
   return <SeriesTable {...result} />;
 }

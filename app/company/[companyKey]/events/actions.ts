@@ -32,7 +32,7 @@ export async function getSeriesDateConflicts(slug: string, seriesId: string, fro
   const { company } = await requireCompanyAccess(slug);
   if (!validId(seriesId) || !calendarRange(from, to).length) return { dates: [], message: "Bitte einen gültigen Zeitraum von höchstens 366 Tagen auswählen." };
   const db = getPrisma();
-  if (!await db.eventSeries.findFirst({ where: { id: seriesId, companyId: company.id }, select: { id: true } })) return { dates: [], message: "Bitte wähle eine Eventreihe dieser Company." };
+  if (!await db.eventSeries.findFirst({ where: { id: seriesId, companyId: company.id }, select: { id: true } })) return { dates: [], message: "Bitte wähle eine Veranstaltungsreihe dieser Company." };
   return { dates: await occupiedSeriesDates(db, company.id, seriesId, from, to) };
  } catch (error) { return { dates: [], message: failure(error).message }; }
 }
@@ -54,7 +54,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
   const schema = intent === "publish" || existing?.status === "PUBLISHED" ? publishEventSchema : eventSchema;
   let occurrences: BatchOccurrence[] = [];
   if (multiple) {
-   if (!validId(form.get("eventSeriesId"))) return { message: "Bitte zuerst eine Eventreihe auswählen." };
+   if (!validId(form.get("eventSeriesId"))) return { message: "Bitte zuerst eine Veranstaltungsreihe auswählen." };
    const schedule = parseBatchSchedule(form);
    if (schedule.message) return { message: schedule.message, dateErrors: schedule.dateErrors };
    occurrences = schedule.occurrences;
@@ -75,7 +75,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
   if (intent === "publish" && new Date(parsed.data.endsAt) <= new Date()) return { message: "Ein bereits beendetes Event kann nicht veröffentlicht werden.", errors: { endsAt: ["Das Ende muss für die Veröffentlichung in der Zukunft liegen."] } };
   const { eventSeriesId, venueId } = parsed.data;
   const series = eventSeriesId ? await db.eventSeries.findFirst({ where: { id: eventSeriesId, companyId: company.id }, select: { id: true, imageUrl: true } }) : null;
-  if (eventSeriesId && !series) return { message: "Bitte wähle eine Eventreihe dieser Company." };
+  if (eventSeriesId && !series) return { message: "Bitte wähle eine Veranstaltungsreihe dieser Company." };
   if (venueId && !await db.venue.findFirst({ where: { id: venueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle eine Venue dieser Company." };
   const { trainerIds, status: ignoredStatus, ...fields } = parsed.data;
   void ignoredStatus;
@@ -109,7 +109,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
       if (member?.status !== "ACTIVE" || !["COMPANY_ADMIN", "COMPANY_USER"].includes(member.role)) throw new MemberAccessError("FORBIDDEN");
      }
      const currentSeries = await tx.eventSeries.findFirst({ where: { id: eventSeriesId!, companyId: company.id }, select: { id: true, imageUrl: true } });
-     if (!currentSeries) return { message: "Die ausgewählte Eventreihe ist nicht mehr verfügbar." };
+     if (!currentSeries) return { message: "Die ausgewählte Veranstaltungsreihe ist nicht mehr verfügbar." };
      if (venueId && !await tx.venue.findFirst({ where: { id: venueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle eine Venue dieser Company." };
      const currentTrainers = await tx.trainer.findMany({ where: { id: { in: trainerIds }, companyId: company.id }, select: { id: true } });
      if (currentTrainers.length !== trainerIds.length) return { message: "Mindestens ein Trainer ist nicht mehr verfügbar.", errors: { trainerIds: ["Bitte die Trainerzuordnung prüfen."] } };
