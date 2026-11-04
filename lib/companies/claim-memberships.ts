@@ -9,6 +9,9 @@ export async function claimVerifiedAssignments(tx: Prisma.TransactionClient, use
   const email = { equals: user.email.trim().toLowerCase(), mode: "insensitive" as const };
   const identities = await tx.user.findMany({ where: { email }, select: { id: true }, take: 2 });
   if (identities.length !== 1 || identities[0].id !== user.id) return;
+  // Tickets belong to their booking and inherit its account ownership.
+  // Claim guest bookings across all events/statuses without replacing an existing owner.
+  await tx.booking.updateMany({ where: { customerEmail: email, userId: null }, data: { userId } });
   await tx.companyMembership.updateMany({
     where: { email, userId: null, status: { in: ["ACTIVE", "INVITED"] }, company: { memberships: { none: { userId } } } },
     data: { userId, status: "ACTIVE" },

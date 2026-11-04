@@ -7,6 +7,7 @@ import { sendMail } from "@/lib/mail";
 const { db } = vi.hoisted(() => ({ db: {
   $transaction: vi.fn(), user: { findUnique: vi.fn(), findMany: vi.fn(), update: vi.fn() },
   verificationToken: { create: vi.fn(), findUnique: vi.fn(), deleteMany: vi.fn() },
+  booking: { updateMany: vi.fn() },
   companyMembership: { updateMany: vi.fn() }, eventStaff: { updateMany: vi.fn() }, venueStaff: { updateMany: vi.fn() }, trainer: { findMany: vi.fn(), updateMany: vi.fn() },
 } }));
 vi.mock("server-only", () => ({}));
@@ -40,6 +41,7 @@ it("never claims before verification, even if a caller supplies a forged verifie
   db.user.findUnique.mockResolvedValue({ ...user, emailVerified: null });
   await claimMemberships(user);
   expect(db.companyMembership.updateMany).not.toHaveBeenCalled(); expect(db.trainer.updateMany).not.toHaveBeenCalled();
+  expect(db.booking.updateMany).not.toHaveBeenCalled();
 });
 it("atomically claims all four assignment types using the verified database identity", async () => {
   await claimMemberships(user);
@@ -58,6 +60,7 @@ it("skips ambiguous trainer profiles within one company", async () => {
 it("does not claim ambiguous case-insensitive user identities", async () => {
   db.user.findMany.mockResolvedValue([user, { id: "another" }]);
   await claimMemberships(user); expect(db.eventStaff.updateMany).not.toHaveBeenCalled(); expect(db.trainer.updateMany).not.toHaveBeenCalled();
+  expect(db.booking.updateMany).not.toHaveBeenCalled();
 });
 it("retries an entire transaction after a serialization conflict", async () => {
   db.$transaction.mockRejectedValueOnce(new Prisma.PrismaClientKnownRequestError("retry", { code: "P2034", clientVersion: "test" }));
@@ -72,6 +75,7 @@ it("stores only a hash and sends a separate expiring verification link", async (
   expect(data.token).toBe(createHash("sha256").update(raw).digest("hex"));
   expect(data.expires.getTime() - Date.now()).toBeGreaterThan(23 * 60 * 60 * 1000);
   expect(db.user.update).not.toHaveBeenCalled(); expect(db.eventStaff.updateMany).not.toHaveBeenCalled();
+  expect(db.booking.updateMany).not.toHaveBeenCalled();
 });
 it.each(["expired", "used", "ambiguous", "changed-email", "malformed"])("rejects %s verification without activating the account", async (scenario) => {
   if (scenario === "expired") db.verificationToken.findUnique.mockResolvedValue({ expires: new Date(0) });
@@ -86,6 +90,22 @@ it("verifies, consumes the token, and claims all roles in the same transaction",
   expect(db.user.update).toHaveBeenCalledWith({ where: { id: user.id }, data: { emailVerified: expect.any(Date) } });
   expect(db.eventStaff.updateMany).toHaveBeenCalled(); expect(db.trainer.updateMany).toHaveBeenCalled();
   expect(db.$transaction).toHaveBeenCalledTimes(1);
+  expect(db.booking.updateMany).toHaveBeenCalledWith({
+    where: { customerEmail: { equals: "ada@example.com", mode: "insensitive" }, userId: null },
+    data: { userId: user.id },
+  });
+});
+it("also claims guest bookings for existing verified accounts on login", async () => {
+  await claimMemberships(user);
+  expect(db.booking.updateMany).toHaveBeenCalledWith({
+    where: { customerEmail: { equals: "ada@example.com", mode: "insensitive" }, userId: null },
+    data: { userId: user.id },
+  });
+});
+it("propagates booking failures so verification and token consumption roll back together", async () => {
+  db.booking.updateMany.mockRejectedValue(new Error("booking failure"));
+  await expect(verifyEmailToken(token)).rejects.toThrow("booking failure");
+  expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "Serializable" });
 });
 it("propagates assignment failures so the verification transaction rolls back", async () => {
   db.trainer.updateMany.mockRejectedValue(new Error("database failure"));
