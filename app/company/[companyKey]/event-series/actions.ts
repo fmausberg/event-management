@@ -1,4 +1,5 @@
 "use server";
+import { sanitizeDescription } from "@/lib/descriptions/html";
 
 import { SeriesConflict, updateSeriesWithPreview } from "@/lib/event-series/update";
 import { Prisma } from "@prisma/client";
@@ -37,6 +38,7 @@ export async function saveSeries(slug: string, id: string | null, _previous: Ser
     if (id !== null && !validId(id)) return { message: "Ungültige Veranstaltungsreihe." };
     const parsed = seriesSchema.safeParse(Object.fromEntries(Object.keys(seriesSchema.shape).map((key) => [key, key === "suggestedCurrency" ? "EUR" : key === "imageUrl" ? "" : form.get(key) ?? ""])));
     if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
+  parsed.data.description = sanitizeDescription(parsed.data.description);
     const db = getPrisma();
     if (parsed.data.suggestedVenueId && !await db.venue.findFirst({ where: { id: parsed.data.suggestedVenueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle einen Ort dieser Company.", errors: { suggestedVenueId: ["Der Ort gehört nicht zu dieser Company."] } };
     if (parsed.data.suggestedTrainerId && !await db.trainer.findFirst({ where: { id: parsed.data.suggestedTrainerId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle einen Trainer dieser Company.", errors: { suggestedTrainerId: ["Der Trainer ist nicht verfügbar."] } };

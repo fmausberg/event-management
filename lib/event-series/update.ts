@@ -1,3 +1,4 @@
+import { sanitizeDescription } from "@/lib/descriptions/html";
 import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
 import { Prisma } from "@prisma/client";
@@ -64,6 +65,7 @@ async function snapshot(tx: Prisma.TransactionClient, companyId: string, id: str
 const selectionSchema = z.record(z.string(), z.array(z.string().min(1).max(191))).refine((v) => Object.values(v).every((ids) => new Set(ids).size === ids.length));
 
 export async function updateSeriesWithPreview(companyId: string, id: string, fields: Fields, file: File | null, form: FormData): Promise<SeriesState> {
+  fields = { ...fields, description: sanitizeDescription(fields.description) };
   const db = getPrisma();
   if (file) fields.imageUrl = `upload:${createHash("sha256").update(Buffer.from(await file.arrayBuffer())).digest("hex")}`;
   const initial = await snapshot(db, companyId, id, fields);

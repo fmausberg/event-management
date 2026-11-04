@@ -1,4 +1,5 @@
 "use client";
+import { DescriptionEditor } from "@/components/description-editor";
 import { SeriesPreviewDialog } from "./series-preview-dialog";
 import type { SeriesPreview } from "@/lib/event-series/preview";
 import { CancellationPolicyField } from "@/components/cancellation-policy-field";
@@ -56,7 +57,7 @@ function SeriesForm({ slug, row, venues, trainers, onSaved, onCancel }: { slug: 
       <div className="sm:col-span-2 max-w-xl"><EventImage imageUrl={row?.imageUrl} onFileChange={setCoverFile} /></div>
       <TrainerPicker slug={slug} trainers={trainers} name="suggestedTrainerId" value={selectedTrainer ? [selectedTrainer] : []} onChange={(ids) => setSelectedTrainer(ids[0] ?? "")} onBusy={setTrainerBusy} errors={state.errors?.suggestedTrainerId} legacyName={row?.suggestedTrainerName} />
       <div><label htmlFor="series-venue" className="text-sm">Ort (Vorgabe)</label><select id="series-venue" name="suggestedVenueId" defaultValue={row?.suggestedVenueId ?? ""} className={inputClass}><option value="">Keinen Ort</option>{venues.map((venue) => <option key={venue.id} value={venue.id}>{venue.name}</option>)}</select>{error("suggestedVenueId")}</div>
-      <div className="sm:col-span-2"><label htmlFor="series-description" className="text-sm">Beschreibung</label><textarea id="series-description" name="description" rows={5} maxLength={20000} defaultValue={row?.description ?? ""} className={inputClass} />{error("description")}</div>
+      <div className="sm:col-span-2"><label htmlFor="series-description" className="text-sm">Beschreibung</label><SeriesDescription value={row?.description ?? ""} />{error("description")}</div>
     </fieldset>
     <p className="text-xs text-zinc-500">Vorgaben dienen als Vorlage. Änderungen können beim Speichern einzeln auf zukünftige Veranstaltungen übertragen werden.</p>
     {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
@@ -96,4 +97,9 @@ export function SeriesTable({ company, series, venues, trainers }: { company: { 
     </div>
     <p className="text-xs text-zinc-500">Veranstaltungsreihen mit zugeordneten Veranstaltungen können nicht gelöscht werden.</p>
   </main>;
+}
+
+function SeriesDescription({ value }: { value: string }) {
+ const [html, setHtml] = useState(value);
+ return <DescriptionEditor id="series-description" value={html} onChange={setHtml} />;
 }

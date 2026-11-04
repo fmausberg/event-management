@@ -292,3 +292,8 @@ it("renders incomplete drafts without inventing dates or free ticket prices", as
  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companyKey: "yoga" }) }));
  expect(html).toContain("Unbenannter Entwurf"); expect(html).toContain("Noch offen"); expect(html).not.toContain("NaN");
 });
+it("sanitizes description HTML at the server write boundary", async () => {
+ const result = await saveEvent("yoga", null, {}, form({ description: '<p onclick="bad()"><strong>Text</strong></p><script>bad()</script>', shortdescription: '<p>Kurz</p>' }));
+ expect(result.success).toBe(true);
+ expect(db.event.create).toHaveBeenCalledWith({ data: expect.objectContaining({ description: '<p><strong>Text</strong></p>', shortdescription: '<p>Kurz</p>' }) });
+});

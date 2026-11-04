@@ -1,3 +1,5 @@
+import { DescriptionHtml } from "@/components/description-html";
+import { isDescriptionEmpty } from "@/lib/descriptions/html";
 import { cancellationPolicyText } from "@/lib/cancellations/policy";
 import Link from "next/link";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
@@ -48,7 +50,7 @@ export default async function CompanyEventSeriesDetailPage({ params }: {
       )}
       <dl className="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
         <div className="sm:col-span-2 lg:col-span-3"><dt className="text-sm text-zinc-500">Kurzbeschreibung</dt><dd className="mt-1 whitespace-pre-wrap break-words">{series.shortdescription || "—"}</dd></div>
-        <div className="sm:col-span-2 lg:col-span-3"><dt className="text-sm text-zinc-500">Beschreibung</dt><dd className="mt-1 whitespace-pre-wrap break-words">{series.description || "—"}</dd></div>
+        <div className="sm:col-span-2 lg:col-span-3"><dt className="text-sm text-zinc-500">Beschreibung</dt><dd className="mt-1 break-words">{isDescriptionEmpty(series.description) ? "—" : <DescriptionHtml html={series.description} />}</dd></div>
         {details.map(([label, value]) => <div key={label}><dt className="text-sm text-zinc-500">{label}</dt><dd className="mt-1">{value}</dd></div>)}
       </dl>
     </section>

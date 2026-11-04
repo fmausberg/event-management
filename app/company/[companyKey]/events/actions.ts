@@ -1,4 +1,5 @@
 "use server";
+import { sanitizeDescription } from "@/lib/descriptions/html";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
@@ -62,6 +63,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
   const raw = Object.fromEntries(Object.keys(emptyEvent).map((key) => [key, key === "currency" ? "EUR" : key === "status" ? "DRAFT" : key === "trainerIds" ? form.getAll(key) : form.get(key) ?? ""]));
   const parsed = schema.safeParse({ ...raw, ...(multiple ? { beginsAt: occurrences[0].beginsAt, endsAt: occurrences[0].endsAt } : {}) });
   if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
+  parsed.data.description = sanitizeDescription(parsed.data.description);
   if (multiple) {
    const dateErrors: Record<string, string> = {};
    const now = new Date();

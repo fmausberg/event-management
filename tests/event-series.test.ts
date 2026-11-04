@@ -232,3 +232,10 @@ it("rejects a replay after the series version changed", async () => {
  expect((await saveSeries("yoga", "series-1", {}, data)).success).toBeUndefined();
  expect(db.eventSeries.updateMany).toHaveBeenCalledOnce();
 });
+it("sanitizes descriptions on creation and update without altering shortdescription", async () => {
+ const data = form({ description: '<p onclick="bad()"><u>Text</u></p><script>bad()</script>', shortdescription: '<p>Kurz</p>' });
+ expect((await saveSeries("yoga", null, {}, data)).success).toBe(true);
+ expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ description: '<p><u>Text</u></p>', shortdescription: '<p>Kurz</p>' }) });
+ await saveSeries("yoga", "series-1", {}, data);
+ expect(db.eventSeries.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ description: '<p><u>Text</u></p>' }) }));
+});

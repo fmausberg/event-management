@@ -50,3 +50,12 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* Shared editor and HTML output styles. */
+.description-html { white-space: normal; overflow-wrap: anywhere; }
+.description-html p { margin-block: .5em; }
+.description-html ul { list-style: disc; padding-left: 1.5em; }
+.description-html ol { list-style: decimal; padding-left: 1.5em; }
+.description-html strong { font-weight: 700; }
+.description-html em { font-style: italic; }
+.description-html u { text-decoration: underline; }

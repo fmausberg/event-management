@@ -1,3 +1,5 @@
+import { DescriptionHtml } from "@/components/description-html";
+import { isDescriptionEmpty } from "@/lib/descriptions/html";
 import { cancellationPolicyText } from "@/lib/cancellations/policy";
 import { auth } from "@/auth";
 import Link from "next/link";
@@ -60,7 +62,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ c
                     </dl>
                     <p className="mb-6 text-xs text-zinc-400">Alle Eventzeiten in Europe/Berlin.</p>
                     <p className="mb-6 text-sm text-zinc-600">{cancellationPolicyText(event.freeCancellationUntilMinutesBeforeStart)}</p>
-                    {event.description && <section><h2 className="text-xl font-semibold">Über die Veranstaltung</h2><p className="mt-4 whitespace-pre-wrap leading-relaxed text-zinc-600">{event.description}</p></section>}
+                    {!isDescriptionEmpty(event.description) && <section><h2 className="text-xl font-semibold">Über die Veranstaltung</h2><div className="mt-4 leading-relaxed text-zinc-600"><DescriptionHtml html={event.description} /></div></section>}
                 </article>
                 <aside className="lg:sticky lg:top-6"><PublicBookingForm initialName={signedIn ? session?.user?.name ?? "" : ""} initialEmail={signedIn ? session?.user?.email ?? "" : ""} slug={companySlug} eventId={event.id} token={token} price={event.ticketPrice} currency={event.currency} available={event.available} started={event.beginsAt <= new Date()} /></aside>
             </div>
