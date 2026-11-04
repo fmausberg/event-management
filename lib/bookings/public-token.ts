@@ -22,3 +22,14 @@ export function readBookingToken(token: unknown): Payload | null {
   return payload;
  } catch { return null; }
 }
+
+export function createBookingConfirmationToken(bookingId: string) {
+ return `${bookingId}.${signature(`confirmation:${bookingId}`)}`;
+}
+
+export function readBookingConfirmationToken(token: string): string | null {
+ const match = /^([a-f0-9-]{36})\.([A-Za-z0-9_-]{43})$/.exec(token);
+ if (!match) return null;
+ const expected = Buffer.from(signature(`confirmation:${match[1]}`));
+ return timingSafeEqual(expected, Buffer.from(match[2])) ? match[1] : null;
+}

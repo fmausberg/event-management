@@ -5,7 +5,7 @@ import { Prisma } from "@prisma/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { bookPublicEvent, previewPublicVoucher } from "@/app/(public)/events/[companySlug]/[eventId]/actions";
 import Page from "@/app/(public)/events/[companySlug]/[eventId]/page";
-import { createBookingToken, readBookingToken } from "@/lib/bookings/public-token";
+import { createBookingToken, readBookingToken, readBookingConfirmationToken } from "@/lib/bookings/public-token";
 import * as ticketTokens from "@/lib/tickets/public-token";
 import { revalidatePath } from "next/cache";
 import { sendMail } from "@/lib/mail";
@@ -46,6 +46,15 @@ it("creates a guest booking with normalized contact details, trusted status and 
  expect(db.booking.create).toHaveBeenCalledWith({ data: { id: readBookingToken(token)!.id, eventId: "event-1", userId: null, customerName: "Ada", customerEmail: "ada@example.com", quantity: 2, status: "PENDING_PAYMENT", reservedUntil: expect.any(Date), platform: null, externalBookingId: null }, select: { number: true } });
  expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
  expect(db.event.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "event-1", company: { slug: "yoga" } } }));
+});
+it("returns a signed confirmation URL for free bookings without creating a payment", async () => {
+ const token = createBookingToken("event-1", "0.00", "EUR");
+ const result = await bookPublicEvent("yoga", "event-1", {}, form(token));
+ expect(result.confirmationUrl).toMatch(/^\/booking\/payment\//);
+ const confirmationToken = result.confirmationUrl!.split("/").at(-1)!;
+ expect(readBookingConfirmationToken(confirmationToken)).toBe(readBookingToken(token)!.id);
+ expect(readBookingConfirmationToken(`${confirmationToken.slice(0, -1)}!`)).toBeNull();
+ expect(db.payment.create).not.toHaveBeenCalled();
 });
 it("reserves paid tickets at the trusted price and redirects without issuing tickets or mail", async () => {
  const company = { stripeAccountId: "acct_studio", stripeChargesEnabled: true, stripePayoutsEnabled: true };

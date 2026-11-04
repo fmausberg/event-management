@@ -12,7 +12,7 @@ import { auth } from "@/auth";
 import { getPrisma } from "@/lib/db/prisma";
 import { emailSchema } from "@/lib/auth/validation";
 import { consumeAuthAttempt } from "@/lib/auth/rate-limit";
-import { readBookingToken } from "@/lib/bookings/public-token";
+import { createBookingConfirmationToken, readBookingToken } from "@/lib/bookings/public-token";
 import { TicketCodeError } from "@/lib/tickets/code-encryption";
 import { deliverTicketMail } from "@/lib/tickets/outbox";
 import { issueBookingTickets } from "@/lib/bookings/fulfillment";
@@ -21,7 +21,7 @@ import { commitVoucherInTransaction } from "@/lib/vouchers/settlement";
 import { VoucherError } from "@/lib/vouchers/errors";
 import type { VoucherPrice } from "@/lib/vouchers/pricing";
 
-export type PublicBookingState = { success?: boolean; message?: string; number?: number; paymentId?: string };
+export type PublicBookingState = { success?: boolean; message?: string; number?: number; paymentId?: string; confirmationUrl?: string };
 export type PublicVoucherState = { price?: VoucherPrice; message?: string };
 const schema = z.object({
   name: z.string().trim().min(1, "Bitte gib deinen Namen ein.").max(160), email: emailSchema,
@@ -152,6 +152,7 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
     revalidatePath(`/events/${encodeURIComponent(slug)}/${encodeURIComponent(eventId)}`);
     revalidatePath(`/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}/bookings`);
     revalidatePath(`/company/${encodeURIComponent(slug)}/events`);
+    result.confirmationUrl = `/booking/payment/${createBookingConfirmationToken(token.id)}`;
   }
   const { initialMailId: _mail, ...publicResult } = result;
   void _mail;
