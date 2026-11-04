@@ -6,6 +6,7 @@ export async function getCompanyEvents(slug: string, seriesId?: string) {
  const options = await getCompanySeries(slug, false);
  const rows = await getPrisma().event.findMany({ where: { companyId: options.company.id, ...(seriesId ? { eventSeriesId: seriesId } : {}) }, orderBy: [{ beginsAt: "desc" }, { id: "asc" }], select: {
  freeCancellationUntilMinutesBeforeStart: true, id: true, number: true, name: true, shortdescription: true, description: true, trainerName: true, imageUrl: true, trainerReminderSentAt: true, trainers: { select: { trainerId: true } }, eventSeriesId: true, venueId: true, beginsAt: true, endsAt: true, maxSeats: true, ticketPrice: true, currency: true, status: true, _count: { select: { bookings: true, platformEvents: true } },
+ bookings: { where: { status: "CONFIRMED" }, select: { quantity: true, _count: { select: { tickets: { where: { status: "VALID", checkedInAt: { not: null } } } } } } },
  } });
  const totals = rows.length ? await getPrisma().booking.groupBy({
   by: ["eventId"],
@@ -13,5 +14,5 @@ export async function getCompanyEvents(slug: string, seriesId?: string) {
   _sum: { quantity: true },
  }) : [];
  const reserved = new Map(totals.map((total) => [total.eventId, total._sum.quantity ?? 0]));
- return { ...options, events: rows.map((r) => ({ ...r, trainerReminderSentAt: r.trainerReminderSentAt?.toISOString() ?? null, freeCancellationUntilMinutesBeforeStart: r.freeCancellationUntilMinutesBeforeStart?.toString() ?? "", remainingSeats: r.maxSeats === null ? null : calculateEventCapacity(r.maxSeats, reserved.get(r.id) ?? 0).remainingSeats, shortdescription: r.shortdescription ?? "", description: r.description ?? "", trainerName: r.trainerName ?? "", trainerIds: r.trainers.map((t) => t.trainerId), eventSeriesId: r.eventSeriesId ?? "", venueId: r.venueId ?? "", ticketPrice: r.ticketPrice?.toFixed(2) ?? "", beginsAt: r.beginsAt?.toISOString() ?? "", endsAt: r.endsAt?.toISOString() ?? "" })) };
+ return { ...options, events: rows.map(({ bookings, ...r }) => ({ ...r, purchasedSeats: (bookings ?? []).reduce((sum, booking) => sum + booking.quantity, 0), checkedInSeats: (bookings ?? []).reduce((sum, booking) => sum + booking._count.tickets, 0), trainerReminderSentAt: r.trainerReminderSentAt?.toISOString() ?? null, freeCancellationUntilMinutesBeforeStart: r.freeCancellationUntilMinutesBeforeStart?.toString() ?? "", remainingSeats: r.maxSeats === null ? null : calculateEventCapacity(r.maxSeats, reserved.get(r.id) ?? 0).remainingSeats, shortdescription: r.shortdescription ?? "", description: r.description ?? "", trainerName: r.trainerName ?? "", trainerIds: r.trainers.map((t) => t.trainerId), eventSeriesId: r.eventSeriesId ?? "", venueId: r.venueId ?? "", ticketPrice: r.ticketPrice?.toFixed(2) ?? "", beginsAt: r.beginsAt?.toISOString() ?? "", endsAt: r.endsAt?.toISOString() ?? "" })) };
 }

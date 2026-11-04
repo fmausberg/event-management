@@ -9,7 +9,7 @@ vi.mock("server-only", () => ({}));
 vi.mock("@/app/company/[companyKey]/events/actions", () => ({ saveEvent: vi.fn(), deleteEvent: vi.fn() }));
 let host: HTMLDivElement, root: Root;
 const row = (id: string, number: number, name: string, beginsAt: string): EventRow => ({
-  id, number, name, beginsAt, endsAt: beginsAt, status: "DRAFT", currency: "EUR", ticketPrice: "10.00", maxSeats: 20, remainingSeats: number,
+  id, number, name, beginsAt, endsAt: beginsAt, status: "DRAFT", currency: "EUR", ticketPrice: "10.00", maxSeats: 20, remainingSeats: number, checkedInSeats: 0, purchasedSeats: 0,
   shortdescription: "", description: "", trainerIds: [], trainerName: null, imageUrl: null, eventSeriesId: "", venueId: "",
   freeCancellationUntilMinutesBeforeStart: "", _count: { bookings: number, platformEvents: 0 },
 });

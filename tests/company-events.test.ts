@@ -199,12 +199,26 @@ it("renders empty table and create option, and redirects guests", async () => {
  expect((await saveEvent("yoga", null, {}, form())).success).toBeUndefined();
 });
 it.each([ [7, "13 / 20"], [25, "0 / 20"] ])("shows free/total seats from booking quantities (%i) as a ticket link", async (reserved, label) => {
- db.event.findMany.mockResolvedValue([{ ...values, id: "event-1", number: 1, maxSeats: 20, beginsAt: new Date(values.beginsAt), endsAt: new Date(values.endsAt), ticketPrice: { toFixed: () => "12.50" }, trainers: [], _count: { bookings: 2, platformEvents: 0 } }]);
+ db.event.findMany.mockResolvedValue([{ ...values, id: "event-1", number: 1, maxSeats: 20, beginsAt: new Date("2099-10-14T10:00:00Z"), endsAt: new Date("2099-10-14T11:00:00Z"), ticketPrice: { toFixed: () => "12.50" }, trainers: [], bookings: [], _count: { bookings: 2, platformEvents: 0 } }]);
  db.booking.groupBy.mockResolvedValue([{ eventId: "event-1", _sum: { quantity: reserved } }]);
  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companyKey: "yoga" }) }));
  expect(html).toContain("(freie) Plätze"); expect(html).toContain(`${label}</a>`);
  expect(html).toContain('href="/company/yoga/events/event-1/tickets"'); expect(html).not.toContain('>Tickets</a>');
  expect(db.booking.groupBy).toHaveBeenCalledWith({ by: ["eventId"], where: { eventId: { in: ["event-1"] }, status: { in: ["CONFIRMED", "PENDING_PAYMENT"] } }, _sum: { quantity: true } });
+});
+it.each([
+ { status: "PUBLISHED", endsAt: new Date("2020-10-14T11:00:00Z"), maxSeats: 20, bookings: [{ quantity: 4, _count: { tickets: 3 } }, { quantity: 2, _count: { tickets: 1 } }], expected: "4 / 6 / 20" },
+ { status: "COMPLETED", endsAt: new Date("2099-10-14T11:00:00Z"), maxSeats: null, bookings: [], expected: "0 / 0 / ?" },
+])("shows checked-in/purchased/capacity for past events ($expected)", async ({ status, endsAt, maxSeats, bookings, expected }) => {
+ db.event.findMany.mockResolvedValue([{ ...values, id: "event-1", number: 1, status, maxSeats, beginsAt: new Date("2020-10-14T10:00:00Z"), endsAt, bookings, ticketPrice: { toFixed: () => "12.50" }, trainers: [], _count: { bookings: bookings.length, platformEvents: 0 } }]);
+ db.booking.groupBy.mockResolvedValue([{ eventId: "event-1", _sum: { quantity: 9 } }]);
+ const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companyKey: "yoga" }) }));
+ expect(html).toContain(`${expected}</a>`);
+ expect(html).toContain("Eingecheckt / gekauft / gesamt");
+ expect(html).toContain('href="/company/yoga/events/event-1/tickets"');
+ expect(db.event.findMany).toHaveBeenCalledWith(expect.objectContaining({ select: expect.objectContaining({
+  bookings: { where: { status: "CONFIRMED" }, select: { quantity: true, _count: { select: { tickets: { where: { status: "VALID", checkedInAt: { not: null } } } } } } },
+ }) }));
 });
 it("prefills all supported series fields, preserving schedule and status", () => {
  const series: SeriesRow = { id: "series-1", number: 1, name: "Series", shortdescription: "Short", description: "Long", imageUrl: null, suggestedFreeCancellationUntilMinutesBeforeStart: null, suggestedDuration: null, suggestedMaxSeats: 25, suggestedTicketPrice: "19.50", suggestedCurrency: "USD", suggestedTrainerName: "Ada", suggestedTrainerId: "trainer-1", suggestedVenueId: "venue-1", _count: { events: 0 } };
