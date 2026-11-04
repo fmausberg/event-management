@@ -1,4 +1,5 @@
 "use server";
+import { withSessionAudit } from "@/lib/audit/session";
 
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { revalidatePath } from "next/cache";
@@ -15,6 +16,7 @@ export async function createEvent(_previous: EventFormState, formData: FormData)
 }
 
 export async function updateEvent(id: string, _previous: EventFormState, formData: FormData): Promise<EventFormState> {
+  return withSessionAudit("admin/events.updateEvent", async () => {
   const values = readEventFormData(formData);
   try {
     await requireAdmin();
@@ -32,13 +34,18 @@ export async function updateEvent(id: string, _previous: EventFormState, formDat
   revalidatePath("/events/[companySlug]/[eventId]", "page");
   revalidatePath("/company/[companyKey]", "layout");
   redirect("/admin/events");
+
+  });
 }
 
 export async function deleteEvent(id: string, _previous: { message?: string }, formData: FormData): Promise<{ message?: string }> {
+  return withSessionAudit("admin/events.deleteEvent", async () => {
   if (formData.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen." };
-  try { await removeEvent(id); }
+  try { await requireAdmin(); await removeEvent(id); }
   catch (error) { return { message: eventMutationErrorMessage(error) }; }
   revalidatePath("/admin/events");
   revalidatePath("/admin/events/[id]/edit", "page");
   return {};
+
+  });
 }

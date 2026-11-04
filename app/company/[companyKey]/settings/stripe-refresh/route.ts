@@ -1,9 +1,11 @@
+import { withSessionAudit } from "@/lib/audit/session";
 import { redirect } from "next/navigation";
 import { requireCompanyAdmin, MemberAccessError } from "@/lib/companies/members";
 import { connectOnboarding } from "@/lib/payments/connect";
 import { reportConnectError } from "@/lib/payments/connect-error";
 
 export async function GET(_request: Request, { params }: { params: Promise<{ companyKey: string }> }) {
+  return withSessionAudit("company/[companyKey]/settings/stripe-refresh.GET", async () => {
   const { companyKey } = await params;
   let url: string;
   try {
@@ -14,4 +16,6 @@ export async function GET(_request: Request, { params }: { params: Promise<{ com
     redirect(`/company/${encodeURIComponent(companyKey)}/settings?stripe=${reportConnectError(error)}`);
   }
   redirect(url);
+
+  });
 }

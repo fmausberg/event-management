@@ -1,9 +1,11 @@
 import "server-only";
 import { Prisma } from "@prisma/client";
 import { getPrisma } from "@/lib/db/prisma";
+import { withAuditContext } from "@/lib/audit/context";
 
 // Called inside the verification transaction, or a serializable login retry.
 export async function claimVerifiedAssignments(tx: Prisma.TransactionClient, userId: string) {
+  return withAuditContext({ actorType: "SYSTEM", source: "auth.claim-verified-assignments" }, async () => {
   const user = await tx.user.findUnique({ where: { id: userId }, select: { id: true, email: true, emailVerified: true } });
   if (!user?.emailVerified) return;
   const email = { equals: user.email.trim().toLowerCase(), mode: "insensitive" as const };
@@ -23,6 +25,7 @@ export async function claimVerifiedAssignments(tx: Prisma.TransactionClient, use
   for (const profile of profiles) counts.set(profile.companyId, (counts.get(profile.companyId) ?? 0) + 1);
   const ids = profiles.filter((profile) => profile.userId === null && counts.get(profile.companyId) === 1).map((profile) => profile.id);
   if (ids.length) await tx.trainer.updateMany({ where: { id: { in: ids }, email, userId: null }, data: { userId } });
+  });
 }
 
 export async function claimMemberships(user: { id: string; email: string; emailVerified: Date | null }) {

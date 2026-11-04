@@ -1,8 +1,10 @@
 import "server-only";
 import { getPrisma } from "@/lib/db/prisma";
 import { getStripe, paymentOrigin } from "./stripe";
+import { withSessionAudit } from "@/lib/audit/session";
 
 export async function refreshConnectAccount(companyId: string) {
+  return withSessionAudit("company.refresh-stripe-status", async () => {
   const db = getPrisma();
   const company = await db.company.findUniqueOrThrow({ where: { id: companyId } });
   if (!company.stripeAccountId) return company;
@@ -12,6 +14,7 @@ export async function refreshConnectAccount(companyId: string) {
     stripeChargesEnabled: capabilities?.card_payments?.status === "active",
     stripePayoutsEnabled: capabilities?.stripe_balance?.payouts?.status === "active",
   } });
+  });
 }
 
 export async function connectOnboarding(companyId: string, country?: string) {

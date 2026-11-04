@@ -1,4 +1,5 @@
 "use server";
+import { withSessionAudit } from "@/lib/audit/session";
 
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -51,16 +52,23 @@ async function saveCompany(id: string | null, formData: FormData): Promise<Compa
 }
 
 export async function createCompany(_previous: CompanyFormState, formData: FormData) {
+  return withSessionAudit("admin/companies.createCompany", async () => {
   return saveCompany(null, formData);
+
+  });
 }
 
 export async function updateCompany(id: string, _previous: CompanyFormState, formData: FormData): Promise<CompanyFormState> {
+  return withSessionAudit("admin/companies.updateCompany", async () => {
   // Never let null/undefined supplied to this action switch to creation mode.
   if (!companyIdSchema.safeParse(id).success) return { message: "Eine gültige Company-ID ist erforderlich." };
   return saveCompany(id, formData);
+
+  });
 }
 
 export async function deleteCompany(id: string, _previous: CompanyFormState, formData: FormData): Promise<CompanyFormState> {
+  return withSessionAudit("admin/companies.deleteCompany", async () => {
   try {
     await requireAdmin();
     if (!companyIdSchema.safeParse(id).success) return { message: "Eine gültige Company-ID ist erforderlich." };
@@ -80,4 +88,6 @@ export async function deleteCompany(id: string, _previous: CompanyFormState, for
   }
   refreshCompanies();
   return { success: true, message: "Company wurde gelöscht." };
+
+  });
 }

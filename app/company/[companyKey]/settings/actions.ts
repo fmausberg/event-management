@@ -1,10 +1,12 @@
 "use server";
+import { withSessionAudit } from "@/lib/audit/session";
 import { redirect } from "next/navigation";
 import { requireCompanyAdmin, MemberAccessError } from "@/lib/companies/members";
 import { connectOnboarding } from "@/lib/payments/connect";
 import { reportConnectError } from "@/lib/payments/connect-error";
 
 export async function startStripeOnboarding(slug: string, form: FormData) {
+  return withSessionAudit("company/[companyKey]/settings.startStripeOnboarding", async () => {
   let url: string;
   try {
     const company = await requireCompanyAdmin(slug);
@@ -15,4 +17,6 @@ export async function startStripeOnboarding(slug: string, form: FormData) {
     redirect(`/company/${encodeURIComponent(slug)}/settings?stripe=${reportConnectError(error)}`);
   }
   redirect(url);
+
+  });
 }

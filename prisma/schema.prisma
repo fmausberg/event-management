@@ -25,6 +25,8 @@ model AuditLog {
   occurredAt    DateTime       @default(now()) @db.Timestamptz(6)
   model         String
   recordId      String
+  recordNumber  Int?
+  recordName    String?
   companyId     String
   action        AuditAction
   operation     String

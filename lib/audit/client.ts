@@ -26,20 +26,28 @@ function policiesForWrite(model: string, operation: string) {
 type ObjectValue = Record<string, unknown>;
 const object = (value: unknown): ObjectValue => value && typeof value === "object" && !Array.isArray(value) ? value as ObjectValue : {};
 
-// A nested relation can mutate EventSeries even when its parent is not audited.
+// A nested relation can mutate an audited model even under an unaudited parent.
+function containsAuditedRelation(model: string, value: unknown): boolean {
+  if (Array.isArray(value)) return value.some((item) => containsAuditedRelation(model, item));
+  for (const [key, nested] of Object.entries(object(value))) {
+    const relation = models.get(model)?.fields.find((field) => field.kind === "object" && field.name === key);
+    if (relation && (relation.type in auditPolicies || policies.some(([, policy]) => policy.affectedBy.some((effect) => effect.model === relation.type)))) return true;
+    if (containsAuditedRelation(relation?.type ?? model, nested)) return true;
+  }
+  return false;
+}
+function needsAudit(model: string, operation: string, args: ObjectValue) {
+  return policiesForWrite(model, operation).length > 0 || [args.data, args.create, args.update].some((data) => containsAuditedRelation(model, data));
+}
+
 function inspectData(model: string, value: unknown): void {
   for (const data of Array.isArray(value) ? value : [value]) {
     const fields = object(data);
     for (const field of models.get(model)?.fields ?? []) {
       if (field.kind !== "object" || !(field.name in fields)) continue;
       const nested = object(fields[field.name]);
-      if (field.type === "AuditLog" || field.type in auditPolicies) {
-        throw new Error(`Audit: verschachtelte Schreibzugriffe auf ${field.type} sind nicht unterstützt. Verwende direkte Modelloperationen in einer Callback-Transaktion.`);
-      }
+      if (field.type === "AuditLog") throw new Error("Audit: AuditLog ist schreibgeschützt.");
       for (const [operation, payload] of Object.entries(nested)) {
-        if (field.type === "Trainer" && ["delete", "deleteMany"].includes(operation)) {
-          throw new Error("Audit: verschachtelte Trainerlöschungen sind wegen EventSeries-SetNull nicht unterstützt.");
-        }
         if (["connect", "disconnect", "set", "delete", "deleteMany"].includes(operation)) continue;
         for (const item of Array.isArray(payload) ? payload : [payload]) {
           const args = object(item);
@@ -59,11 +67,11 @@ function inspectData(model: string, value: unknown): void {
 
 function inspectUpdate(model: string, value: unknown) {
   if (primaryKeyParents.has(model) && "id" in object(value)) {
-    throw new Error("Audit: Primärschlüsseländerungen mit möglicher EventSeries-Kaskade sind nicht erlaubt.");
+    throw new Error("Audit: Primärschlüsseländerungen mit möglichen Audit-Kaskaden sind nicht erlaubt.");
   }
   // Moving a series between tenants would expose its old history to the new tenant.
-  if (model === "EventSeries" && ("companyId" in object(value) || "company" in object(value))) {
-    throw new Error("Audit: ein Company-Wechsel einer Veranstaltungsreihe ist nicht unterstützt.");
+  if (model in auditPolicies && model !== "Company" && ("companyId" in object(value) || "company" in object(value))) {
+    throw new Error("Audit: Company-Wechsel bestehender auditierter Datensätze sind nicht unterstützt.");
   }
   inspectData(model, value);
 }
@@ -77,18 +85,23 @@ function inspectWrite(model: string, operation: string, args: ObjectValue) {
   else if (operation.startsWith("create")) inspectData(model, args.data);
 }
 
-type Snapshot = { id: string; companyId: string; [field: string]: unknown };
+type Snapshot = { id: string; companyId?: string; [field: string]: unknown };
 function jsonValue(value: unknown): Prisma.InputJsonValue | null {
   if (value == null) return null;
+  if (value instanceof Date) return value.toISOString();
+  if (Array.isArray(value) && value.every((item) => typeof item === "string")) return value;
   if (Prisma.Decimal.isDecimal(value)) return value.toFixed(2);
   if (typeof value === "string" || typeof value === "number" || typeof value === "boolean") return value;
   throw new Error("Audit: unsupported value in explicit field policy.");
 }
 
 async function snapshots(tx: Tx, policy: Policy): Promise<Snapshot[]> {
-  const select = Object.fromEntries(["id", ...Object.keys(policy.fields), ...Object.keys(policy.privateFields)].map((field) => [field, true]));
+  const select: Record<string, unknown> = Object.fromEntries(["id", ...Object.keys(policy.fields), ...Object.keys(policy.privateFields)].filter((field) => !(policy.delegate === "event" && field === "trainerIds")).map((field) => [field, true]));
+  if (policy.delegate === "companyMembership") select.user = { select: { name: true } };
+  if (policy.delegate === "event") select.trainers = { select: { trainerId: true }, orderBy: { trainerId: "asc" } };
   const delegate = Reflect.get(tx, policy.delegate);
-  return await Reflect.apply(Reflect.get(delegate, "findMany"), delegate, [{ select }]) as Snapshot[];
+  const rows = await Reflect.apply(Reflect.get(delegate, "findMany"), delegate, [{ select }]) as Snapshot[];
+  return policy.delegate === "event" ? rows.map((row) => ({ ...row, trainerIds: (row.trainers as { trainerId: string }[]).map((trainer) => trainer.trainerId) })) : rows;
 }
 
 async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snapshot[], after: Snapshot[], operation: string, context: AuditContext) {
@@ -97,6 +110,7 @@ async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snap
   for (const id of new Set([...previous.keys(), ...next.keys()])) {
     const old = previous.get(id);
     const row = next.get(id);
+    if (old && row && old.companyId !== row.companyId) throw new Error("Audit: mandantenübergreifende Verschiebungen sind nicht unterstützt.");
     const changedFields: string[] = [];
     const redactedFields: string[] = [];
     const oldValues: Record<string, Prisma.InputJsonValue | null> = {};
@@ -104,7 +118,7 @@ async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snap
     for (const field of Object.keys(policy.fields)) {
       const a = old ? jsonValue(old[field]) : null;
       const b = row ? jsonValue(row[field]) : null;
-      if (!old || !row || a !== b) {
+      if (!old || !row || JSON.stringify(a) !== JSON.stringify(b)) {
         changedFields.push(field);
         if (old) oldValues[field] = a;
         if (row) newValues[field] = b;
@@ -116,10 +130,14 @@ async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snap
       }
     }
     if (old && row && !changedFields.length && !redactedFields.length) continue;
+    const target = (row ?? old)!;
+    const recordName = typeof target.name === "string" ? target.name : model === "Trainer" ? [target.firstName, target.lastName].filter(Boolean).join(" ") : model === "CompanyMembership" ? object(target.user).name : null;
     await tx.auditLog.create({ data: {
-      model, recordId: id, companyId: (row ?? old)!.companyId,
+      model, recordId: id, companyId: model === "Company" ? target.id : target.companyId!,
+      recordNumber: typeof target.number === "number" ? target.number : null,
+      recordName: typeof recordName === "string" && recordName ? recordName : null,
       action: !old ? "CREATE" : !row ? "DELETE" : "UPDATE", operation,
-      ...context, changedFields, redactedFields, policyVersion: 3,
+      ...context, changedFields, redactedFields, policyVersion: 4,
       before: old ? oldValues : Prisma.DbNull,
       after: row ? newValues : Prisma.DbNull,
     } });
@@ -127,10 +145,10 @@ async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snap
 }
 
 // Full, explicitly projected snapshots under a table lock deliberately favor
-// correctness for the pilot (bulk predicates, skipDuplicates, arbitrary select,
-// upsert and Trainer ON DELETE SET NULL). See docs/audit-logging.md for cost.
+// correctness (bulk predicates, nested writes, select/include and cascades).
+// Use the same lock set/order for every audited write. See docs for cost.
 async function auditedWrite(tx: Tx, model: string, operation: string, args: unknown[], context: AuditContext) {
-  const affected = policiesForWrite(model, operation).sort(([a], [b]) => a.localeCompare(b));
+  const affected = [...policies].sort(([a], [b]) => a.localeCompare(b));
   for (const [name] of affected) {
     const metadata = models.get(name);
     if (!metadata) throw new Error("Audit: unregistered schema model.");
@@ -182,14 +200,14 @@ export function createAuditedClient(base: PrismaClient): PrismaClient {
   function mutate(model: string, operation: string, args: unknown[], context: AuditContext, scope?: Scope): Promise<unknown> {
     const execute = async (tx: Tx) => {
       inspectWrite(model, operation, object(args[0]));
-      if (policiesForWrite(model, operation).length) {
+      if (needsAudit(model, operation, object(args[0]))) {
         return auditedWrite(tx, model, operation, args, context);
       }
       return invoke(tx, model, operation, args);
     };
     if (!scope) {
       // Existing unrelated writes retain their original transaction behavior.
-      if (!policiesForWrite(model, operation).length) {
+      if (!needsAudit(model, operation, object(args[0]))) {
         inspectWrite(model, operation, object(args[0]));
         return invoke(base, model, operation, args);
       }

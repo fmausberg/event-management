@@ -9,6 +9,7 @@ import { deliverPendingTicketMails } from "@/lib/tickets/outbox";
 import { releaseExpiredVoucherReservation } from "@/lib/vouchers/service";
 import { deliverPendingTrainerReminders, enqueueDueTrainerReminders } from "@/lib/trainers/reminders";
 import { deliverPendingReviews, enqueueDueReviews } from "@/lib/reviews/invitations";
+import { withAuditContext } from "@/lib/audit/context";
 
 export const runtime = "nodejs";
 export async function POST(request: Request) {
@@ -16,6 +17,7 @@ export async function POST(request: Request) {
   const actual = Buffer.from(request.headers.get("authorization") ?? "");
   const expected = Buffer.from(`Bearer ${secret}`);
   if (!secret || actual.length !== expected.length || !timingSafeEqual(actual, expected)) return new Response("Unauthorized", { status: 401 });
+  return withAuditContext({ actorType: "SYSTEM", source: "payments.reconcile" }, async () => {
   const db = getPrisma();
   const pending = await db.payment.findMany({ where: { status: "PENDING", createdAt: { lt: new Date(Date.now() - 60_000) } }, orderBy: { updatedAt: "asc" }, take: 50 });
   let failures = 0;
@@ -60,4 +62,5 @@ export async function POST(request: Request) {
   let cancellations = 0;
   try { cancellations = await reconcileCancellationRefunds(); failures += await deliverCancellationMails(); } catch { failures++; console.error("Cancellation reconciliation failed"); }
   return Response.json({ voucherRefunds: voucherRefunds.checked, cancellations, checked: pending.length, mails: mails.checked, trainerReminders, reviews, failures }, { status: failures ? 503 : 200 });
+  });
 }

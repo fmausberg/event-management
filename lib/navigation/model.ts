@@ -1,6 +1,6 @@
 import type { CompanyRole, MembershipStatus, UserRole } from "@prisma/client";
 
-export type NavigationIcon = "calendar" | "calendar-check" | "camera" | "venue" | "series" | "users" | "settings" | "company";
+export type NavigationIcon = "calendar" | "calendar-check" | "camera" | "venue" | "series" | "users" | "settings" | "company" | "audit";
 export type NavigationItem = { label: string; href: string; icon: NavigationIcon };
 export type NavigationGroup = { id: string; label: string; items: NavigationItem[] };
 export type NavigationData = {
@@ -60,6 +60,7 @@ export function buildNavigation(user: NavigationUser, hasStaffOrTrainerAssignmen
       { label: "Veranstaltungen", href: "/admin/events", icon: "calendar" },
       { label: "Benutzer", href: "/admin/users", icon: "users" },
       { label: "Trainer", href: "/admin/trainers", icon: "users" },
+      { label: "Audit", href: "/admin/audit", icon: "audit" },
     ],
   });
   return { user: { name: user.name, email: user.email }, groups };

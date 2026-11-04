@@ -1,4 +1,5 @@
 "use server";
+import { withSessionAudit } from "@/lib/audit/session";
 
 import { notifyAssignment } from "@/lib/mail/assignment";
 import { Prisma } from "@prisma/client";
@@ -11,6 +12,7 @@ import { MemberAccessError, requireCompanyAdmin } from "@/lib/companies/members"
 export type MemberFormState = { success?: boolean; message?: string };
 
 export async function removeCompanyMember(companySlug: string, membershipId: string, _previous: MemberFormState, data: FormData): Promise<MemberFormState> {
+  return withSessionAudit("company/[companyKey]/members.removeCompanyMember", async () => {
   try {
     const company = await requireCompanyAdmin(companySlug);
     if (typeof membershipId !== "string" || !membershipId.trim() || membershipId.length > 191) return { message: "Eine gültige Mitgliedschaft ist erforderlich." };
@@ -25,9 +27,12 @@ export async function removeCompanyMember(companySlug: string, membershipId: str
   revalidatePath("/admin/companies");
   revalidatePath("/", "layout");
   return { success: true, message: "Mitgliedschaft wurde entfernt." };
+
+  });
 }
 
 export async function changeMemberRole(companySlug: string, membershipId: string, _previous: MemberFormState, data: FormData): Promise<MemberFormState> {
+  return withSessionAudit("company/[companyKey]/members.changeMemberRole", async () => {
   try {
     const company = await requireCompanyAdmin(companySlug);
     const role = data.get("role");
@@ -45,9 +50,12 @@ export async function changeMemberRole(companySlug: string, membershipId: string
   revalidatePath(`/company/${encodeURIComponent(companySlug)}/members`);
   revalidatePath("/", "layout");
   return { success: true, message: "Rolle wurde gespeichert." };
+
+  });
 }
 
 export async function addCompanyMember(companySlug: string, _previous: MemberFormState, data: FormData): Promise<MemberFormState> {
+  return withSessionAudit("company/[companyKey]/members.addCompanyMember", async () => {
   let notificationMessage: string | undefined;
   try {
     const company = await requireCompanyAdmin(companySlug);
@@ -74,4 +82,6 @@ export async function addCompanyMember(companySlug: string, _previous: MemberFor
   revalidatePath("/admin/companies");
   revalidatePath("/", "layout");
   return { success: true, message: notificationMessage ?? "Mitglied wurde hinzugefügt." };
+
+  });
 }

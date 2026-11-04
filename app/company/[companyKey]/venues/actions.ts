@@ -1,4 +1,5 @@
 "use server";
+import { withSessionAudit } from "@/lib/audit/session";
 
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -19,6 +20,7 @@ function failure(error: unknown): VenueState {
 function validId(id: unknown): id is string { return typeof id === "string" && !!id.trim() && id.length <= 191; }
 
 export async function saveVenue(slug: string, id: string | null, _previous: VenueState, form: FormData): Promise<VenueState> {
+  return withSessionAudit("company/[companyKey]/venues.saveVenue", async () => {
   try {
     const { company } = await requireCompanyAccess(slug);
     if (id !== null && !validId(id)) return { message: "Ungültiger Ort." };
@@ -34,9 +36,12 @@ export async function saveVenue(slug: string, id: string | null, _previous: Venu
   } catch (error) { return failure(error); }
   refresh(slug);
   return { success: true, message: id === null ? "Ort wurde erstellt." : "Ort wurde gespeichert." };
+
+  });
 }
 
 export async function deleteVenue(slug: string, id: string, _previous: VenueState, form: FormData): Promise<VenueState> {
+  return withSessionAudit("company/[companyKey]/venues.deleteVenue", async () => {
   try {
     const { company } = await requireCompanyAccess(slug);
     if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen eines gültigen Ortes." };
@@ -45,4 +50,6 @@ export async function deleteVenue(slug: string, id: string, _previous: VenueStat
   } catch (error) { return failure(error); }
   refresh(slug);
   return { success: true, message: "Ort wurde gelöscht." };
+
+  });
 }

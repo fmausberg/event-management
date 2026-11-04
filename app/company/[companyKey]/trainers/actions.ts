@@ -1,4 +1,5 @@
 "use server";
+import { withSessionAudit } from "@/lib/audit/session";
 import { findUserByEmail } from "@/lib/auth/users";
 import { notifyAssignment } from "@/lib/mail/assignment";
 import { Prisma } from "@prisma/client";
@@ -25,6 +26,7 @@ function failure(error: unknown): TrainerState {
 function validId(id: unknown): id is string { return typeof id === "string" && !!id.trim() && id.length <= 191; }
 
 export async function saveTrainer(slug: string, id: string | null, _previous: TrainerState, form: FormData): Promise<TrainerState> {
+  return withSessionAudit("company/[companyKey]/trainers.saveTrainer", async () => {
   let trainer: TrainerOption | undefined;
   let notificationMessage: string | undefined;
   try {
@@ -43,9 +45,12 @@ export async function saveTrainer(slug: string, id: string | null, _previous: Tr
   } catch (error) { return failure(error); }
   refresh(slug);
   return { success: true, trainer, message: notificationMessage ?? (id === null ? "Trainer wurde erstellt." : "Trainer wurde gespeichert.") };
+
+  });
 }
 
 export async function deleteTrainer(slug: string, id: string, _previous: TrainerState, form: FormData): Promise<TrainerState> {
+  return withSessionAudit("company/[companyKey]/trainers.deleteTrainer", async () => {
   try {
     const { company } = await requireCompanyAccess(slug);
     if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen eines gültigen Trainers." };
@@ -54,4 +59,6 @@ export async function deleteTrainer(slug: string, id: string, _previous: Trainer
   } catch (error) { return failure(error); }
   refresh(slug);
   return { success: true, message: "Trainer wurde gelöscht." };
+
+  });
 }

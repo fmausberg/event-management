@@ -1,188 +1,186 @@
-# Audit-Pilot: Veranstaltungsreihen
+# Audit-Logging
 
-## Aufbau und Umfang
+## Umfang und Architektur
 
-`lib/db/prisma.ts` erzeugt weiterhin genau einen verzögerten Prisma-7.10-Client
-mit `@prisma/adapter-pg`. Der exportierte Client wird durch die zentrale Fassade
-in `lib/audit/client.ts` geschützt. Kein `$use`, keine privaten Prisma-APIs und
-kein Auth.js-Aufruf aus der Datenbankschicht. Es werden ausschließlich Änderungen
-an `EventSeries` gespeichert, niemals Änderungen an `Event` oder anderen Modellen.
+Der zentrale Zugang in `lib/db/prisma.ts` verwendet Prisma 7.10 mit PostgreSQL-
+Treiberadapter und einer Audit-Fassade. Es gibt kein `$use`, keine privaten
+Prisma-APIs und keinen Auth.js-Aufruf aus der Datenbankschicht.
 
-Die tatsächliche Detailroute ist
-`/company/[companyKey]/event-series/[seriesId]`. Die serverseitige Historienabfrage
-prüft unabhängig `requireCompanyAccess(companySlug)` und anschließend die
-Company-Zugehörigkeit der Reihe. Das entspricht der übrigen Detailseite:
-aktive COMPANY_USER und COMPANY_ADMIN der Company sowie Plattform-ADMIN.
-Die Historie wird am Ende der Veranstaltungstabelle in Grau mit 20 Einträgen
-pro Seite als Tabelle (Timestamp, Wer?, Was?, Details) angezeigt. Die aktuelle
-Nutzer-E-Mail wird nach Autorisierung über die gespeicherte Akteur-ID nachgeladen,
-aber nicht ins Audit kopiert. Bei gelöschten Nutzern bleibt die ID als Ersatz.
-Details zeigen freigegebene Vorher-/Nachherwerte als JSON. E-Mail-Änderungen werden
-damit nicht historisiert; die Anzeige verwendet immer die aktuelle Adresse.
-Gelöschte Reihen behalten ihre Audit-Einträge, haben aber keine Detailseite mehr.
-Keine rückwirkende Historie und keine automatische Bereinigung.
-Aufbewahrung und spätere kontrollierte Löschung sind fachlich noch festzulegen.
+Die explizite Modell-Allowlist umfasst `EventSeries`, `Event`, `Venue`,
+`Trainer`, `Company` und `CompanyMembership`. Andere Modelle erhalten keine
+eigenen Audit-Einträge. Die Registry liegt in `lib/audit/policy.ts`.
+Ein Event protokolliert zusätzlich seine sortierten Trainer-IDs aus
+`EventTrainer`; die Zuordnungstabelle erhält keine eigene Historie.
 
-## Explizite Feldpolitik
+Direktes Create/Update/Delete, die Many- und Returning-Varianten sowie Upsert
+werden unterstützt. Pro tatsächlich geändertem Datensatz entsteht ein Eintrag;
+identische Werte, reine technische Zeitstempel und übersprungene Duplikate
+erzeugen keinen UPDATE-Eintrag. Neue Schemafelder werden nicht automatisch
+aufgenommen.
 
-Gespeicherte Werte: `number`, `name` (Titel der Reihe), `shortdescription`, `description`, `companyId`, `createdById`,
-`suggestedVenueId`, `suggestedTrainerId`,
-`suggestedFreeCancellationUntilMinutesBeforeStart`, `suggestedDuration`,
-`suggestedMaxSeats`, `suggestedTicketPrice`, `suggestedCurrency`.
-Decimal-Preise werden als Strings mit zwei Nachkommastellen gespeichert.
+## Feldpolitik und Zielobjekt
 
-Auf ausdrücklichen Wunsch wird die Kurzbeschreibung ab Policy-Version 2 mit
-Vorher-/Nachherwerten gespeichert. Ältere Kurzbeschreibungsmarker lassen sich
-nicht rückwirkend mit Werten ergänzen. Ab Policy-Version 3 wird auf ausdrücklichen
-Wunsch auch `description` mit Vorher-/Nachherwerten gespeichert (sanitisiertes HTML
-wie im fachlichen Datensatz, Anzeige ausschließlich als escapeter JSON-Text).
-Alte Beschreibungsmarker bleiben unverändert. Die Freigabe gilt ausdrücklich für
-diese beiden Inhaltsfelder; andere sensible Felder bleiben ausgeschlossen.
+Die verbindlichen Feldlisten und Beschriftungen stehen in der Policy:
 
-`imageUrl` und der veraltete
-`suggestedTrainerName` erhalten bei Änderungen ausschließlich Feldnamen in
-`redactedFields`. Ihre Werte werden zum Vergleich transient gelesen, aber nie
-in Audit-Payloads oder Fehlertexte übernommen. Diese Marker sind notwendig,
-damit eine reine Beschreibungs-/Bildänderung als Änderung sichtbar bleibt.
-Bei Create/Delete werden nur die freigegebenen Werte gespeichert, keine Marker.
-`createdAt` und `updatedAt` sind ausgeschlossen. Technische Timestamp-Updates
-oder identische Werte erzeugen keinen UPDATE-Eintrag. Neue Schemafelder sind
-automatisch ausgeschlossen und benötigen eine ausdrückliche Policy-Entscheidung.
-Keine Passwort-, Token-, Kontakt-, Mail-, Zahlungs- oder Fehler-Payloads.
-IDs sind weiterhin personenbezogen zu behandeln; auch ein Veranstaltungstitel
-ist kein geeigneter Ort für personenbezogene Kontaktdaten.
+| Modell | Gespeicherte Werte |
+| --- | --- |
+| EventSeries | Nummer, Name, Kurz-/Langbeschreibung, Company-/Ersteller-/Ort-/Trainer-ID, Stornofrist, Dauer, Plätze, Preis, Währung |
+| Event | Nummer, Name, Kurz-/Langbeschreibung, Company-/Reihen-/Ersteller-/Ort-ID, Beginn/Ende, Status, Plätze, Preis, Währung, Stornofrist, Trainer-IDs |
+| Venue | Nummer, Name, Company-ID, Stadt, Land |
+| Trainer | Nummer, Vor-/Nachname, Company-/User-ID |
+| Company | Nummer, Name, Slug, Zahlungs-/Auszahlungsfreigabe |
+| CompanyMembership | Nummer, Company-/User-ID, Rolle, Status |
 
-## Operationen und Atomarität
+Nur Änderungsmarker, keine gespeicherten Werte: Bildadressen/-referenzen,
+veraltete Trainernamen, Trainer-E-Mail, Mitgliedschafts-Einladungsadresse,
+Adresszeilen, Postleitzahl und Stripe-Konto-ID. Diese expliziten Felder werden
+transient für den Vergleich gelesen; in Audit-JSON gelangen nur ihre Feldnamen
+in `redactedFields`. Bei Create/Delete gibt es nur freigegebene Snapshots.
+Passwörter, Tokens, Zahlungs-Payloads und unkontrollierte Fehlertexte bleiben
+ausgeschlossen.
 
-Direktes `create`, `update`, `delete`, `createMany`, `updateMany`, `deleteMany`,
-`createManyAndReturn`, `updateManyAndReturn` und `upsert` werden unterstützt.
-Pro tatsächlich angelegter, geänderter oder gelöschter Reihe entsteht ein Eintrag;
-bei `skipDuplicates` keine Einträge für übersprungene Zeilen. Die ursprünglichen
-Argumente, fachlichen WHERE-Bedingungen und Rückgabeformen bleiben erhalten.
-UPSERT wird anhand des persistierten Zustands als CREATE oder UPDATE erfasst.
+Kurzbeschreibungswerte werden seit Policy-Version 2 gespeichert,
+Langbeschreibungen seit Version 3; seit Version 4 gelten die weiteren Modelle
+und Zielidentitäten. Alte Marker und UNKNOWN-Akteure bleiben unverändert.
+Beschreibungen werden als Werte des fachlichen Datensatzes übernommen und in
+der UI ausschließlich als escapeter JSON-Text ausgegeben, niemals als HTML.
 
-Die Fassade öffnet für diese Writes außerhalb einer Transaktion eine kurze
-interaktive Transaktion. Innerhalb bestehender Callback-Transaktionen laufen
-Vorherzustand, Mutation, Nachherzustand und Audit-Insert auf deren ursprünglichem
-`tx`. Transaktionsoptionen (einschließlich Isolation und Timeout) bleiben erhalten.
-Auch ein globaler Clientzugriff innerhalb desselben asynchronen Callbacks wird
-an dessen `tx` gebunden. Gleichzeitige Writes innerhalb einer Transaktion werden
-serialisiert. Ein abgefangener Schreib-/Auditfehler markiert die Transaktion als
-fehlgeschlagen: sie darf danach nicht mit unvollständiger Historie committen.
-Es gibt keine neuen automatischen Retries und keine externen Nebenwirkungen
-innerhalb des Audit-Executors. Bestehende fachliche Retry-Schleifen bleiben bestehen.
+`AuditLog.recordNumber` und `recordName` speichern ab Version 4 die Identität
+des Zielobjekts, damit Umbenennungen und Löschungen die Zuordnung nicht zerstören.
+Bei Trainern ist der freigegebene Name Vorname plus Nachname. Bei Mitgliedschaften
+wird der vorhandene User-Name übernommen; für Einladungen ohne verknüpften
+Nutzer bleibt die Bezeichnung „Mitgliedschaft“ plus Nummer. Es wird keine
+Einladungs-E-Mail zur Zielidentifikation gespeichert. Company verwendet ihre
+eigene ID als `companyId`. Es gibt keine kaskadierenden Audit-Fremdschlüssel.
 
-**Bewusster Pilot-Kompromiss:** Für eine korrekte Behandlung beliebiger Bulk-WHEREs,
-UPSERT, `select`/`include` und Kaskaden sperrt der Executor `EventSeries` mit
-`SHARE ROW EXCLUSIVE` und liest vor/nach der Mutation alle Reihen mit einer
-expliziten Feldprojektion. Das verhindert konkurrierende Schreibänderungen
-während des Vergleichs, ohne gewöhnliche Leser zu blockieren. Kosten: zwei
-Tabellenscans pro Write, serialisierte Schreibzugriffe und eine bis zum Commit
-gehaltene Sperre. Lange bestehende Transaktionen können Sperrwartezeiten und
-Deadlocks erzeugen. Kein stiller Audit-Verlust bei Deadlocks: der Vorgang scheitert.
-Vor einer Ausweitung auf große Datenmengen: gezielte Zeilensnapshots/Sperrstrategie
-entwickeln und mit echtem PostgreSQL prüfen. Die Policy ist zentral registriert;
-für weitere Modelle mit `id` und `companyId` kann derselbe Snapshot-/Sperr-Executor
-verwendet werden. Zusätzlich müssen Feldlisten, mögliche indirekte Writes
-(`affectedBy`), Relationskaskaden und Historienberechtigungen geprüft werden.
-Andere/zusammengesetzte Schlüssel benötigen eine Erweiterung des Executors.
-Keine Audit-Inserts in Fachservices.
+Für ältere Reihen-Einträge ohne Identitätssnapshot wird, soweit vorhanden,
+die aktuelle Reihe nachgeladen. Dies ist keine historische Rekonstruktion.
+Für bereits gelöschte alte Objekte kann nur die gespeicherte ID verfügbar sein.
+Personennamen und IDs sind personenbezogene Daten. Ihre Aufnahme zur gewünschten
+Zielidentifikation ersetzt keine spätere fachliche Aufbewahrungsentscheidung.
 
-## Verschachtelte Writes, Kaskaden und Raw-SQL
+## Transaktionen, verschachtelte Writes und Kaskaden
 
-Verschachtelte Schreibzugriffe auf EventSeries werden auch unter nicht auditierten
-Eltern über öffentliche `Prisma.dmmf`-Relationsmetadaten vor der Mutation erkannt
-und abgewiesen, einschließlich `connect`, `set`, `connectOrCreate` und `upsert`.
-Direkte EventSeries-Writes dürfen Relationsoperationen an nicht auditierten
-Modellen ausführen, soweit darin keine verbotenen weiteren Writes liegen.
+Außerhalb bestehender Transaktionen öffnet die Fassade eine kurze interaktive
+Transaktion. In bestehenden Callback-Transaktionen verwenden Vorherzustand,
+Mutation, Nachherzustand und Audit-Insert denselben ursprünglichen `tx`.
+Optionen wie Isolation/Timeout bleiben erhalten. Gleichzeitige Writes innerhalb
+eines Callbacks werden serialisiert; auch globale Clientaufrufe im Callback
+werden an diesen Transaktionskontext gebunden. Ein Schreib-/Auditfehler markiert
+die Transaktion auch dann als fehlgeschlagen, wenn der Fachcallback ihn abfängt.
+Es gibt keine neuen automatischen Retries oder externen Seiteneffekte im Executor.
 
-Das Schema hat keine eingehende ON DELETE CASCADE-Löschung von EventSeries.
-Company, Ersteller und vorgeschlagener Ort sind RESTRICT. Ein direktes
-Trainer-`delete`/`deleteMany` kann `suggestedTrainerId` auf NULL setzen; diese
-EventSeries-Änderungen werden im selben Executor automatisch als UPDATE erfasst
-(Operation `Trainer.delete` bzw. `Trainer.deleteMany`). Trainer selbst bekommt
-keine Historie. Verschachtelte Trainerlöschungen werden abgewiesen.
-Primärschlüsseländerungen von EventSeries, Company, User, Venue und Trainer
-werden wegen möglicher ON UPDATE-Kaskaden abgewiesen, auch in nested Updates.
-Ein Company-Wechsel bestehender Reihen ist nicht unterstützt, damit bisherige
-Historie nicht mandantenübergreifend offengelegt wird.
+Verschachtelte Änderungen werden über öffentliche Prisma-Relationsmetadaten
+erkannt, auch unter nicht auditierten Eltern. Die Snapshots der freigegebenen
+Modelle erfassen tatsächliche Effekte von nested Create/Update/Delete, Upsert,
+ConnectOrCreate sowie Connect/Disconnect/Set und Datenbankkaskaden.
+Trainerlöschungen können beispielsweise EventSeries.suggestedTrainerId auf NULL
+setzen; User-Löschungen können Trainer.userId auf NULL setzen. EventTrainer-
+Änderungen erscheinen als Event-Updates des Feldes trainerIds. Bestehende
+RESTRICT-Regeln bleiben bestehen und können Löschungen verhindern.
 
-`$transaction([...])` ist ausdrücklich nicht unterstützt; bestehende Anwendungspfade
-verwenden Callback-Transaktionen. Writes bleiben bis zum Await verzögert, sodass
-eine abgewiesene Array-Transaktion keine Änderung vorab ausführt. Verschachtelte
-`$transaction`-Aufrufe und öffentliches `$extends` werden ebenfalls abgewiesen.
+Nicht unterstützt und kontrolliert abgewiesen: Primärschlüsseländerungen an
+freigegebenen Modellen und User, Company-Wechsel bestehender auditierter
+Datensätze (auch indirekt, dann mit Rollback), unbekannte nested Operationen,
+`$transaction([...])`, verschachtelte Transaktionsaufrufe und öffentliches
+`$extends`. Modell-Writes bleiben bis zum Await verzögert, damit eine abgewiesene
+Array-Transaktion nicht bereits vorab Änderungen ausführt.
 
-Raw-SQL ist ausschließlich für die exakt geprüften vorhandenen Query-Templates
-in `lib/audit/raw.ts` freigegeben (Healthcheck, Voucher-Zeilensperren,
-Advisory-Lock, Review-Kandidatenabfrage). Werte bleiben gebundene Parameter.
-Beliebige SELECTs sind nicht automatisch sicher: Funktionen könnten schreiben.
-Andere SQL-Templates, schreibendes SQL und Unsafe-Methoden werden kontrolliert
-abgewiesen. Neue Raw-Abfragen brauchen eine explizite Prüfung/Freigabe.
+Raw-SQL ist nur für die exakt geprüften Templates in `lib/audit/raw.ts`
+freigegeben: Healthcheck, vorhandene Voucher-Zeilensperren/Advisory-Locks und
+Review-Kandidatenabfrage. Andere Templates, schreibendes Raw-SQL und Unsafe-
+Methoden werden abgewiesen. Ein SELECT-Präfix genügt nicht als Sicherheitsprüfung,
+weil Funktionen Daten verändern könnten. Direkte manuelle SQL-Änderungen
+außerhalb des Anwendungszugangs werden nicht auditiert.
 
-## Vertrauenswürdiger Akteurkontext
+**Leistungsgrenze:** Jeder auditpflichtige Write sperrt alle sechs freigegebenen
+Tabellen in derselben Reihenfolge mit SHARE ROW EXCLUSIVE und liest vor und nach
+der Mutation alle Datensätze mit einer expliziten Feldprojektion. Nur tatsächliche
+Feldänderungen werden gespeichert. Das unterstützt beliebige Bulk-WHEREs,
+verschachtelte Writes und Kaskaden konsistent, verursacht aber zwölf
+Tabellenscans (plus Projektion der Event-Trainerzuordnungen und Mitgliedsnamen)
+und serialisiert Schreibzugriffe über die Modelle/Companies hinweg. Die Sperren
+bleiben bis zum Commit der bestehenden Transaktion bestehen; normale Leser
+bleiben möglich. Lange Callbacks und bestehende Sperren können Wartezeiten oder
+Deadlocks erzeugen. Diese führen zu Fehler/Rollback, nicht zu einer Erfolgshistorie.
+Vor hoher Last sind gezielte Snapshots und eine geprüfte Zeilensperrstrategie
+erforderlich. Ein neues Modell benötigt Policy, Relations-/Kaskadenprüfung und
+gegebenenfalls Anpassungen für andere Primärschlüssel oder besondere Feldtypen.
 
-Die Series-Server-Actions holen serverseitig `auth()` und umschließen den Ablauf
-mit `withAuditContext`. Nur die verifizierte Session liefert `actorUserId`.
-Formularfelder und Datensatz-IDs sind keine Identitätsquelle. Die Fachautorisierung
-bleibt zusätzlich in `requireCompanyAccess` bestehen.
+## Akteur und Herkunft
 
-`AsyncLocalStorage` isoliert Kontext und Transaktionsbindung zwischen Requests.
-Die Stores werden pro Prozess über `globalThis` geteilt, damit Hot Reloads keine
-getrennten Kontextinstanzen erzeugen. Nur der Basisclient/Pool wird global gecacht;
-die Fassade mit ihrer Policy wird beim Neuladen neu aufgebaut. Der Akteurkontext
-wird vor verzögerter Query-Ausführung bzw. vor Prisma-Transaktionscallbacks erfasst
-und ausdrücklich weitergegeben. Bestehende UNKNOWN-Einträge werden nicht nachträglich
-einem vermeintlichen Akteur zugeordnet.
-Ohne Kontext gilt UNKNOWN / `unscoped-prisma`; dies ist kein behaupteter Systemjob.
-Für nicht angemeldete Abläufe wird ANONYMOUS gesetzt. Authentifizierte Webhooks
-oder Jobs müssen nach ihrer jeweiligen Authentizitätsprüfung zentral so starten:
+Die Server Actions für Events, Orte, Trainer, Mitgliedschaften, Companies und
+Stripe-Onboarding verwenden `withSessionAudit`; die Reihen-Actions verwenden
+ihren bestehenden `withAuditContext`-Wrapper. Nur serverseitiges `auth()`
+liefert USER und actorUserId. Formulardaten oder betroffene Datensätze sind keine
+Akteurquelle. Die fachlichen Berechtigungsprüfungen bleiben zusätzlich erhalten.
+Die Admin-Event-Löschaktion prüft ausdrücklich requireAdmin.
 
-```ts
-return withAuditContext(
-  { actorType: "SYSTEM", source: "verified-job-name" },
-  () => runJob(),
-);
-```
+Automatisches Zuordnen verifizierter Mitgliedschaften und Trainerprofile läuft
+als SYSTEM / auth.claim-verified-assignments. Der Reconcile-Endpunkt setzt SYSTEM
+erst nach erfolgreicher Cron-Secret-Prüfung. Stripe-Statusabgleich übernimmt den
+angemeldeten Session-Akteur bzw. ANONYMOUS, wenn er aus einem öffentlichen Ablauf
+angestoßen wird. Technische Reminder-Zeitstempel selbst sind nicht freigegeben.
 
-Aktuell schreibt kein solcher Job EventSeries; deshalb werden keine unbeteiligten
-Webhooks oder Jobs geändert. Pro umschlossenem Ablauf wird eine serverseitige UUID
-als Korrelations-ID erzeugt. Unscoped Writes erhalten eine eigene UUID pro Write.
-Zeitpunkte sind Erfassungszeitpunkte innerhalb der Transaktion, keine garantierten
-Commit-Zeitpunkte. Ein Session-Claim protokolliert keine fremden Modelle.
+AsyncLocalStorage transportiert Kontext und Korrelations-ID. Die Stores werden
+über globalThis pro Prozess geteilt; nur der Basisclient/Pool wird global gecacht.
+Die Fassade wird mit aktueller Policy aufgebaut. Der Akteur wird vor verzögerter
+Query-Ausführung und Prisma-Transaktionscallbacks erfasst und ausdrücklich
+weitergegeben. Ohne vertrauenswürdigen Kontext bleibt UNKNOWN / unscoped-prisma.
+Neue Jobs/Webhooks müssen nach ihrer Authentizitätsprüfung withAuditContext mit
+SYSTEM und einer festen Herkunft setzen. Keine globale mutable User-ID.
+Zeitpunkte sind Erfassungszeitpunkte, keine garantierten Commit-Zeitpunkte.
 
-## Schutz und Inbetriebnahme
+## Anzeige und Berechtigungen
 
-Über den Anwendungsclient sind sämtliche AuditLog-Writes gesperrt, auch CREATE.
-Nur der interne Executor schreibt über seinen nicht exportierten Basistransaktionsclient.
-Es gibt keine Fremdschlüssel, die bei Benutzer-/Company-Löschung Audit-Zeilen
-verändern oder entfernen. AuditLog wird selbst nie auditiert.
+Unter Administration erscheint „Audit“ ausschließlich für Plattform-ADMIN.
+Die Route `/admin/audit` autorisiert unabhängig serverseitig mit requireAdmin
+und zeigt alle Companies. Direkter URL-Aufruf durch Company-Admins/-User
+gewährt keinen Zugang.
 
-Es wurden auf Anweisung ausschließlich Schema und Anwendungscode geändert,
-keine Migrationsdateien angelegt und keine Migration ausgeführt. Deshalb enthält
-dieser Pilot **keinen Datenbank-Trigger und keine neuen Datenbankrechte**.
-Der Schutz ist zunächst Anwendungsschutz: direkter SQL-Zugriff oder ein separat
-erzeugter PrismaClient kann AuditLog weiterhin manipulieren. Bestehende
-Voucher-History-Trigger ändern das für AuditLog nicht. Separat können später eine
-INSERT/SELECT-Laufzeitrolle ohne Eigentümerrechte sowie UPDATE/DELETE/TRUNCATE-
-Schutztrigger nach dem vorhandenen Journalmuster ergänzt werden. Privilegierte
-Datenbankadministratoren können auch diesen Schutz verändern.
+Die graue Tabelle in `components/audit-table.tsx` wird gemeinsam von Admin-
+Übersicht und Reihenhistorie verwendet. Spalten: Timestamp, Wer?, Was?, optional
+Zielobjekt (Modell, Nummer, Name), Details. Details zeigen eine kommagetrennte
+Attributliste; ein kleiner Pfeil öffnet das formatierte before/after-JSON.
+Je Seite werden 20 Einträge geladen, sortiert nach Zeitpunkt und ID.
 
-Vor Nutzung selbst eine Migration erzeugen (Entwicklungsdatenbank):
+Die aktuelle Akteur-E-Mail wird über actorUserId nachgeladen und nur angezeigt,
+nicht in AuditLog kopiert. Bei gelöschten Akteuren bleibt die ID als Ersatz.
+Die Reihenhistorie unter
+`/company/[companyKey]/event-series/[seriesId]` behält requireCompanyAccess,
+Company-Filter und Datensatzzugehörigkeitsprüfung. Sie zeigt nur EventSeries
+dieser Company. Andere Detailseiten erhalten in dieser Änderung keine Historie.
+Gelöschte Objekte bleiben in der Admin-Historie sichtbar.
+
+## Schutz, Migration und offene Punkte
+
+AuditLog-Writes (auch Create) sind über die Anwendungsfassade gesperrt.
+Nur der interne Executor schreibt über seinen nicht exportierten Basis-
+Transaktionsclient. Keine Selbst-Auditierung. Kein automatisches Löschen;
+Aufbewahrung und spätere kontrollierte Bereinigung sind fachlich festzulegen.
+
+Es wurden keine Migrationsdateien erzeugt/geändert, keine Migration ausgeführt,
+keine Pakete installiert und keine Tests gestartet. Für die beiden neuen
+optionalen Zielidentitätsfelder muss selbst eine Migration erzeugt werden:
 
 ```powershell
-npx prisma migrate dev --name add_event_series_audit_log
-npx prisma generate
+npx prisma migrate dev --create-only --name extend_audit_target_identity
 ```
 
-Der erste Befehl erstellt **und wendet** die Migration auf der konfigurierten
-Entwicklungsdatenbank an. Nur zur Erstellung ohne Anwendung:
-`npx prisma migrate dev --create-only --name add_event_series_audit_log`.
-Keine bestehende Datenbank zurücksetzen. Vorhandene Produktions-/Deployment-
-Konfiguration bleibt unverändert. Ohne AuditLog-Tabelle schlagen Series-Writes
-absichtlich fehl und rollen zurück; die UI meldet eine nicht verfügbare Historie.
+Dieser Befehl erzeugt eine Migration für die konfigurierte Entwicklungsdatenbank,
+ohne sie anzuwenden. Vor Nutzung die Migration prüfen/anwenden und den Prisma-
+Client generieren. Ohne die neuen Spalten schlagen Audit-Reads/Writes fehl;
+fachliche auditpflichtige Änderungen rollen zurück. Vorhandene initiale Audit-
+Migrationen bleiben unverändert. Keine Datenbank zurücksetzen.
 
-Es wurden keine Tests ausgeführt. Vor produktiver Freigabe sind echte PostgreSQL-
-Integrationsprüfungen für Commit/Rollback (auch abgefangene Auditfehler), parallele
-Writes, Bulk/skipDuplicates, UPSERT, Trainer-SetNull, Mandantentrennung,
-Kontextisolation und gesperrte Umgehungswege erforderlich. Transaktions-Mocks
-belegen diese Datenbankeigenschaften nicht.
+Es gibt weiterhin keinen AuditLog-Schutztrigger und keine neuen Datenbankrechte.
+Direkter SQL-Zugriff oder ein separat erzeugter Client kann AuditLog verändern.
+Später können INSERT/SELECT-Laufzeitrolle ohne Ownerrechte und UPDATE/DELETE/
+TRUNCATE-Schutz nach dem vorhandenen Voucher-Journalmuster ergänzt werden.
+Privilegierte Datenbankadministratoren könnten auch diese Schutzmaßnahmen ändern.
+
+Statische Typ-/Lintprüfungen belegen keine Datenbankatomarität. Vor produktiver
+Freigabe: PostgreSQL-Integrationsprüfung von Rollback (auch abgefangener
+Auditfehler), Bulk/Upsert, nested Writes, Kaskaden, parallelen Zugriffen,
+Akteurkontext, Admin-/Company-Abgrenzung und Datenschutz. Keine rückwirkende
+Rekonstruktion bisher nicht protokollierter Änderungen.

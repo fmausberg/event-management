@@ -1,4 +1,5 @@
 "use server";
+import { withSessionAudit } from "@/lib/audit/session";
 import { sanitizeDescription } from "@/lib/descriptions/html";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
@@ -38,6 +39,7 @@ export async function getSeriesDateConflicts(slug: string, seriesId: string, fro
  } catch (error) { return { dates: [], message: failure(error).message }; }
 }
 export async function saveEvent(slug: string, id: string | null, _previous: EventState, form: FormData): Promise<EventState> {
+  return withSessionAudit("company/[companyKey]/events.saveEvent", async () => {
  const intent = form.get("intent") ?? (id === null ? "draft" : "save");
  const multiple = form.get("creationMode") === "multiple";
  if (multiple && (id !== null || !["draft", "publish"].includes(String(intent)))) return { message: "Mehrfacherstellung ist nur für neue Veranstaltungen möglich." };
@@ -141,6 +143,8 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
  refresh(slug);
  if (multiple) return { success: true, message: `${createdCount} Veranstaltungen wurden ${intent === "publish" ? "veröffentlicht" : "als Entwurf erstellt"}.` };
  return { success: true, message: intent === "publish" ? "Veranstaltung wurde veröffentlicht." : id === null ? "Entwurf wurde erstellt." : "Veranstaltung wurde gespeichert." };
+
+  });
 }
 async function cancelEvent(slug: string, id: string | null): Promise<EventState> {
  try {
@@ -153,6 +157,7 @@ async function cancelEvent(slug: string, id: string | null): Promise<EventState>
  return { success: true, message: "Veranstaltung wurde abgesagt." };
 }
 export async function deleteEvent(slug: string, id: string, _previous: EventState, form: FormData): Promise<EventState> {
+  return withSessionAudit("company/[companyKey]/events.deleteEvent", async () => {
  try {
   const { company } = await requireCompanyAccess(slug);
   if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen." };
@@ -164,9 +169,13 @@ export async function deleteEvent(slug: string, id: string, _previous: EventStat
  } catch (error) { return failure(error); }
  refresh(slug);
  return { success: true, message: "Veranstaltung wurde gelöscht." };
+
+  });
 }
 
 export async function sendTrainerInfo(slug: string, id: string, requestId: string, _previous: TrainerReminderActionState): Promise<TrainerReminderActionState> {
+  void _previous;
+  return withSessionAudit("company/[companyKey]/events.sendTrainerInfo", async () => {
  try {
   const { company } = await requireCompanyAccess(slug);
   if (!validId(id)) return { message: "Ungültige Veranstaltung." };
@@ -176,4 +185,6 @@ export async function sendTrainerInfo(slug: string, id: string, requestId: strin
   if (result.sent) return { success: true, sent: true, sentAt: result.sentAt, message: "Trainer-Info wurde versendet." };
   return { sent: false, message: "Der Versand wurde beauftragt, konnte aber noch nicht für alle Trainer abgeschlossen werden. Der Cron versucht es erneut." };
  } catch (error) { return { message: failure(error).message }; }
+
+  });
 }
