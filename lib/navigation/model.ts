@@ -18,16 +18,18 @@ export type NavigationUser = {
   }[];
 };
 
-export function buildNavigation(user: NavigationUser, canScanTickets = false): NavigationData {
+export function buildNavigation(user: NavigationUser, hasStaffOrTrainerAssignment = false): NavigationData {
   const groups: NavigationGroup[] = [{
     id: "general", label: "Allgemein",
     items: [
       { label: "Zu den Veranstaltungen", href: "/events", icon: "calendar" },
       { label: "Meine Buchungen", href: "/account/bookings", icon: "calendar-check" },
-      { label: "Veranstaltungsverwaltung", href: "/account/eventmanagement", icon: "calendar-check" },
     ],
   }];
-  if (canScanTickets) groups[0].items.push({ label: "Ticket Scannen", href: "/account/scan", icon: "camera" });
+  if (hasStaffOrTrainerAssignment) groups[0].items.push(
+    { label: "Veranstaltungsverwaltung", href: "/account/eventmanagement", icon: "calendar-check" },
+    { label: "Ticket scannen", href: "/account/scan", icon: "camera" },
+  );
 
   for (const membership of user.memberships) {
     if (membership.status !== "ACTIVE") continue;

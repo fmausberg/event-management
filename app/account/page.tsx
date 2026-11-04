@@ -43,7 +43,6 @@ export default async function AccountPage() {
       <p className="mt-4">Angemeldet als {session.user.name || session.user.email}</p>
       <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{session.user.email}</p>
       <div className="mt-6">
-        <Link href="/account/scan" className="mb-4 inline-block rounded-lg bg-primary-600 px-4 py-2 text-white">Tickets scannen</Link>
         <form action={logout}><button className="rounded-lg bg-zinc-900 px-4 py-2 text-white dark:bg-zinc-100 dark:text-zinc-900">Abmelden</button></form>
       </div>
       <section className="mt-10">

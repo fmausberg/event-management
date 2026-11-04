@@ -26,6 +26,7 @@ export async function getNavigation() {
   if (!user) return null;
   const db = getPrisma();
   const trainerIdentity = await trainerIdentityForUser({ id: session.user.id, email: user.email });
+  // Include assignments to past events as well; navigation has no date/status restriction.
   const [trainer, eventStaff, venueStaff] = await Promise.all([
     db.trainer.findFirst({ where: trainerIdentity, select: { id: true } }),
     db.eventStaff.findFirst({ where: { userId: session.user.id }, select: { id: true } }),

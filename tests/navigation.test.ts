@@ -27,7 +27,7 @@ describe("navigation visibility", () => {
   it("always links public events and uses company slugs for active memberships", () => {
     const result = buildNavigation(user);
     expect(result.groups.map((group) => group.label)).toEqual(["Allgemein", "Company A", "Company B"]);
-    expect(result.groups[0].items.map((item) => item.href)).toEqual(["/events", "/account/bookings", "/account/eventmanagement"]);
+    expect(result.groups[0].items.map((item) => item.href)).toEqual(["/events", "/account/bookings"]);
     expect(result.groups[1].items.map((item) => item.href)).toEqual([
       "/company/slug-company-a/event-series", "/company/slug-company-a/events", "/company/slug-company-a/venues", "/company/slug-company-a/trainers", "/company/slug-company-a/cancellations",
       "/company/slug-company-a/vouchers",
@@ -65,18 +65,19 @@ describe("navigation visibility", () => {
 });
 
 describe("server-side identity", () => {
-  it.each(["trainer", "eventStaff", "venueStaff"] as const)("shows Ticket Scannen for %s without a company membership", async (assignment) => {
+  it.each(["trainer", "eventStaff", "venueStaff"] as const)("shows both staff links for %s without a company membership or date restriction", async (assignment) => {
     findUnique.mockResolvedValue({ ...user, memberships: [] });
     ({ trainer, eventStaff, venueStaff })[assignment].mockResolvedValue({ id: "assignment" });
     const result = await getNavigation();
-    expect(result?.groups[0].items).toContainEqual({ label: "Ticket Scannen", href: "/account/scan", icon: "camera" });
+    expect(result?.groups[0].items).toContainEqual({ label: "Ticket scannen", href: "/account/scan", icon: "camera" });
+    expect(result?.groups[0].items).toContainEqual({ label: "Veranstaltungsverwaltung", href: "/account/eventmanagement", icon: "calendar-check" });
     expect(eventStaff).toHaveBeenCalledWith({ where: { userId: "user-1" }, select: { id: true } });
     expect(venueStaff).toHaveBeenCalledWith({ where: { userId: "user-1" }, select: { id: true } });
     expect(trainer).toHaveBeenCalledWith({ where: { OR: [{ userId: "user-1" }] }, select: { id: true } });
   });
-  it("hides Ticket Scannen without an assignment, including for admins", async () => {
+  it("hides both staff links without an assignment, including for admins", async () => {
     findUnique.mockResolvedValue({ ...user, role: "ADMIN" });
-    expect((await getNavigation())?.groups[0].items.some((item) => item.href === "/account/scan")).toBe(false);
+    expect((await getNavigation())?.groups[0].items.map((item) => item.href)).toEqual(["/events", "/account/bookings"]);
   });
   it("does not query navigation data for guests", async () => {
     auth.mockResolvedValue(null);

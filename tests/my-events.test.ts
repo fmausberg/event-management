@@ -33,7 +33,7 @@ it("keeps events current until their end, even with a past start or completed st
   expect(groups.past.map(row => row.id)).toEqual(["ended"]);
 });
 it("renames the personal menu entry without requiring a company or admin role", () => {
-  const navigation = buildNavigation({ name: "Ada", email: "ada@example.com", role: "USER", memberships: [] });
+  const navigation = buildNavigation({ name: "Ada", email: "ada@example.com", role: "USER", memberships: [] }, true);
   expect(navigation.groups[0].items).toContainEqual({ label: "Veranstaltungsverwaltung", href: "/account/eventmanagement", icon: "calendar-check" });
 });
 it("redirects guests and deleted accounts before querying events", async () => {
