@@ -6,6 +6,44 @@ datasource db {
   provider = "postgresql"
 }
 
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+  ANONYMOUS
+  UNKNOWN
+}
+
+// Append-only through the application facade. No cascading foreign keys.
+model AuditLog {
+  id            String         @id @default(cuid())
+  occurredAt    DateTime       @default(now()) @db.Timestamptz(6)
+  model         String
+  recordId      String
+  companyId     String
+  action        AuditAction
+  operation     String
+  actorType     AuditActorType
+  actorUserId   String?
+  source        String
+  correlationId String
+  changedFields String[]
+  redactedFields String[]
+  before        Json?          @db.JsonB
+  after         Json?          @db.JsonB
+  policyVersion Int            @default(1)
+
+  @@index([companyId, model, recordId, occurredAt, id])
+  @@index([actorUserId, occurredAt, id])
+  @@index([correlationId])
+  @@index([occurredAt, id])
+}
+
 enum Platform {
   EVENTBRITE
   RAUSGEGANGEN

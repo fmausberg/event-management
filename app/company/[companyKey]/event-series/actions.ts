@@ -5,6 +5,7 @@ import { SeriesConflict, updateSeriesWithPreview } from "@/lib/event-series/upda
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
+import { withAuditContext } from "@/lib/audit/context";
 import { MemberAccessError, requireCompanyAccess } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 import { seriesSchema, type SeriesState } from "@/lib/event-series/validation";
@@ -31,6 +32,13 @@ function failure(error: unknown): SeriesState {
 function validId(id: unknown): id is string { return typeof id === "string" && !!id.trim() && id.length <= 191; }
 
 export async function saveSeries(slug: string, id: string | null, _previous: SeriesState, form: FormData): Promise<SeriesState> {
+  try {
+    const session = await auth();
+    return await withAuditContext({ actorType: session?.user?.id ? "USER" : "ANONYMOUS", actorUserId: session?.user?.id, source: "event-series.save" }, () => saveSeriesWithContext(slug, id, _previous, form));
+  } catch (error) { return failure(error); }
+}
+
+async function saveSeriesWithContext(slug: string, id: string | null, _previous: SeriesState, form: FormData): Promise<SeriesState> {
   let uploaded: UploadedEventImage | undefined;
   let saved = false;
   try {
@@ -69,6 +77,13 @@ export async function saveSeries(slug: string, id: string | null, _previous: Ser
 }
 
 export async function deleteSeries(slug: string, id: string, _previous: SeriesState, form: FormData): Promise<SeriesState> {
+  try {
+    const session = await auth();
+    return await withAuditContext({ actorType: session?.user?.id ? "USER" : "ANONYMOUS", actorUserId: session?.user?.id, source: "event-series.delete" }, () => deleteSeriesWithContext(slug, id, _previous, form));
+  } catch (error) { return failure(error); }
+}
+
+async function deleteSeriesWithContext(slug: string, id: string, _previous: SeriesState, form: FormData): Promise<SeriesState> {
   try {
     const { company } = await requireCompanyAccess(slug);
     if (!validId(id) || form.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen einer gültigen Veranstaltungsreihe." };

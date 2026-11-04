@@ -7,11 +7,15 @@ import { notFound, redirect } from "next/navigation";
 import { MemberAccessError } from "@/lib/companies/members";
 import { getCompanyEvents } from "@/lib/company-events/data";
 import { EventsTable } from "../../events/_components/events-table";
+import { SeriesHistory } from "../_components/series-history";
 
-export default async function CompanyEventSeriesDetailPage({ params }: {
+export default async function CompanyEventSeriesDetailPage({ params, searchParams }: {
   params: Promise<{ companyKey: string; seriesId: string }>;
+  searchParams?: Promise<{ historyPage?: string | string[] }>;
 }) {
   const { companyKey, seriesId } = await params;
+  const query = await searchParams ?? {};
+  const historyPage = typeof query.historyPage === "string" ? Number(query.historyPage) : 1;
   let result;
   try {
     result = await getCompanyEvents(companyKey, seriesId);
@@ -39,7 +43,7 @@ export default async function CompanyEventSeriesDetailPage({ params }: {
     ["Ticketpreis (Vorgabe)", series.suggestedTicketPrice === null ? "—" : `${series.suggestedTicketPrice.replace(".", ",")} ${series.suggestedCurrency}`],
     ["Veranstaltungen", result.events.length],
   ];
-  return <EventsTable {...result} defaultSeriesId={series.id} seriesDetails={<>
+  return <EventsTable {...result} defaultSeriesId={series.id} seriesHistory={<SeriesHistory companyKey={companyKey} seriesId={series.id} page={historyPage} />} seriesDetails={<>
     <PageBreadcrumb label={series.name} />
     <section aria-labelledby="series-title" className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
       <h1 id="series-title" className="text-2xl font-semibold">{series.name}</h1>
