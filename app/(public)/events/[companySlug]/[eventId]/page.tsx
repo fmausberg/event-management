@@ -6,6 +6,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { PublicHeader } from "@/components/public-events";
 import { PublicBookingForm } from "@/components/public-booking-form";
+import { MobileBookingLink } from "@/components/mobile-booking-link";
 import { getBookableEvent } from "@/lib/bookings/public-event";
 import { createBookingToken } from "@/lib/bookings/public-token";
 
@@ -27,6 +28,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ c
     const date = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
     const image = event.imageUrl;
     return <div className="min-h-dvh border-t-[3px] border-primary-600 bg-white text-zinc-900"><PublicHeader signedIn={signedIn} />
+        {token && <MobileBookingLink />}
         <main className="mx-auto max-w-6xl px-5 pb-16 pt-4 sm:px-8"><Link href="/events" className="text-sm text-primary-700 hover:underline">← Alle Veranstaltungen</Link>
             <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
                 <article>
@@ -64,7 +66,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ c
                     <p className="mb-6 text-sm text-zinc-600">{cancellationPolicyText(event.freeCancellationUntilMinutesBeforeStart)}</p>
                     {!isDescriptionEmpty(event.description) && <section><h2 className="text-xl font-semibold">Über die Veranstaltung</h2><div className="mt-4 leading-relaxed text-zinc-600"><DescriptionHtml html={event.description} /></div></section>}
                 </article>
-                <aside className="lg:sticky lg:top-6"><PublicBookingForm initialName={signedIn ? session?.user?.name ?? "" : ""} initialEmail={signedIn ? session?.user?.email ?? "" : ""} slug={companySlug} eventId={event.id} token={token} price={event.ticketPrice} currency={event.currency} available={event.available} started={event.beginsAt <= new Date()} /></aside>
+                <aside id="event-booking" tabIndex={-1} aria-label="Buchung" className="scroll-mt-24 rounded-xl focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 lg:sticky lg:top-6 lg:scroll-mt-6"><PublicBookingForm initialName={signedIn ? session?.user?.name ?? "" : ""} initialEmail={signedIn ? session?.user?.email ?? "" : ""} slug={companySlug} eventId={event.id} token={token} price={event.ticketPrice} currency={event.currency} available={event.available} started={event.beginsAt <= new Date()} /></aside>
             </div>
         </main>
     </div>;
