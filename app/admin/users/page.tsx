@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 import { AdminAccessError } from "@/lib/auth/require-admin";
 import { getUsersForAdmin } from "@/lib/users/admin-data";
+import { AccountStatusTag } from "@/components/account-status-tag";
 
 export const metadata = { title: "User-Übersicht" };
 
@@ -19,13 +20,13 @@ export default async function AdminUsersPage() {
     <div><h1 className="text-2xl font-semibold">User</h1><p className="mt-1 text-sm text-zinc-500">{users.length} User auf der Plattform</p></div>
     <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       <table className="w-full text-left text-sm">
-        <caption className="sr-only">Alle Plattform-User mit Ticketzahlen und aktiven Unternehmenszuordnungen</caption>
+        <caption className="sr-only">Alle Plattform-User mit Kontostatus, Ticketzahlen und aktiven Unternehmenszuordnungen</caption>
         <thead className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"><tr>{["Nummer", "Name", "E-Mail", "Tickets: eingelöst / gekauft", "Unternehmen"].map((heading) => <th key={heading} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{heading}</th>)}</tr></thead>
         <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {users.map((user) => <tr key={user.id}>
             <td className="px-4 py-3 tabular-nums">{user.number}</td>
             <td className="px-4 py-3 font-medium">{user.name || "–"}</td>
-            <td className="px-4 py-3">{user.email}</td>
+            <td className="px-4 py-3"><div className="flex items-center gap-2">{user.email}<AccountStatusTag status={user.emailVerified ? "verified" : "not verified"} /></div></td>
             <td className="whitespace-nowrap px-4 py-3 tabular-nums">{user.redeemedTickets} / {user.purchasedTickets}</td>
             <td className="px-4 py-3">{user.companies.join(", ") || "–"}</td>
           </tr>)}

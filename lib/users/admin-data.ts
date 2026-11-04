@@ -7,7 +7,7 @@ export async function getUsersForAdmin() {
   const users = await getPrisma().user.findMany({
     orderBy: { number: "asc" },
     select: {
-      id: true, number: true, name: true, email: true,
+      id: true, number: true, name: true, email: true, emailVerified: true,
       memberships: {
         where: { status: "ACTIVE" },
         orderBy: { company: { name: "asc" } },
