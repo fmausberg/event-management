@@ -5,6 +5,7 @@ import { TrainerPicker } from "@/components/trainer-picker";
 import type { TrainerOption } from "@/lib/trainers/validation";
 import { EventStaff } from "./event-staff";
 import { PublishConfirmation } from "./publish-confirmation";
+import { CancelConfirmation } from "./cancel-confirmation";
 import { EventImage } from "./event-image";
 import { BatchDates } from "./batch-dates";
 import type { BatchSelection } from "@/lib/company-events/batch-schedule";
@@ -104,7 +105,15 @@ function EventForm({ slug, row, defaultSeries, series, venues, trainers, onSaved
  const [coverFile, setCoverFile] = useState<File | null>(null);
  const [publishWarnings, setPublishWarnings] = useState<string[] | null>(null);
  const publishDecision = useRef<((publish: boolean) => void) | null>(null);
+ const [cancelConfirmation, setCancelConfirmation] = useState(false);
+ const cancelButton = useRef<HTMLButtonElement>(null);
+ const cancelSubmit = useRef<HTMLButtonElement>(null);
  useEffect(() => () => { publishDecision.current?.(false); }, []);
+ function decideCancellation(cancel: boolean) {
+  setCancelConfirmation(false);
+  if (cancel && cancelSubmit.current) cancelSubmit.current.form?.requestSubmit(cancelSubmit.current);
+  if (!cancel) requestAnimationFrame(() => cancelButton.current?.focus());
+ }
  function decidePublication(publish: boolean) {
   setPublishWarnings(null);
   publishDecision.current?.(publish);
@@ -197,12 +206,16 @@ function EventForm({ slug, row, defaultSeries, series, venues, trainers, onSaved
      <button name="intent" value="draft" disabled={pending || trainerBusy} className="rounded-lg border border-zinc-300 px-4 py-2 text-sm disabled:opacity-50">Entwurf speichern</button>
      <button name="intent" value="publish" disabled={pending || trainerBusy} className={primary}>Veröffentlichen</button>
     </> : <button name="intent" value="save" disabled={pending || trainerBusy} className={primary}>Speichern</button>}
-    {row?.status === "PUBLISHED" && <button name="intent" value="cancel" formNoValidate disabled={pending || trainerBusy} onClick={(e) => { if (!window.confirm("Veranstaltung wirklich absagen? Nicht gespeicherte Formularänderungen werden dabei verworfen. Bereits bezahlte Tickets werden nicht automatisch erstattet.")) e.preventDefault(); }} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">Absagen</button>}
+    {row?.status === "PUBLISHED" && <>
+     <button ref={cancelButton} type="button" disabled={pending || trainerBusy} onClick={() => setCancelConfirmation(true)} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">Absagen</button>
+     <button ref={cancelSubmit} type="submit" name="intent" value="cancel" formNoValidate hidden disabled={pending || trainerBusy} />
+    </>}
     <button type="button" disabled={pending || trainerBusy} onClick={onCancel} className="text-sm underline">Abbrechen</button>
    </div>
   </form>
   {row && <EventStaff slug={slug} eventId={row.id} />}
   {publishWarnings && <PublishConfirmation missing={publishWarnings} count={multiple ? batch.dates.length : undefined} onDecision={decidePublication} />}
+  {cancelConfirmation && <CancelConfirmation onDecision={decideCancellation} />}
   {row && <TrainerReminderControls slug={slug} row={row} />}
  </dialog>;
 }
