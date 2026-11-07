@@ -98,6 +98,7 @@ enum MailOutboxKind {
 }
 
 model User {
+  notes Note[]
   createdVoucherCampaigns VoucherCampaign[]     @relation("VoucherCampaignCreator")
   assignedVoucherCodes    VoucherCode[]         @relation("VoucherCodeRecipient")
   voucherRedemptions      VoucherRedemption[]
@@ -240,6 +241,7 @@ model CompanyMembership {
 }
 
 model Venue {
+  notes Note[]
   voucherCampaignTargets VoucherCampaignVenue[]
   // ID & number
   id     String @id @default(cuid())
@@ -271,6 +273,7 @@ model Venue {
 }
 
 model EventSeries {
+  notes Note[]
   voucherCampaignTargets VoucherCampaignEventSeries[]
   // ID & number
   id     String @id @default(cuid())
@@ -310,6 +313,7 @@ model EventSeries {
 }
 
 model Event {
+  notes Note[]
   reviews EventReview[]
   voucherCampaignTargets VoucherCampaignEvent[]
   bookingPrices          BookingPrice[]
@@ -361,6 +365,7 @@ model Event {
 }
 
 model Booking {
+  notes Note[]
   reviews EventReview[]
   price              BookingPrice?
   voucherRedemption  VoucherRedemption?
@@ -487,6 +492,7 @@ enum TicketStatus {
 }
 
 model Ticket {
+  notes Note[]
   reviews EventReview[]
   // ID & number
   id     String @id @default(cuid())
@@ -561,6 +567,7 @@ model EventStaff {
 }
 
 model Trainer {
+  notes Note[]
   // ID & number
   id     String @id @default(cuid())
   number Int    @unique @default(autoincrement())
@@ -715,6 +722,7 @@ enum CancellationRefundStatus {
 }
 
 model CancellationRequest {
+  notes Note[]
   voucherBalanceEntries VoucherBalanceEntry[]
   id String @id @default(cuid())
   bookingId String
@@ -1071,4 +1079,46 @@ model BookingPrice {
 
   @@index([eventId])
   @@index([companyId])
+}
+
+
+enum NoteVisibility {
+  COMPANY
+  PRIVATE
+}
+
+// MVP: exactly one target, enforced by the note service. No independent tenant.
+model Note {
+  id         String         @id @default(cuid())
+  number     Int            @unique @default(autoincrement())
+  body       String         @db.Text
+  visibility NoteVisibility @default(COMPANY)
+  authorId   String
+  author     User           @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  eventId               String?
+  event                 Event?               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventSeriesId         String?
+  eventSeries           EventSeries?         @relation(fields: [eventSeriesId], references: [id], onDelete: Cascade)
+  venueId               String?
+  venue                 Venue?               @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  bookingId             String?
+  booking               Booking?             @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ticketId              String?
+  ticket                Ticket?              @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  trainerId             String?
+  trainer               Trainer?             @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  cancellationRequestId String?
+  cancellationRequest   CancellationRequest? @relation(fields: [cancellationRequestId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@index([eventId, createdAt, id])
+  @@index([eventSeriesId, createdAt, id])
+  @@index([venueId, createdAt, id])
+  @@index([bookingId, createdAt, id])
+  @@index([ticketId, createdAt, id])
+  @@index([trainerId, createdAt, id])
+  @@index([cancellationRequestId, createdAt, id])
 }

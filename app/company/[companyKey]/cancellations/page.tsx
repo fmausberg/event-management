@@ -1,3 +1,5 @@
+import { getNoteSummaries } from "@/lib/notes/service";
+import { ObjectNotes } from "@/components/object-notes";
 import { VoucherCancellationStatus } from "@/components/voucher-cancellation-status";
 import { notFound, redirect } from "next/navigation";
 import { MemberAccessError } from "@/lib/companies/members";
@@ -11,6 +13,7 @@ export default async function CancellationsPage({ params }: { params: Promise<{ 
   let result;
   try { result = await getCompanyCancellations(companyKey); }
   catch (error) { if (error instanceof MemberAccessError) { if (error.reason === "UNAUTHENTICATED") redirect("/login"); notFound(); } throw error; }
+  const noteSummaries = await getNoteSummaries("cancellationRequest", result.requests.map(row => row.id));
   const date = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" });
   const pending = result.requests.filter((r) => r.status === "PENDING");
   return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
@@ -28,6 +31,7 @@ export default async function CancellationsPage({ params }: { params: Promise<{ 
         {request.customerReason && <p className="mt-2 whitespace-pre-wrap text-sm">Kundenhinweis: {request.customerReason}</p>}
         {request.internalNote && <p className="mt-2 whitespace-pre-wrap text-sm">Interne Notiz: {request.internalNote}</p>}
         {request.status === "APPROVED" && <><p className="mt-2 font-medium">{refundLabels[request.refundStatus]}</p>{request.refundError && <p className="text-sm text-red-700">{request.refundError}</p>}</>}
+        {noteSummaries.counts[request.id] !== undefined && <ObjectNotes mode="dialog" target={{ type: "cancellationRequest", id: request.id }} label={`Stornoanfrage ${request.id} - Buchung #${request.booking.number} - ${request.booking.event.name}`} userId={noteSummaries.userId} initialCount={noteSummaries.counts[request.id]} />}
         <VoucherCancellationStatus booking={request.booking} />
         {request.booking.payment && <p className="text-sm">Onlinezahlung: {(request.booking.payment.amount / 100).toFixed(2)} {request.booking.payment.currency} · {request.booking.payment.status}</p>}
         {request.status === "PENDING" && <CancellationActionForm id={request.id} intent="decide" label="Ausgewählte Entscheidung" noteLabel="Interne Notiz (optional)" />}

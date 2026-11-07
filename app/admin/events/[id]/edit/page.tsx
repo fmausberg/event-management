@@ -1,3 +1,4 @@
+import { ObjectNotesSection } from "@/components/object-notes-section";
 import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { getEvent } from "@/lib/events/get-event";
@@ -21,6 +22,7 @@ export default async function EditEventPage({ params }: { params: Promise<{ id: 
         endsAt: event.endsAt ? formatBerlinDateTime(event.endsAt) : "",
         maxSeats: event.maxSeats?.toString() ?? "",
       }} />
+      <div className="mt-6"><ObjectNotesSection target={{ type: "event", id: event.id }} label={event.name} /></div>
     </main>
   );
 }

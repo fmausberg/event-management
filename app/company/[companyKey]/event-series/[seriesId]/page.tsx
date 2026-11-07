@@ -1,3 +1,4 @@
+import { ObjectNotesSection } from "@/components/object-notes-section";
 import { DescriptionHtml } from "@/components/description-html";
 import { isDescriptionEmpty } from "@/lib/descriptions/html";
 import { cancellationPolicyText } from "@/lib/cancellations/policy";
@@ -58,5 +59,6 @@ export default async function CompanyEventSeriesDetailPage({ params, searchParam
         {details.map(([label, value]) => <div key={label}><dt className="text-sm text-zinc-500">{label}</dt><dd className="mt-1">{value}</dd></div>)}
       </dl>
     </section>
+    <ObjectNotesSection target={{ type: "eventSeries", id: series.id }} label={series.name} />
   </>} />;
 }
