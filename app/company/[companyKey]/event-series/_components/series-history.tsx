@@ -13,19 +13,21 @@ export async function SeriesHistory({ companyKey, seriesId, page }: { companyKey
       if (error.reason === "UNAUTHENTICATED") redirect("/login");
       notFound();
     }
-    return <section aria-label="Änderungshistorie" className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40">
-      <h2 className="font-medium">Änderungshistorie</h2><p role="status" className="mt-2">Die Änderungshistorie konnte gerade nicht geladen werden.</p>
-    </section>;
+    return <details aria-label="Änderungshistorie" className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/40">
+      <summary className="cursor-pointer rounded font-medium focus-visible:outline-2 focus-visible:outline-primary-600">Änderungshistorie</summary><p role="status" className="mt-2">Die Änderungshistorie konnte gerade nicht geladen werden.</p>
+    </details>;
   }
   if (!history) return null;
   const href = (page: number) => `/company/${encodeURIComponent(companyKey)}/event-series/${encodeURIComponent(seriesId)}?historyPage=${page}#series-history`;
-  return <section id="series-history" aria-labelledby="series-history-title" className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
-    <h2 id="series-history-title" className="font-medium">Änderungshistorie</h2>
+  return <details open={page > 1} id="series-history" aria-labelledby="series-history-title" className="rounded-xl border border-zinc-200 bg-zinc-50 p-6 text-sm text-zinc-600 dark:border-zinc-800 dark:bg-zinc-900/40 dark:text-zinc-400">
+    <summary id="series-history-title" className="cursor-pointer rounded font-medium focus-visible:outline-2 focus-visible:outline-primary-600">Änderungshistorie</summary>
+    <div className="mt-4">
     <AuditTable entries={history.entries} />
     {(history.page > 1 || history.hasNext) && <nav aria-label="Seiten der Änderungshistorie" className="mt-4 flex items-center gap-4 text-xs">
       {history.page > 1 && <Link className="underline" href={href(history.page - 1)}>Neuere Einträge</Link>}
       <span>Seite {history.page}</span>
       {history.hasNext && <Link className="underline" href={href(history.page + 1)}>Ältere Einträge</Link>}
     </nav>}
-  </section>;
+    </div>
+  </details>;
 }

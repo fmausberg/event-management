@@ -41,6 +41,7 @@ export async function saveSeries(slug: string, id: string | null, _previous: Ser
 async function saveSeriesWithContext(slug: string, id: string | null, _previous: SeriesState, form: FormData): Promise<SeriesState> {
   let uploaded: UploadedEventImage | undefined;
   let saved = false;
+  let createdId: string | undefined;
   try {
     const { company } = await requireCompanyAccess(slug);
     if (id !== null && !validId(id)) return { message: "Ungültige Veranstaltungsreihe." };
@@ -68,12 +69,13 @@ async function saveSeriesWithContext(slug: string, id: string | null, _previous:
     const data = { ...fields, ...(uploaded ? { imageUrl: uploaded.imageUrl } : removeImage ? { imageUrl: null } : {}), suggestedTrainerName: null };
     const session = await auth();
     if (!session?.user?.id) return { message: "Bitte melde dich erneut an." };
-    await db.eventSeries.create({ data: { ...data, companyId: company.id, createdById: session.user.id } });
+    const created = await db.eventSeries.create({ data: { ...data, companyId: company.id, createdById: session.user.id }, select: { id: true } });
+    createdId = created.id;
     saved = true;
   } catch (error) { return failure(error); }
   finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
   refresh(slug);
-  return { success: true, message: id === null ? "Veranstaltungsreihe wurde erstellt." : "Veranstaltungsreihe wurde gespeichert." };
+  return { success: true, id: createdId, message: id === null ? "Veranstaltungsreihe wurde erstellt." : "Veranstaltungsreihe wurde gespeichert." };
 }
 
 export async function deleteSeries(slug: string, id: string, _previous: SeriesState, form: FormData): Promise<SeriesState> {
