@@ -8,6 +8,7 @@ import { bookingSchema, type BookingState } from "@/lib/bookings/validation";
 import { issueBookingTickets } from "@/lib/bookings/fulfillment";
 import { deliverTicketMail } from "@/lib/tickets/outbox";
 function refresh(slug: string, eventId: string) {
+ revalidatePath(`/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}`);
  revalidatePath(`/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}/bookings`);
  revalidatePath(`/company/${encodeURIComponent(slug)}/events`);
  revalidatePath("/admin/events");

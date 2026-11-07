@@ -6,6 +6,7 @@ export async function sendTicketReviewInvitation(slug: string, eventId: string, 
   try {
     const result = await resendReviewInvitation(slug, eventId, ticketId, requestId);
     revalidatePath(`/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}/tickets`);
+    revalidatePath(`/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}`);
     return result;
   } catch (error) {
     return { message: error instanceof MemberAccessError ? error.message : "Versand konnte nicht beauftragt werden. Bitte erneut versuchen." };

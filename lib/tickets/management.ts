@@ -4,7 +4,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import { canManageTicketReviews } from "@/lib/reviews/resend";
 import { z } from "zod";
 
-export async function getEventTickets(slug: string, eventId: string) {
+export async function getEventTickets(slug: string, eventId: string, includeReviews = false) {
  const { company, event, actor } = await requireEventTicketAccess(slug, eventId);
  const db = getPrisma();
  const tickets = await db.ticket.findMany({
@@ -12,7 +12,7 @@ export async function getEventTickets(slug: string, eventId: string) {
   orderBy: [{ number: "asc" }],
   select: { id: true, number: true, status: true, checkedInAt: true, checkedInBy: { select: { email: true } }, booking: { select: { number: true, status: true, customerName: true, customerEmail: true, user: { select: { email: true } } } } },
  });
- const canManageReviews = await canManageTicketReviews(company.id, actor);
+ const canManageReviews = includeReviews && await canManageTicketReviews(company.id, actor);
  const reviews = canManageReviews ? await db.eventReview.findMany({ where: { eventId: event.id },
   select: { recipientEmail: true, status: true, overallRating: true, submittedAt: true, sentAt: true } }) : [];
  const byEmail = new Map(reviews.map(review => [review.recipientEmail, review]));

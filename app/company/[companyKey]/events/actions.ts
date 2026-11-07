@@ -13,6 +13,7 @@ import { calendarRange, parseBatchSchedule, type BatchOccurrence } from "@/lib/c
 import { occupiedSeriesDates } from "@/lib/company-events/batch-conflicts";
 export type TrainerReminderActionState = { success?: boolean; sent?: boolean; sentAt?: string | null; message?: string };
 function refresh(slug: string) {
+ revalidatePath("/company/[companyKey]/events/[eventId]", "page");
  revalidatePath("/company/[companyKey]/event-series/[seriesId]", "page");
  revalidatePath("/account/eventmanagement");
  revalidatePath("/account/bookings");

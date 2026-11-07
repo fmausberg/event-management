@@ -14,6 +14,7 @@ export async function redeemCompanyTicket(slug: string, eventId: string, ticketI
    data: { checkedInAt: new Date(), checkedInById: actor },
   });
   revalidatePath(`/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}/tickets`);
+  revalidatePath(`/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}`);
   return { message: result.count ? "Ticket eingelöst." : "Ticket bereits eingelöst, storniert oder nicht verfügbar." };
  } catch (error) {
   return { message: error instanceof MemberAccessError ? error.message : "Einlösen fehlgeschlagen. Bitte lade die Seite neu und prüfe den Status." };

@@ -5,7 +5,7 @@ import { ResendAssignment } from "@/components/resend-assignment";
 import { useEffect, useState, useTransition } from "react";
 import { addEventStaff, listEventStaff, removeEventStaff } from "../staff-actions";
 type Staff = { id: string; email: string; status: string };
-export function EventStaff({ slug, eventId }: { slug: string; eventId: string }) {
+export function EventStaff({ slug, eventId, embedded = false }: { slug: string; eventId: string; embedded?: boolean }) {
  const [staff, setStaff] = useState<Staff[]>([]);
  const [email, setEmail] = useState("");
  const [message, setMessage] = useState("");
@@ -32,8 +32,8 @@ export function EventStaff({ slug, eventId }: { slug: string; eventId: string })
    } catch { setMessage("Die Änderung konnte nicht abgeschlossen werden. Bitte lade die Veranstaltung erneut."); }
   });
  }
- return <section className="mt-6 border-t border-zinc-200 pt-6 dark:border-zinc-800">
-  <h3 className="font-semibold">Veranstaltungsteam</h3>
+ return <section className={embedded ? "min-w-0" : "mt-6 border-t border-zinc-200 pt-6 dark:border-zinc-800"}>
+  {!embedded && <h3 className="font-semibold">Veranstaltungsteam</h3>}
   <form className="my-4 space-y-3" onSubmit={(event) => { event.preventDefault(); change(() => addEventStaff(slug, eventId, email), true); }}>
    <label className="block text-sm" htmlFor="event-staff-email">E-Mail-Adresse</label>
    <input id="event-staff-email" type="email" required maxLength={254} value={email} disabled={pending} onChange={(event) => setEmail(event.target.value)} className="w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2" />
