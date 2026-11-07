@@ -7,9 +7,12 @@ import { EventDetails } from "../_components/event-details";
 import { EventBookings } from "../_components/event-bookings";
 import { EventTickets } from "../_components/event-tickets";
 import { EventReviews } from "../_components/event-reviews";
+import { EventHistory } from "../_components/event-history";
 
-export default async function CompanyEventDetailPage({ params }: { params: Promise<{ companyKey: string; eventId: string }> }) {
+export default async function CompanyEventDetailPage({ params, searchParams }: { params: Promise<{ companyKey: string; eventId: string }>; searchParams?: Promise<{ historyPage?: string | string[] }> }) {
   const { companyKey, eventId } = await params;
+  const query = await searchParams ?? {};
+  const historyPage = typeof query.historyPage === "string" ? Number(query.historyPage) : 1;
   let result;
   try { result = await getCompanyEvents(companyKey, undefined, eventId); }
   catch (error) {
@@ -23,9 +26,11 @@ export default async function CompanyEventDetailPage({ params }: { params: Promi
   if (!event) notFound();
   return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
     <PageBreadcrumb label={event.name || "Unbenannter Entwurf"} />
-    <EventDetails slug={result.company.slug} row={event} series={result.series} venues={result.venues} trainers={result.trainers} canManage={result.canManage} />
-    <EventBookings slug={result.company.slug} eventId={event.id} />
-    <EventTickets slug={result.company.slug} eventId={event.id} />
+    <EventDetails slug={result.company.slug} row={event} series={result.series} venues={result.venues} trainers={result.trainers} canManage={result.canManage}>
+      <EventBookings slug={result.company.slug} eventId={event.id} />
+      <EventTickets slug={result.company.slug} eventId={event.id} />
+    </EventDetails>
     <EventReviews slug={result.company.slug} eventId={event.id} />
+    <EventHistory slug={result.company.slug} eventId={event.id} page={historyPage} />
   </main>;
 }

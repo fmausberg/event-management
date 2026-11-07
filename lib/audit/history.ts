@@ -49,3 +49,10 @@ export async function getEventSeriesHistory(companySlug: string, seriesId: strin
   if (!series) return null;
   return loadHistory({ model: "EventSeries", recordId: series.id, companyId: company.id }, page);
 }
+
+export async function getEventHistory(companySlug: string, eventId: string, page = 1) {
+  const { company } = await requireCompanyAccess(companySlug);
+  const event = await getPrisma().event.findFirst({ where: { id: eventId, companyId: company.id }, select: { id: true } });
+  if (!event) return null;
+  return loadHistory({ model: "Event", recordId: event.id, companyId: company.id }, page);
+}

@@ -49,6 +49,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
  let uploaded: UploadedEventImage | undefined;
  let saved = false;
  let createdCount = 0;
+ let createdId: string | undefined;
  try {
   const { company } = await requireCompanyAccess(slug);
   if (id !== null && !validId(id)) return { message: "Ungültige Veranstaltung." };
@@ -125,7 +126,10 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30000 });
     if (!result.success) return result;
     createdCount = occurrences.length;
-   } else await db.event.create({ data: creationData });
+   } else {
+    const created = await db.event.create({ data: creationData, select: { id: true } });
+    createdId = created.id;
+   }
   } else {
    const result = await db.$transaction(async (tx) => {
     const current = await tx.event.findFirst({ where: { id, companyId: company.id }, select: { status: true, imagePublicId: true } });
@@ -143,7 +147,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
  finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
  refresh(slug);
  if (multiple) return { success: true, message: `${createdCount} Veranstaltungen wurden ${intent === "publish" ? "veröffentlicht" : "als Entwurf erstellt"}.` };
- return { success: true, message: intent === "publish" ? "Veranstaltung wurde veröffentlicht." : id === null ? "Entwurf wurde erstellt." : "Veranstaltung wurde gespeichert." };
+ return { success: true, id: createdId, message: intent === "publish" ? "Veranstaltung wurde veröffentlicht." : id === null ? "Entwurf wurde erstellt." : "Veranstaltung wurde gespeichert." };
 
   });
 }

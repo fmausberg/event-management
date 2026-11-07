@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useId, useRef, useState } from "react";
+import { useId, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { DescriptionHtml } from "@/components/description-html";
 import { isDescriptionEmpty } from "@/lib/descriptions/html";
@@ -18,8 +18,8 @@ const contentClass = "min-w-0 border-t border-zinc-200 p-4 sm:p-6 dark:border-zi
 const date = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" });
 const statuses = { DRAFT: "Entwurf", PUBLISHED: "Veröffentlicht", CANCELLED: "Abgesagt", COMPLETED: "Abgeschlossen" };
 
-export function EventDetails({ slug, row, series, venues, trainers, canManage }: {
-  slug: string; row: EventRow; series: SeriesRow[]; venues: VenueOption[]; trainers: TrainerOption[]; canManage: boolean;
+export function EventDetails({ slug, row, series, venues, trainers, canManage, children }: {
+  slug: string; row: EventRow; series: SeriesRow[]; venues: VenueOption[]; trainers: TrainerOption[]; canManage: boolean; children?: ReactNode;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -65,6 +65,7 @@ export function EventDetails({ slug, row, series, venues, trainers, canManage }:
         ) : <p className="text-sm text-zinc-500">Kein Titelbild</p>}</div>
       </div>}</div>
     </details>
+    {children}
     {canManage && <>
       <details className={panelClass}><summary className={summaryClass}>Veranstaltungsteam</summary><div className={`${contentClass} overflow-x-auto`}><EventStaff embedded slug={slug} eventId={row.id} /></div></details>
       <details className={panelClass}><summary className={summaryClass}>Trainer-Info</summary><div className={contentClass}><TrainerReminderControls key={row.trainerReminderSentAt ?? "unsent"} embedded slug={slug} row={row} /></div></details>

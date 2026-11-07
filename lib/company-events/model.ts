@@ -19,7 +19,7 @@ export const publishEventSchema = eventSchema.superRefine((v, ctx) => {
  }
 });
 export type EventValues = z.input<typeof eventSchema>;
-export type EventState = { success?: boolean; message?: string; warnings?: string[]; errors?: Partial<Record<keyof EventValues, string[]>>; dateErrors?: Record<string, string>; conflictingDates?: string[] };
+export type EventState = { id?: string; success?: boolean; message?: string; warnings?: string[]; errors?: Partial<Record<keyof EventValues, string[]>>; dateErrors?: Record<string, string>; conflictingDates?: string[] };
 export type EventRow = Omit<EventValues, "maxSeats"> & { id: string; number: number; trainerName?: string | null; imageUrl?: string | null; trainerReminderSentAt?: string | null; maxSeats: number | null; remainingSeats: number | null; purchasedSeats: number; checkedInSeats: number; _count: { bookings: number; platformEvents: number } };
 export const emptyEvent: EventValues = { freeCancellationUntilMinutesBeforeStart: "", name: "", shortdescription: "", description: "", trainerIds: [], eventSeriesId: "", venueId: "", beginsAt: "", endsAt: "", maxSeats: "", ticketPrice: "", currency: "EUR", status: "DRAFT" };
 export function applySeries(values: EventValues, series: SeriesRow): EventValues {
