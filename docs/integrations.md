@@ -1,5 +1,9 @@
 # Kapazität und externe Eventplattformen
 
+Die Company-Verknüpfung mit einer bestehenden Eventbrite-Organisation ist separat
+implementiert: [Eventbrite-Einrichtung](eventbrite.md). Die folgenden Adapter und
+Webhook-Platzhalter bleiben unabhängig davon unverändert.
+
 ## Datenmodell
 
 - `Event`: Company, Veranstaltungsdaten, Kapazität und Beziehungen.
@@ -55,8 +59,8 @@ Fehlgeschlagene aktive Zuordnungen bleiben ACTIVE; DISABLED und ERROR werden
 ## Grenzen
 
 Es gibt keinen automatischen Scheduler für externe Eventplattformen und keine
-automatische Drittanbieter-Eventerstellung. Vor echter Anbindung fehlen geprüfte
-Anbieterverträge, Authentifizierung und Webhook-Verarbeitung.
+automatische Drittanbieter-Eventerstellung. Für echte Event-/Buchungsadapter fehlen
+geprüfte Anbieterverträge, deren Anbindung an Company-Zugangsdaten und Webhook-Verarbeitung.
 Versionierung externer Updates und Serialisierung überlappender Sync-Aufrufe
 müssen bei der Integration ergänzt werden. Verteilte Buchungen können gleichzeitig
 eintreffen; die lokale Berechnung garantiert keine plattformübergreifende Reservierung.

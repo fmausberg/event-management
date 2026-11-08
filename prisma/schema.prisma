@@ -186,6 +186,8 @@ model AuthRateLimit {
 }
 
 model Company {
+  eventbriteConnection EventbriteConnection?
+  eventbriteOAuth EventbriteOAuth?
   ownedVoucherCampaigns  VoucherCampaign[]        @relation("VoucherCampaignOwner")
   voucherCampaignTargets VoucherCampaignCompany[]
   issuedVoucherBalances  VoucherBalance[]         @relation("VoucherBalanceIssuer")
@@ -211,6 +213,37 @@ model Company {
   // Timestamps
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+enum EventbriteConnectionStatus {
+  CONNECTED
+  ERROR
+}
+
+model EventbriteConnection {
+  companyId String @id
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  organizationId String @unique
+  organizationName String?
+  encryptedAccessToken String @db.Text
+  status EventbriteConnectionStatus @default(CONNECTED)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Short-lived, server-only OAuth attempt; never replaces the active connection.
+model EventbriteOAuth {
+  id String @id @default(cuid())
+  companyId String @unique
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId String
+  sessionHash String
+  stateHash String? @unique
+  encryptedAccessToken String? @db.Text
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([expiresAt])
 }
 
 model CompanyMembership {

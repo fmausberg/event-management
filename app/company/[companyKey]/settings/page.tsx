@@ -4,8 +4,9 @@ import { startStripeOnboarding } from "./actions";
 import { MemberAccessError, requireCompanyAdmin } from "@/lib/companies/members";
 import { EmbedCode } from "./embed-code";
 import { reportConnectError } from "@/lib/payments/connect-error";
+import { EventbriteSettingsSection } from "./eventbrite/settings-section";
 export const dynamic = "force-dynamic";
-export default async function CompanySettingsPage({ params, searchParams }: { params: Promise<{ companyKey: string }>; searchParams?: Promise<{ stripe?: string }> }) {
+export default async function CompanySettingsPage({ params, searchParams }: { params: Promise<{ companyKey: string }>; searchParams?: Promise<{ stripe?: string; error?: string }> }) {
  const { companyKey } = await params;
  let company;
  try { company = await requireCompanyAdmin(companyKey); }
@@ -26,7 +27,7 @@ export default async function CompanySettingsPage({ params, searchParams }: { pa
    ready = status.stripeChargesEnabled && status.stripePayoutsEnabled;
   } catch (error) { failed = true; statusError = reportConnectError(error); }
  }
- const { stripe } = (await searchParams) ?? {};
+ const { stripe, error } = (await searchParams) ?? {};
  const connectionError = !stripe || stripe === "return" ? statusError : stripe;
  return <main className="flex-1 space-y-6 p-6 sm:p-10">
   <h1 className="text-2xl font-semibold">Einstellungen – {company.name}</h1>
@@ -53,5 +54,6 @@ export default async function CompanySettingsPage({ params, searchParams }: { pa
    </form>}
    {connected && <a href="https://dashboard.stripe.com/" target="_blank" rel="noopener noreferrer" className="block underline">Zahlungen und Erstattungen bei Stripe verwalten</a>}
   </section>
+  <EventbriteSettingsSection companyKey={companyKey} error={error} />
  </main>;
 }

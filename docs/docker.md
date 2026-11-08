@@ -1,5 +1,10 @@
 # Betrieb mit Docker
 
+Optionale Eventbrite-Organisationsverknüpfung: `EVENTBRITE_CLIENT_ID`,
+`EVENTBRITE_CLIENT_SECRET`, `EVENTBRITE_REDIRECT_URI` und
+`EVENTBRITE_TOKEN_ENCRYPTION_KEY` zur Laufzeit in `.env.docker` setzen.
+Einrichtung, HTTPS-Callback und erforderliche Migration: [Eventbrite](eventbrite.md).
+
 Voraussetzungen: Linux-Server mit Docker Engine und Compose v2, Domain und
 HTTPS-Reverse-Proxy. Das Repository enthält ein Traefik-Overlay;
 alternativ kann ein eigener Proxy verwendet werden. Der App-Port wird ausschließlich an
