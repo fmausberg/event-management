@@ -3,6 +3,8 @@ import { requireCompanyAccess } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
 import { Prisma } from "@prisma/client";
+import { emptyAuditFilters, parseAuditFilters, type AuditFilters } from "./filters";
+import { parseBerlinDateTime } from "@/lib/events/berlin-date-time";
 
 function identityFromSnapshot(before: Prisma.JsonValue, after: Prisma.JsonValue) {
   const old = before && typeof before === "object" && !Array.isArray(before) ? before : {};
@@ -35,9 +37,37 @@ async function loadHistory(where: Prisma.AuditLogWhereInput, page: number) {
   })), hasNext: rows.length > 20, page: currentPage };
 }
 
-export async function getAdminAuditHistory(page = 1) {
+export async function getAdminAuditHistory(page = 1, input: AuditFilters = emptyAuditFilters) {
   await requireAdmin();
-  return loadHistory({}, page);
+  const filters = parseAuditFilters({ actor: input.actors, action: input.actions, model: input.models, from: input.from, to: input.to });
+  const actors: Prisma.AuditLogWhereInput[] = filters.actors.map(value => value.startsWith("user:")
+    ? { actorType: "USER", actorUserId: value.slice(5) }
+    : { actorType: value.slice(5) as "USER" | "SYSTEM" | "ANONYMOUS" | "UNKNOWN" });
+  return loadHistory({
+    ...(actors.length ? { OR: actors } : {}),
+    ...(filters.actions.length ? { action: { in: filters.actions } } : {}),
+    ...(filters.models.length ? { model: { in: filters.models } } : {}),
+    ...(filters.from || filters.to ? { occurredAt: {
+      ...(filters.from ? { gte: parseBerlinDateTime(filters.from) } : {}),
+      ...(filters.to ? { lte: new Date(parseBerlinDateTime(filters.to).getTime() + 59999) } : {}),
+    } } : {}),
+  }, page);
+}
+
+export async function getAdminAuditActors() {
+  await requireAdmin();
+  const db = getPrisma();
+  const actors = await db.auditLog.groupBy({ by: ["actorType", "actorUserId"] });
+  const ids = actors.filter(row => row.actorType === "USER" && row.actorUserId).map(row => row.actorUserId!);
+  const users = ids.length ? await db.user.findMany({ where: { id: { in: ids } }, select: { id: true, name: true, email: true } }) : [];
+  const byId = new Map(users.map(user => [user.id, user]));
+  const labels = { USER: "Alle Nutzer", SYSTEM: "System", ANONYMOUS: "Anonym", UNKNOWN: "Unbekannt" };
+  const types = [...new Set(actors.map(row => row.actorType))].map(type => ({ value: `type:${type}`, label: labels[type] }));
+  const individuals = ids.map(id => {
+    const user = byId.get(id);
+    return { value: `user:${id}`, label: user ? user.name ? `${user.name} (${user.email})` : user.email : `Nutzer nicht mehr verfügbar (${id})` };
+  }).sort((a, b) => a.label.localeCompare(b.label, "de"));
+  return [...types, ...individuals];
 }
 
 // Authorize independently; neither companyId nor series ownership comes from
