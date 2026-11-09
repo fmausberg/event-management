@@ -1,4 +1,5 @@
 import "server-only";
+import { RECOVERY_ADMIN_ID, recoveryAdminAvailable } from "@/lib/auth/recovery-admin";
 import { auth } from "@/auth";
 import { getPrisma } from "@/lib/db/prisma";
 import { buildNavigation } from "./model";
@@ -7,6 +8,11 @@ import { trainerIdentityForUser } from "@/lib/trainers/identity";
 export async function getNavigation() {
   const session = await auth();
   if (!session?.user?.id) return null;
+
+  if (session.user.id === RECOVERY_ADMIN_ID) {
+    if (!await recoveryAdminAvailable()) return null;
+    return { user: { name: "admin", email: "admin" }, groups: [{ id: "recovery", label: "Plattform-Administration", items: [{ label: "User", href: "/admin/users", icon: "users" as const }] }] };
+  }
 
   // Read current roles from the database, never from client input or stale JWT claims.
   const user = await getPrisma().user.findUnique({

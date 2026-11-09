@@ -27,7 +27,7 @@ export async function login(_previous: AuthFormState, formData: FormData): Promi
     }
     return { message: "Die Anmeldung ist gerade nicht möglich. Bitte versuche es später erneut." };
   }
-  redirect(returnTo);
+  redirect(result.data.email === "admin" ? "/admin/users" : returnTo);
 }
 
 export async function register(_previous: AuthFormState, formData: FormData): Promise<AuthFormState> {

@@ -7,7 +7,7 @@ import { loginSchema, registerSchema } from "@/lib/auth/validation";
 
 vi.mock("@/lib/companies/claim-memberships", () => ({ claimMemberships: vi.fn() }));
 const { db } = vi.hoisted(() => ({ db: { venueStaff: { updateMany: vi.fn() }, eventStaff: { updateMany: vi.fn() },
-  user: { findMany: vi.fn(), findUnique: vi.fn() },
+  user: { count: vi.fn(), findMany: vi.fn(), findUnique: vi.fn() },
   companyMembership: { updateMany: vi.fn() },
   authRateLimit: { deleteMany: vi.fn(), upsert: vi.fn() },
 } }));
@@ -21,6 +21,7 @@ beforeEach(() => {
   vi.stubEnv("AUTH_SECRET", "test-only-secret-with-at-least-thirty-two-characters");
   vi.stubEnv("AUTH_URL", "https://events.example.test");
   for (const key of ["AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "AUTH_GITHUB_ID", "AUTH_GITHUB_SECRET"]) vi.stubEnv(key, "");
+  db.user.count.mockResolvedValue(0);
   db.user.findMany.mockResolvedValue([{ id: "user-1", name: "Ada", email: "ada@example.com", image: null, emailVerified: new Date(), passwordHash }]);
   db.user.findUnique.mockResolvedValue({ id: "user-1", email: "ada@example.com", emailVerified: new Date() });
   db.companyMembership.updateMany.mockResolvedValue({ count: 0 });
@@ -205,4 +206,30 @@ it("revokes an existing session if email verification is removed", async () => {
  db.user.findUnique.mockResolvedValue({ id: "user-1", email: "ada@example.com", emailVerified: null });
  const response = await handlers.GET(request("session", { headers: { cookie } }));
  expect(await response.json()).toBeNull();
+});
+
+describe("recovery administrator", () => {
+  it("allows admin/admin only without a platform administrator and revokes existing sessions", async () => {
+    db.user.count.mockResolvedValue(0);
+    const response = await login({ email: "admin", password: "admin" });
+    const cookie = cookieHeader(response);
+    const session = await handlers.GET(request("session", { headers: { cookie } }));
+    expect((await session.json()).user).toMatchObject({ id: "__recovery_admin__", name: "admin" });
+    expect(db.user.count).toHaveBeenCalledWith({ where: { role: "ADMIN" } });
+    db.user.count.mockResolvedValue(1);
+    const revoked = await handlers.GET(request("session", { headers: { cookie } }));
+    expect(await revoked.json()).toBeNull();
+    const denied = await login({ email: "admin", password: "admin" });
+    expect(denied.headers.get("location")).toContain("CredentialsSignin");
+  });
+
+  it("rejects an incorrect recovery password", async () => {
+    db.user.count.mockResolvedValue(0);
+    const response = await login({ email: "admin", password: "wrong" });
+    expect(response.headers.get("location")).toContain("CredentialsSignin");
+  });
+
+  it("does not allow registering the recovery username", () => {
+    expect(registerSchema.safeParse({ email: "admin", password: "admin", confirmPassword: "admin", name: "Admin" }).success).toBe(false);
+  });
 });

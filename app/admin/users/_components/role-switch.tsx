@@ -1,0 +1,21 @@
+"use client";
+
+import { useActionState } from "react";
+import type { UserRole } from "@prisma/client";
+import { changeUserRole, type UserRoleFormState } from "../actions";
+
+export function RoleSwitch({ userId, email, role }: { userId: string; email: string; role: UserRole }) {
+  const [state, action, pending] = useActionState<UserRoleFormState, FormData>(changeUserRole.bind(null, userId), {});
+  const isAdmin = role === "ADMIN";
+  return <form action={action} className="min-w-36">
+    <input type="hidden" name="role" value={isAdmin ? "USER" : "ADMIN"} />
+    <div className="flex items-center gap-2">
+      <span className="text-xs">User</span>
+      <button type="submit" role="switch" aria-checked={isAdmin} aria-label={`Plattform-Admin für ${email}`} disabled={pending} className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:cursor-wait disabled:opacity-50 ${isAdmin ? "bg-primary-600" : "bg-zinc-300 dark:bg-zinc-600"}`}>
+        <span className={`h-4 w-4 rounded-full bg-white transition-transform ${isAdmin ? "translate-x-6" : "translate-x-1"}`} />
+      </button>
+      <span className="text-xs">Admin</span>
+    </div>
+    {pending ? <p role="status" className="mt-2 text-xs text-zinc-500">Wird gespeichert …</p> : state.message && <p role={state.success ? "status" : "alert"} className={`mt-2 max-w-64 text-xs ${state.success ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}`}>{state.message}</p>}
+  </form>;
+}

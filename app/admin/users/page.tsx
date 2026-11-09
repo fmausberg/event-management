@@ -3,6 +3,8 @@ import { AdminAccessError } from "@/lib/auth/require-admin";
 import { getUsersForAdmin } from "@/lib/users/admin-data";
 import { AccountStatusTag } from "@/components/account-status-tag";
 
+import { RoleSwitch } from "./_components/role-switch";
+
 export const metadata = { title: "User-Übersicht" };
 
 export default async function AdminUsersPage() {
@@ -21,7 +23,7 @@ export default async function AdminUsersPage() {
     <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       <table className="w-full text-left text-sm">
         <caption className="sr-only">Alle Plattform-User mit Kontostatus, Ticketzahlen und aktiven Unternehmenszuordnungen</caption>
-        <thead className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"><tr>{["Nummer", "Name", "E-Mail", "Tickets: eingelöst / gekauft", "Unternehmen"].map((heading) => <th key={heading} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{heading}</th>)}</tr></thead>
+        <thead className="border-b border-zinc-200 bg-zinc-100 dark:border-zinc-800 dark:bg-zinc-900"><tr>{["Nummer", "Name", "E-Mail", "Tickets: eingelöst / gekauft", "Unternehmen", "Plattform-Rolle"].map((heading) => <th key={heading} scope="col" className="whitespace-nowrap px-4 py-3 font-medium">{heading}</th>)}</tr></thead>
         <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
           {users.map((user) => <tr key={user.id}>
             <td className="px-4 py-3 tabular-nums">{user.number}</td>
@@ -29,8 +31,9 @@ export default async function AdminUsersPage() {
             <td className="px-4 py-3"><div className="flex items-center gap-2">{user.email}<AccountStatusTag status={user.emailVerified ? "verified" : "not verified"} /></div></td>
             <td className="whitespace-nowrap px-4 py-3 tabular-nums">{user.redeemedTickets} / {user.purchasedTickets}</td>
             <td className="px-4 py-3">{user.companies.join(", ") || "–"}</td>
+            <td className="px-4 py-3"><RoleSwitch userId={user.id} email={user.email} role={user.role} /></td>
           </tr>)}
-          {users.length === 0 && <tr><td colSpan={5} className="px-4 py-8 text-center text-zinc-500">Es gibt noch keine User auf der Plattform.</td></tr>}
+          {users.length === 0 && <tr><td colSpan={6} className="px-4 py-8 text-center text-zinc-500">Es gibt noch keine User auf der Plattform.</td></tr>}
         </tbody>
       </table>
     </div>

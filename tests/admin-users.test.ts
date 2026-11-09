@@ -1,10 +1,12 @@
 import { beforeEach, expect, it, vi } from "vitest";
+import { changeUserRole } from "@/app/admin/users/actions";
 import { getUsersForAdmin } from "@/lib/users/admin-data";
 
 const { db, auth } = vi.hoisted(() => ({
-  db: { user: { findUnique: vi.fn(), findMany: vi.fn() } },
+  db: { user: { count: vi.fn(), findUnique: vi.fn(), findMany: vi.fn(), updateMany: vi.fn() } },
   auth: vi.fn(),
 }));
+vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
 vi.mock("server-only", () => ({}));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
@@ -42,4 +44,54 @@ it("includes users without bookings and totals issued and checked-in tickets acr
     orderBy: { number: "asc" },
     select: expect.objectContaining({ memberships: expect.objectContaining({ where: { status: "ACTIVE" } }) }),
   }));
+});
+
+function roleForm(role = "ADMIN") {
+  const data = new FormData();
+  data.set("role", role);
+  return data;
+}
+
+it.each(["USER", "COMPANY_ADMIN", "COMPANY_USER"])("denies role changes by %s", async (role) => {
+  db.user.findUnique.mockResolvedValue({ id: "actor", role });
+  expect(await changeUserRole("target", {}, roleForm())).not.toHaveProperty("success");
+  expect(db.user.updateMany).not.toHaveBeenCalled();
+});
+
+it("denies unauthenticated role changes", async () => {
+  auth.mockResolvedValue(null);
+  expect(await changeUserRole("target", {}, roleForm())).not.toHaveProperty("success");
+  expect(db.user.updateMany).not.toHaveBeenCalled();
+});
+
+it.each(["ADMIN", "USER"])("allows platform admins to assign %s", async (role) => {
+  db.user.updateMany.mockResolvedValue({ count: 1 });
+  expect(await changeUserRole("target", {}, roleForm(role))).toMatchObject({ success: true });
+  expect(db.user.updateMany).toHaveBeenCalledWith({ where: { id: "target" }, data: { role } });
+});
+
+it.each([["", "ADMIN"], ["target", "COMPANY_ADMIN"], ["target", "invalid"]])("rejects invalid user or role: %s %s", async (id, role) => {
+  expect(await changeUserRole(id, {}, roleForm(role))).not.toHaveProperty("success");
+  expect(db.user.updateMany).not.toHaveBeenCalled();
+});
+
+it("reports users that no longer exist", async () => {
+  db.user.updateMany.mockResolvedValue({ count: 0 });
+  expect(await changeUserRole("missing", {}, roleForm())).toMatchObject({ message: "Dieser User existiert nicht mehr." });
+});
+
+it("reports persistence errors", async () => {
+  db.user.updateMany.mockRejectedValue(new Error("database unavailable"));
+  expect(await changeUserRole("target", {}, roleForm())).toMatchObject({ message: expect.stringContaining("nicht gespeichert") });
+});
+
+it("lets the recovery identity promote a user only while no platform admin exists", async () => {
+  auth.mockResolvedValue({ user: { id: "__recovery_admin__" } });
+  db.user.count.mockResolvedValue(0);
+  db.user.updateMany.mockResolvedValue({ count: 1 });
+  expect(await changeUserRole("target", {}, roleForm())).toMatchObject({ success: true });
+  db.user.updateMany.mockClear();
+  db.user.count.mockResolvedValue(1);
+  expect(await changeUserRole("target", {}, roleForm())).not.toHaveProperty("success");
+  expect(db.user.updateMany).not.toHaveBeenCalled();
 });

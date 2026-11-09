@@ -9,7 +9,7 @@ export function AuthForm({ mode, returnTo = "/account" }: { mode: "login" | "reg
   const [state, action, pending] = useActionState<AuthFormState, FormData>(registering ? register : login, {});
   const fields = [
     ...(registering ? [{ name: "name" as const, label: "Name", type: "text", autoComplete: "name" }] : []),
-    { name: "email" as const, label: "E-Mail-Adresse", type: "email", autoComplete: "email" },
+    { name: "email" as const, label: registering ? "E-Mail-Adresse" : "E-Mail-Adresse oder Benutzername", type: registering ? "email" : "text", autoComplete: registering ? "email" : "username" },
     { name: "password" as const, label: "Passwort", type: "password", autoComplete: registering ? "new-password" : "current-password" },
     ...(registering ? [{ name: "confirmPassword" as const, label: "Passwort wiederholen", type: "password", autoComplete: "new-password" }] : []),
   ];

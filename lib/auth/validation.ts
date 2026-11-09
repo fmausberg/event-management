@@ -7,8 +7,9 @@ export const emailSchema = z.string({ error: "Bitte gib deine E-Mail-Adresse ein
 // Only require a value; passwords have no length or character-composition policy.
 const passwordSchema = z.string({ error: "Bitte gib dein Passwort ein." }).min(1, "Bitte gib dein Passwort ein.");
 
-export const loginSchema = z.object({ email: emailSchema, password: passwordSchema });
+export const loginSchema = z.object({ email: z.union([z.literal("admin"), emailSchema]), password: passwordSchema });
 export const registerSchema = loginSchema.extend({
+  email: emailSchema,
   name: z.string({ error: "Bitte gib deinen Namen ein." }).trim().min(2, "Bitte gib einen Namen mit mindestens 2 Zeichen ein.").max(100, "Der Name darf höchstens 100 Zeichen lang sein."),
   confirmPassword: z.string({ error: "Bitte wiederhole dein Passwort." }),
 }).refine((data) => data.password === data.confirmPassword, {
