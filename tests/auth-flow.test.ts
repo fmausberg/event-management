@@ -2,6 +2,7 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import { NextRequest } from "next/server";
 import { hash as bcryptHash } from "bcryptjs";
 import { handlers } from "@/auth";
+import { recordLoginAudit } from "@/lib/db/prisma";
 import { hashPassword, verifyPassword } from "@/lib/auth/password";
 import { loginSchema, registerSchema } from "@/lib/auth/validation";
 
@@ -12,12 +13,13 @@ const { db } = vi.hoisted(() => ({ db: { venueStaff: { updateMany: vi.fn() }, ev
   authRateLimit: { deleteMany: vi.fn(), upsert: vi.fn() },
 } }));
 vi.mock("server-only", () => ({}));
-vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
+vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db, recordLoginAudit: vi.fn() }));
 
 const password = "Eine lange Passphrase!";
 let passwordHash: string;
 beforeAll(async () => { passwordHash = await hashPassword(password); });
 beforeEach(() => {
+  vi.mocked(recordLoginAudit).mockReset();
   vi.stubEnv("AUTH_SECRET", "test-only-secret-with-at-least-thirty-two-characters");
   vi.stubEnv("AUTH_URL", "https://events.example.test");
   for (const key of ["AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET", "AUTH_GITHUB_ID", "AUTH_GITHUB_SECRET"]) vi.stubEnv(key, "");
@@ -212,6 +214,7 @@ describe("recovery administrator", () => {
   it("allows admin/admin only without a platform administrator and revokes existing sessions", async () => {
     db.user.count.mockResolvedValue(0);
     const response = await login({ email: "admin", password: "admin" });
+    expect(recordLoginAudit).toHaveBeenCalledExactlyOnceWith("__recovery_admin__", "recovery");
     const cookie = cookieHeader(response);
     const session = await handlers.GET(request("session", { headers: { cookie } }));
     expect((await session.json()).user).toMatchObject({ id: "__recovery_admin__", name: "admin" });
@@ -221,15 +224,44 @@ describe("recovery administrator", () => {
     expect(await revoked.json()).toBeNull();
     const denied = await login({ email: "admin", password: "admin" });
     expect(denied.headers.get("location")).toContain("CredentialsSignin");
+    expect(recordLoginAudit).toHaveBeenCalledTimes(1);
   });
 
   it("rejects an incorrect recovery password", async () => {
     db.user.count.mockResolvedValue(0);
     const response = await login({ email: "admin", password: "wrong" });
     expect(response.headers.get("location")).toContain("CredentialsSignin");
+    expect(recordLoginAudit).not.toHaveBeenCalled();
   });
 
   it("does not allow registering the recovery username", () => {
     expect(registerSchema.safeParse({ email: "admin", password: "admin", confirmPassword: "admin", name: "Admin" }).success).toBe(false);
   });
+});
+
+it("records a password login once and not again when its session is read or renewed", async () => {
+  const response = await login();
+  expect(recordLoginAudit).toHaveBeenCalledExactlyOnceWith("user-1", "password");
+  const cookie = cookieHeader(response);
+  await handlers.GET(request("session", { headers: { cookie } }));
+  await handlers.GET(request("session", { headers: { cookie } }));
+  expect(recordLoginAudit).toHaveBeenCalledTimes(1);
+});
+
+it("does not audit failed password logins", async () => {
+  await login({ password: "incorrect" });
+  expect(recordLoginAudit).not.toHaveBeenCalled();
+});
+
+it("keeps login available when the audit storage fails", async () => {
+  vi.mocked(recordLoginAudit).mockRejectedValueOnce(new Error("audit storage unavailable"));
+  const errorLog = vi.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    const response = await login();
+    const session = await handlers.GET(request("session", { headers: { cookie: cookieHeader(response) } }));
+    expect((await session.json()).user.id).toBe("user-1");
+    expect(errorLog).toHaveBeenCalled();
+  } finally {
+    errorLog.mockRestore();
+  }
 });

@@ -5,7 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import Google from "next-auth/providers/google";
 import GitHub from "next-auth/providers/github";
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import { getPrisma } from "@/lib/db/prisma";
+import { getPrisma, recordLoginAudit } from "@/lib/db/prisma";
 import { emailSchema, loginSchema } from "@/lib/auth/validation";
 import { verifyPassword } from "@/lib/auth/password";
 import { findUserByEmail } from "@/lib/auth/users";
@@ -66,6 +66,24 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
         },
       }),
     ],
+    events: {
+      async signIn({ user, account }) {
+        if (!user.id) return;
+        if (user.id === RECOVERY_ADMIN_ID) {
+          if (account?.provider === "credentials" && await recoveryAdminAvailable()) {
+            await recordLoginAudit(user.id, "recovery");
+          }
+          return;
+        }
+        // Auth.js can also emit signIn when jwt rejected an unverified identity.
+        const existing = await getPrisma().user.findUnique({ where: { id: user.id }, select: { emailVerified: true } });
+        if (!existing?.emailVerified) return;
+        const provider = account?.provider;
+        if (provider === "credentials" || provider === "google" || provider === "github") {
+          await recordLoginAudit(user.id, provider === "credentials" ? "password" : provider);
+        }
+      },
+    },
     callbacks: {
       async signIn({ user, account }) {
         if (account?.provider === "credentials") return true;

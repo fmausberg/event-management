@@ -8,7 +8,8 @@ Prisma-APIs und keinen Auth.js-Aufruf aus der Datenbankschicht.
 
 Die explizite Modell-Allowlist umfasst `EventSeries`, `Event`, `Venue`,
 `Trainer`, `Company` und `CompanyMembership`. Andere Modelle erhalten keine
-eigenen Audit-Einträge. Die Registry liegt in `lib/audit/policy.ts`.
+eigenen Audit-Einträge. Zusätzlich werden erfolgreiche Anmeldungen als
+plattformweite `Login`-Ereignisse erfasst. Die Registry liegt in `lib/audit/policy.ts`.
 Ein Event protokolliert zusätzlich seine sortierten Trainer-IDs aus
 `EventTrainer`; die Zuordnungstabelle erhält keine eigene Historie.
 
@@ -19,6 +20,33 @@ erzeugen keinen UPDATE-Eintrag. Neue Schemafelder werden nicht automatisch
 aufgenommen.
 
 ## Feldpolitik und Zielobjekt
+
+### Login-Ereignisse
+
+Auth.js `events.signIn` schreibt einen `Login`-Eintrag mit Aktion `CREATE`,
+eigener Ereignis-ID, Datenbankzeitstempel, authentifizierter Nutzer-ID und
+Anmeldeart (`password`, `google`, `github` oder `recovery`). Die Herkunft ist
+`auth.signIn`; die Policy-Version ist 5. Ein Login gehört keiner Company,
+deshalb ist `AuditLog.companyId` jetzt optional und für diese Einträge NULL.
+Bestehende Company-Einträge und die Company-Zugriffsfilter bleiben unverändert.
+
+Es werden keine Session-Datensätze angelegt. Session-Abfragen und
+JWT-Verlängerungen erzeugen keine Login-Einträge. Fehlgeschlagene Logins und
+OAuth-Identitäten ohne bestätigte E-Mail werden nicht als erfolgreiche
+Anmeldung protokolliert. Der Recovery-Zugang wird nur während seiner
+Verfügbarkeit erfasst und in der Audit-Anzeige als `admin (Recovery)` benannt.
+Passwörter, Cookies, Tokens und Provider-Payloads werden nicht übernommen.
+
+Der dedizierte interne Writer `recordLoginAudit` darf ausschließlich vom
+serverseitigen Auth-Ereignis mit geprüfter Identität aufgerufen werden.
+Allgemeine Schreibzugriffe auf `auditLog` über `getPrisma()` bleiben gesperrt.
+Auth.js protokolliert Fehler im Event-Handler als `EventError`; ein Fehler beim
+Audit-Insert verhindert den Login nicht. Es gibt dafür keinen automatischen
+Retry. Die Login-Historie ist deshalb kein transaktionaler Nachweis jeder
+ausgegebenen Session.
+
+Vor dem Einsatz muss die Migration `20261109150000_audit_login_events`
+angewendet werden (`npx prisma migrate deploy`).
 
 Die verbindlichen Feldlisten und Beschriftungen stehen in der Policy:
 

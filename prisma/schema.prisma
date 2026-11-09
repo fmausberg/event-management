@@ -27,7 +27,7 @@ model AuditLog {
   recordId      String
   recordNumber  Int?
   recordName    String?
-  companyId     String
+  companyId     String?
   action        AuditAction
   operation     String
   actorType     AuditActorType

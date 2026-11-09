@@ -68,6 +68,12 @@ export const auditPolicies = {
 } as const;
 
 export const auditModelLabels: Readonly<Record<string, string>> = {
+  Login: "Login",
   EventSeries: "Veranstaltungsreihe", Event: "Veranstaltung", Venue: "Ort",
   Trainer: "Trainer", Company: "Company", CompanyMembership: "Mitgliedschaft",
 };
+
+// Event display policy only: Login is not a mutable Prisma model.
+export const auditEventPolicies = {
+  Login: { fields: { userId: "Nutzer-ID", method: "Anmeldeart" }, privateFields: {} },
+} as const;

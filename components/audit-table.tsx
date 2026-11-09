@@ -1,5 +1,5 @@
 import type { AuditAction, AuditActorType, Prisma } from "@prisma/client";
-import { auditModelLabels, auditPolicies } from "@/lib/audit/policy";
+import { auditEventPolicies, auditModelLabels, auditPolicies } from "@/lib/audit/policy";
 
 export type AuditTableEntry = {
   id: string; model: string; recordId: string; recordNumber?: number | null; recordName?: string | null;
@@ -11,6 +11,7 @@ const actions = { CREATE: "Create", UPDATE: "Update", DELETE: "Delete" };
 const actors = { USER: "Nutzer", SYSTEM: "System", ANONYMOUS: "Anonym", UNKNOWN: "Unbekannt" };
 const dateTime = new Intl.DateTimeFormat("de-DE", { timeZone: "Europe/Berlin", dateStyle: "medium", timeStyle: "medium" });
 function policyFor(model: string) {
+  if (Object.hasOwn(auditEventPolicies, model)) return auditEventPolicies[model as keyof typeof auditEventPolicies];
   return Object.hasOwn(auditPolicies, model) ? auditPolicies[model as keyof typeof auditPolicies] : null;
 }
 function changedAttributes(entry: AuditTableEntry) {

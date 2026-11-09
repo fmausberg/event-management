@@ -5,6 +5,7 @@ import { requireAdmin } from "@/lib/auth/require-admin";
 import { Prisma } from "@prisma/client";
 import { emptyAuditFilters, parseAuditFilters, type AuditFilters } from "./filters";
 import { parseBerlinDateTime } from "@/lib/events/berlin-date-time";
+import { RECOVERY_ADMIN_ID } from "@/lib/auth/recovery-admin";
 
 function identityFromSnapshot(before: Prisma.JsonValue, after: Prisma.JsonValue) {
   const old = before && typeof before === "object" && !Array.isArray(before) ? before : {};
@@ -31,7 +32,7 @@ async function loadHistory(where: Prisma.AuditLogWhereInput, page: number) {
   const legacy = new Map(series.map((row) => [row.id, row]));
   return { entries: entries.map((entry) => ({
     ...entry,
-    actorEmail: entry.actorUserId ? emails.get(entry.actorUserId) ?? null : null,
+    actorEmail: entry.actorUserId === RECOVERY_ADMIN_ID ? "admin (Recovery)" : entry.actorUserId ? emails.get(entry.actorUserId) ?? null : null,
     recordNumber: entry.recordNumber ?? identityFromSnapshot(entry.before, entry.after).number ?? (entry.model === "EventSeries" ? legacy.get(entry.recordId)?.number : null) ?? null,
     recordName: entry.recordName ?? identityFromSnapshot(entry.before, entry.after).name ?? (entry.model === "EventSeries" ? legacy.get(entry.recordId)?.name : null) ?? null,
   })), hasNext: rows.length > 20, page: currentPage };
@@ -64,6 +65,7 @@ export async function getAdminAuditActors() {
   const labels = { USER: "Alle Nutzer", SYSTEM: "System", ANONYMOUS: "Anonym", UNKNOWN: "Unbekannt" };
   const types = [...new Set(actors.map(row => row.actorType))].map(type => ({ value: `type:${type}`, label: labels[type] }));
   const individuals = ids.map(id => {
+    if (id === RECOVERY_ADMIN_ID) return { value: `user:${id}`, label: "admin (Recovery)" };
     const user = byId.get(id);
     return { value: `user:${id}`, label: user ? user.name ? `${user.name} (${user.email})` : user.email : `Nutzer nicht mehr verfügbar (${id})` };
   }).sort((a, b) => a.label.localeCompare(b.label, "de"));
