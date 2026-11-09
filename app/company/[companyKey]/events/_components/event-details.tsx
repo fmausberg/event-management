@@ -4,25 +4,28 @@ import Link from "next/link";
 import { useId, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { DescriptionHtml } from "@/components/description-html";
-import { isDescriptionEmpty } from "@/lib/descriptions/html";
+import { descriptionToText, isDescriptionEmpty } from "@/lib/descriptions/html";
 import { cancellationPolicyText } from "@/lib/cancellations/policy";
 import type { EventRow } from "@/lib/company-events/model";
 import type { SeriesRow, VenueOption } from "@/lib/event-series/validation";
 import type { TrainerOption } from "@/lib/trainers/validation";
-import { EventForm, TrainerReminderControls } from "./events-table";
+import { EventForm, StatusTag, TrainerReminderControls } from "./events-table";
 import { EventStaff } from "./event-staff";
 
 const panelClass = "relative rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950";
 const summaryClass = "cursor-pointer rounded-xl p-4 font-semibold focus-visible:outline-2 focus-visible:outline-primary-600";
 const contentClass = "min-w-0 border-t border-zinc-200 p-4 sm:p-6 dark:border-zinc-800";
 const date = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" });
-const statuses = { DRAFT: "Entwurf", PUBLISHED: "Veröffentlicht", CANCELLED: "Abgesagt", COMPLETED: "Abgeschlossen" };
+const headingDate = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
+const weekday = new Intl.DateTimeFormat("de-DE", { weekday: "short", timeZone: "Europe/Berlin" });
 
 export function EventDetails({ slug, row, series, venues, trainers, canManage, children }: {
   slug: string; row: EventRow; series: SeriesRow[]; venues: VenueOption[]; trainers: TrainerOption[]; canManage: boolean; children?: ReactNode;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
+  const [descriptionExpanded, setDescriptionExpanded] = useState(false);
+  const descriptionId = useId();
   const [busy, setBusy] = useState(false);
   const formId = useId();
   const [message, setMessage] = useState("");
@@ -40,10 +43,9 @@ export function EventDetails({ slug, row, series, venues, trainers, canManage, c
     ["Ort", venues.find(item => item.id === row.venueId)?.name ?? "—"],
     ["Trainer", row.trainerIds.map(id => { const trainer = trainers.find(item => item.id === id); return trainer ? `${trainer.firstName} ${trainer.lastName}` : "Trainer nicht mehr verfügbar"; }).join(", ") || row.trainerName || "—"],
     ["Kostenfreie Stornofrist (optional)", cancellationPolicyText(row.freeCancellationUntilMinutesBeforeStart ? Number(row.freeCancellationUntilMinutesBeforeStart) : null)],
-    ["Status", statuses[row.status]],
   ];
   return <>
-    <header><h1 className="text-2xl font-semibold">{row.name || "Unbenannter Entwurf"}</h1><p className="mt-1 text-sm text-zinc-500">Veranstaltung #{row.number}</p></header>
+    <header><h1 className="text-2xl font-semibold">{row.name || "Unbenannter Entwurf"} <span className="font-normal text-zinc-500">(#{row.number} · {row.beginsAt ? `${weekday.format(new Date(row.beginsAt)).replace(".", "")} ${headingDate.format(new Date(row.beginsAt))} Uhr` : "Beginn noch offen"})</span></h1></header>
     <nav aria-label="Veranstaltungsverwaltung" className="flex flex-wrap gap-4 text-sm text-primary-700 dark:text-primary-300"><Link href={`${base}/${encodeURIComponent(row.id)}/tickets`} className="underline">Check-in Management</Link></nav>
     {message && <p role="status" className="text-sm text-green-700 dark:text-green-300">{message}</p>}
     <details ref={details} open className={panelClass}>
@@ -57,7 +59,11 @@ export function EventDetails({ slug, row, series, venues, trainers, canManage, c
         <dl className="grid min-w-0 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2"><dt className="text-sm text-zinc-500">Veranstaltungsreihe</dt><dd className="mt-1 min-h-11 border border-transparent px-3 py-2 text-sm">{eventSeries ? <Link className="text-primary-700 underline dark:text-primary-300" href={`/company/${encodeURIComponent(slug)}/event-series/${encodeURIComponent(eventSeries.id)}`}>{eventSeries.name}</Link> : "Keine Veranstaltungsreihe"}</dd></div>
           {attributes.map(([label, value]) => <div key={label} className={`min-w-0 ${label === "Trainer" ? "min-h-32" : label === "Kostenfreie Stornofrist (optional)" ? "min-h-40" : ""}`}><dt className="text-sm text-zinc-500">{label}</dt><dd className="mt-1 min-h-11 whitespace-pre-wrap break-words border border-transparent px-3 py-2 text-sm">{value}</dd></div>)}
-          <div className="min-w-0 sm:col-span-2"><dt className="text-sm text-zinc-500">Beschreibung</dt><dd className="mt-1 break-words">{isDescriptionEmpty(row.description) ? "—" : <DescriptionHtml html={row.description} />}</dd></div>
+          <div className="min-w-0"><dt className="text-sm text-zinc-500">Status</dt><dd className="mt-1 min-h-11 border border-transparent px-3 py-2 text-sm"><StatusTag status={row.status} /></dd></div>
+          <div className="min-w-0 sm:col-span-2"><dt className="text-sm text-zinc-500">Beschreibung</dt><dd className="mt-1 break-words">{isDescriptionEmpty(row.description) ? "—" : <>
+            <div id={descriptionId}>{descriptionExpanded ? <DescriptionHtml html={row.description} /> : <p className="line-clamp-2 whitespace-pre-line text-sm">{descriptionToText(row.description)}</p>}</div>
+            <button type="button" aria-expanded={descriptionExpanded} aria-controls={descriptionId} onClick={() => setDescriptionExpanded(value => !value)} className="mt-2 rounded text-sm text-primary-700 underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 dark:text-primary-300">{descriptionExpanded ? "Weniger anzeigen" : "Mehr anzeigen"}</button>
+          </>}</dd></div>
         </dl>
         <div className="min-w-0"><p className="mb-1 text-sm text-zinc-500">Titelbild</p>{row.imageUrl ? (
           // eslint-disable-next-line @next/next/no-img-element

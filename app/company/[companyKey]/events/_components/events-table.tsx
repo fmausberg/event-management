@@ -54,7 +54,7 @@ const columns: { key: SortKey; label: string }[] = [
  { key: "remainingSeats", label: "(freie) Plätze" }, { key: "price", label: "Preis" }, { key: "bookings", label: "Buchungen" },
 ];
 function RequiredMark() { return <><span aria-hidden="true" className="ml-1 text-xs text-red-600 dark:text-red-400">*</span><span className="sr-only"> (zum Veröffentlichen erforderlich)</span></>; }
-function StatusTag({ status }: { status: EventValues["status"] }) { return <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[status]}`}>{statuses[status]}</span>; }
+export function StatusTag({ status }: { status: EventValues["status"] }) { return <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[status]}`}>{statuses[status]}</span>; }
 type Props = { defaultSeriesId?: string; seriesDetails?: React.ReactNode; seriesHistory?: React.ReactNode; seriesNotes?: React.ReactNode; canManage: boolean; company: { name: string; slug: string }; events: EventRow[]; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[] };
 export function TrainerReminderControls({ slug, row, embedded = false }: { slug: string; row: EventRow; embedded?: boolean }) {
  const [sentAt, setSentAt] = useState(row.trainerReminderSentAt ?? null);
