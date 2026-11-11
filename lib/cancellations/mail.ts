@@ -1,4 +1,5 @@
 import "server-only";
+import { companyRecipients, mayDeliverCompanyMessage, type CompanyMessage } from "@/lib/companies/notifications";
 import { createHash } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { getPrisma } from "@/lib/db/prisma";
@@ -6,6 +7,13 @@ import { sendMail } from "@/lib/mail";
 import { encryptPaymentMail, decryptPaymentMail } from "@/lib/payments/mail";
 
 type Notice = "requested" | "approved" | "rejected" | "refunded" | "failed";
+const internalStatus: Record<Notice, string> = {
+  requested: "Neue Stornierungsanfrage",
+  approved: "Stornierung genehmigt",
+  rejected: "Stornierungsanfrage abgelehnt",
+  refunded: "Rückerstattung bestätigt",
+  failed: "Rückerstattung fehlgeschlagen oder Prüfung erforderlich",
+};
 const messages: Record<Notice, string> = {
   requested: "Eine neue Stornierungsanfrage wartet auf Entscheidung in der Company-Verwaltung. Buchung und Tickets bleiben bis zur Genehmigung gültig.",
   approved: "Deine Stornierung wurde genehmigt. Buchung und Tickets sind storniert. Falls eine Onlinezahlung vorliegt, wird die vollständige Rückerstattung bearbeitet; ihr Abschluss wird gesondert bestätigt.",
@@ -17,19 +25,15 @@ const messages: Record<Notice, string> = {
 export async function queueCancellationMail(tx: Prisma.TransactionClient, requestId: string, kind: Notice) {
   const request = await tx.cancellationRequest.findUniqueOrThrow({ where: { id: requestId }, include: { booking: { include: { user: true, event: { include: { company: true } } } } } });
   const { booking } = request;
-  let recipients: string[] = [];
-  if (kind === "requested" || kind === "failed") {
-    const admins = await tx.companyMembership.findMany({ where: { companyId: booking.event.companyId, role: "COMPANY_ADMIN", status: "ACTIVE" }, include: { user: true } });
-    recipients = admins.flatMap((admin) => admin.user?.email ? [admin.user.email] : []);
-  }
-  if (kind !== "requested") {
-    const email = booking.user?.email ?? booking.customerEmail;
-    if (email) recipients.push(email);
-  }
+  const customerEmail = kind !== "requested" ? booking.user?.email ?? booking.customerEmail : null;
+  const recipients = await companyRecipients(tx, booking.event.companyId, "notifyCancellationRequests");
+  if (customerEmail) recipients.push(customerEmail.trim().toLowerCase());
   if (!recipients.length) console.error("Cancellation notification has no recipient", { requestId, kind });
   for (const to of new Set(recipients)) {
     const id = createHash("sha256").update(`${requestId}:${kind}:${request.refundAttempt}:${to.toLowerCase()}`).digest("hex");
-    const message = { to, subject: `Stornierung – Buchung #${booking.number}`, text: `Hallo,\n\n${messages[kind]}\n\nBuchung: #${booking.number}\nEvent: ${booking.event.name}\nVeranstalter: ${booking.event.company.name}\n\nDen aktuellen Stand findest du über den Link „Buchung verwalten / stornieren“ aus deiner Buchungsbestätigung (ohne Anmeldung), in deinem Konto unter „Meine Buchungen“ oder in der Company-Verwaltung unter „Stornierungen“.\n\nDein Event-Management-Team` };
+    const message: CompanyMessage = {
+      ...(to === customerEmail?.trim().toLowerCase() ? { customerNotification: true } : { companyNotification: { companyId: booking.event.companyId, type: "notifyCancellationRequests" as const } }),
+      to, subject: `Stornierung – Buchung #${booking.number}`, text: `Hallo,\n\n${to === customerEmail?.trim().toLowerCase() ? messages[kind] : `Interne Stornierungsbenachrichtigung: ${internalStatus[kind]}. Bitte den Vorgang in der Company-Verwaltung unter Stornierungen pr\u00fcfen.`}\n\nBuchung: #${booking.number}\nEvent: ${booking.event.name}\nVeranstalter: ${booking.event.company.name}\n\nDen aktuellen Stand findest du über den Link „Buchung verwalten / stornieren“ aus deiner Buchungsbestätigung (ohne Anmeldung), in deinem Konto unter „Meine Buchungen“ oder in der Company-Verwaltung unter „Stornierungen“.\n\nDein Event-Management-Team` };
     await tx.cancellationMail.upsert({ where: { id }, create: { id, requestId, encryptedMessage: encryptPaymentMail(message) }, update: {} });
   }
 }
@@ -44,7 +48,21 @@ export async function deliverCancellationMails() {
     if (!lock.count) continue;
     try {
       if (!mail.encryptedMessage) throw new Error("Missing notification");
-      await sendMail(decryptPaymentMail(mail.encryptedMessage));
+      const message: CompanyMessage = decryptPaymentMail(mail.encryptedMessage);
+      // Legacy queued messages have no audience marker. Preserve customer delivery;
+      // all other recipients must pass the current Company checks as well.
+      if (!message.companyNotification && !message.customerNotification) {
+        const request = await db.cancellationRequest.findUniqueOrThrow({ where: { id: mail.requestId }, include: { booking: { include: { user: true, event: true } } } });
+        const customer = request.booking.user?.email ?? request.booking.customerEmail;
+        const requestedId = createHash("sha256").update(`${mail.requestId}:requested:0:${message.to.toLowerCase()}`).digest("hex");
+        if (mail.id === requestedId || message.to.trim().toLowerCase() !== customer?.trim().toLowerCase()) {
+          message.companyNotification = { companyId: request.booking.event.companyId, type: "notifyCancellationRequests" };
+        }
+      }
+      if (!message.companyNotification || await mayDeliverCompanyMessage(db, message)) {
+        const { companyNotification: _context, customerNotification: _customer, ...payload } = message;
+        await sendMail(payload);
+      }
       await db.cancellationMail.update({ where: { id: mail.id }, data: { sentAt: new Date(), encryptedMessage: null, lockedUntil: null } });
     } catch {
       failures++;

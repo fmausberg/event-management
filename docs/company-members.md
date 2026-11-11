@@ -1,5 +1,32 @@
 # Company-Mitglieder
 
+## Interne E-Mail-Benachrichtigungen
+
+Aktive Company-User können die Mitgliederseite und Benachrichtigungseinstellungen
+lesen. Änderungen bleiben globalen Admins und aktiven Company-Admins vorbehalten.
+Pro Mitglied lassen sich Buchungen und Stornierungsanfragen unabhängig speichern.
+Stornierungsbenachrichtigungen umfassen neue Anfragen, Entscheidungen und
+Refund-Ergebnisse einschließlich fehlgeschlagener Refunds.
+
+Die Migration `20261111150000_company_member_notifications` ergänzt beide
+Einstellungen als `NOT NULL DEFAULT true`: bestehende und neue Mitgliedschaften
+starten mit aktivierten Optionen. Sie muss vor dem neuen Anwendungscode angewendet
+werden; anschließend den Prisma-Client mit `npx prisma generate` aktualisieren.
+
+Interne Empfänger müssen ACTIVE sein, die jeweilige Option aktiviert haben und
+mit einem User mit gesetztem `emailVerified` verknüpft sein. Die Prüfung erfolgt
+beim Einreihen und erneut direkt vor jedem Versandversuch. Adressen werden ohne
+Beachtung der Groß-/Kleinschreibung dedupliziert. Kundenmails sind davon unabhängig.
+
+Buchungsbenachrichtigungen werden bei bestätigten Direktbuchungen und neuen
+bestätigten Plattformbuchungen atomar in die vorhandene `MailOutbox` eingereiht.
+Nach dem Commit versucht der Versandweg der Kundenbestätigung auch die internen
+Mails derselben Buchung sofort zuzustellen. Fehler bei internen Mails beeinflussen
+die Kundenbestätigung nicht. Der bestehende Reconcile-Endpunkt
+`/api/payments/reconcile` übernimmt ausstehende Mails und Wiederholungen mit dem
+gemeinsamen Retry-/Lease-Mechanismus. Stornierungen nutzen weiterhin
+`CancellationMail`. Es ist keine zusätzliche Queue erforderlich.
+
 Unter `/admin/companies` führt die Mitgliederanzahl nach
 `/company/<company-slug>/members`. Globale ADMINs und aktive COMPANY_ADMINs
 dieser Company dürfen Mitglieder hinzufügen, Rollen ändern und nach Bestätigung

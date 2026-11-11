@@ -11,6 +11,29 @@ import { MemberAccessError, requireCompanyAdmin } from "@/lib/companies/members"
 
 export type MemberFormState = { success?: boolean; message?: string };
 
+export async function changeMemberNotifications(companySlug: string, membershipId: string, _previous: MemberFormState, data: FormData): Promise<MemberFormState> {
+  return withSessionAudit("company/[companyKey]/members.changeMemberNotifications", async () => {
+    try {
+      const company = await requireCompanyAdmin(companySlug);
+      if (typeof membershipId !== "string" || !membershipId.trim() || membershipId.length > 191) return { message: "Ungültige Mitgliedschaft." };
+      const setting = data.get("setting");
+      const enabled = data.get("enabled");
+      if ((setting !== "notifyBookings" && setting !== "notifyCancellationRequests") || (enabled !== "true" && enabled !== "false")) {
+        return { message: "Ungültige Benachrichtigungseinstellung." };
+      }
+      const result = await getPrisma().companyMembership.updateMany({
+        where: { id: membershipId, companyId: company.id },
+        data: { [setting]: enabled === "true" },
+      });
+      if (!result.count) return { message: "Mitgliedschaft nicht gefunden." };
+      revalidatePath(`/company/${encodeURIComponent(companySlug)}/members`);
+      return { success: true, message: "Benachrichtigungen gespeichert." };
+    } catch (error) {
+      return { message: error instanceof MemberAccessError ? error.message : "Benachrichtigungen konnten nicht gespeichert werden." };
+    }
+  });
+}
+
 export async function removeCompanyMember(companySlug: string, membershipId: string, _previous: MemberFormState, data: FormData): Promise<MemberFormState> {
   return withSessionAudit("company/[companyKey]/members.removeCompanyMember", async () => {
   try {

@@ -23,6 +23,7 @@ export async function requireCompanyAccess(companySlug: string, adminOnly = fals
   const company = await db.company.findUnique({ where: { slug: companySlug }, select: { id: true, name: true, slug: true } });
   if (!company) throw new MemberAccessError("NOT_FOUND");
   let canManage = user.role === "ADMIN";
+  let canManageMembers = canManage;
   if (user.role !== "ADMIN") {
     const membership = await db.companyMembership.findUnique({
       where: { companyId_userId: { companyId: company.id, userId: session.user.id } },
@@ -30,24 +31,25 @@ export async function requireCompanyAccess(companySlug: string, adminOnly = fals
     });
     if (!membership || membership.status !== "ACTIVE" || (adminOnly && membership.role !== "COMPANY_ADMIN")) throw new MemberAccessError("FORBIDDEN");
     canManage = true;
+    canManageMembers = membership.role === "COMPANY_ADMIN";
   }
-  return { company, canManage };
+  return { company, canManage, canManageMembers };
 }
 
 export async function getCompanyMembers(companySlug: string) {
-  const company = await requireCompanyAdmin(companySlug);
+  const { company, canManageMembers: canManage } = await requireCompanyAccess(companySlug);
   const db = getPrisma();
   const memberships = await db.companyMembership.findMany({
     where: { companyId: company.id }, orderBy: [{ createdAt: "asc" }, { id: "asc" }],
-    select: { id: true, email: true, role: true, user: { select: { email: true, emailVerified: true } } },
+    select: { id: true, email: true, role: true, status: true, notifyBookings: true, notifyCancellationRequests: true, user: { select: { email: true, emailVerified: true } } },
   });
   const emails = memberships.filter((member) => !member.user && member.email).map((member) => member.email!);
   const accounts = emails.length ? await db.user.findMany({
     where: { email: { in: emails, mode: "insensitive" } }, select: { email: true, emailVerified: true },
   }) : [];
-  return { company, members: memberships.map((member) => {
+  return { company, canManage, members: memberships.map((member) => {
     const matches = accounts.filter((account) => account.email.toLowerCase() === member.email);
     const account = member.user ?? (matches.length === 1 ? matches[0] : null);
-    return { id: member.id, role: member.role, email: member.user?.email ?? member.email ?? "—", status: account ? account.emailVerified ? "verified" : "not verified" : "no account" };
+    return { id: member.id, role: member.role, membershipStatus: member.status, linkedVerified: !!member.user?.emailVerified, notifyBookings: member.notifyBookings, notifyCancellationRequests: member.notifyCancellationRequests, email: member.user?.email ?? member.email ?? "—", status: account ? account.emailVerified ? "verified" : "not verified" : "no account" };
   }) };
 }

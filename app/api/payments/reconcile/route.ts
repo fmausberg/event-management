@@ -5,7 +5,7 @@ import { timingSafeEqual } from "node:crypto";
 import { getPrisma } from "@/lib/db/prisma";
 import { ensureCheckout } from "@/lib/payments/checkout";
 import { applyCheckoutSession } from "@/lib/payments/fulfillment";
-import { deliverPendingTicketMails } from "@/lib/tickets/outbox";
+import { deliverPendingCompanyNotifications, deliverPendingTicketMails } from "@/lib/tickets/outbox";
 import { releaseExpiredVoucherReservation } from "@/lib/vouchers/service";
 import { deliverPendingTrainerReminders, enqueueDueTrainerReminders } from "@/lib/trainers/reminders";
 import { deliverPendingReviews, enqueueDueReviews } from "@/lib/reviews/invitations";
@@ -32,6 +32,7 @@ export async function POST(request: Request) {
   const voucherRefunds = await reconcileVoucherRefunds();
   failures += voucherRefunds.failures;
   const mails = await deliverPendingTicketMails();
+  try { failures += (await deliverPendingCompanyNotifications()).failures; } catch { failures++; }
   let reviews = { queued: 0, delivered: 0 };
   try {
     const queued = await enqueueDueReviews();

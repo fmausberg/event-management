@@ -1,3 +1,4 @@
+import { queueBookingNotification } from "@/lib/companies/notifications";
 import { voucherHistory, hasVoucher } from "@/lib/vouchers/reversal";
 import { Platform, Prisma } from "@prisma/client";
 import { getPrisma } from "@/lib/db/prisma";
@@ -27,6 +28,7 @@ export async function upsertExternalBooking(input: UpsertExternalBookingInput) {
 
   const { eventId, platform, externalBookingId, quantity, status, bookedAt } = input;
   return getPrisma().$transaction(async (tx) => {
+    const existing = await tx.booking.findUnique({ where: { platform_externalBookingId: { platform, externalBookingId } }, select: { id: true } });
     // One unique key drives both insert and update, including cancellation/reinstatement.
     const booking = await tx.booking.upsert({
       where: { platform_externalBookingId: { platform, externalBookingId } },
@@ -40,6 +42,7 @@ export async function upsertExternalBooking(input: UpsertExternalBookingInput) {
       // Throw inside the transaction so even the update above is rolled back.
       throw new Error("External booking already belongs to another event.");
     }
+    if (!existing && status === "CONFIRMED") await queueBookingNotification(tx, booking.id);
     return booking;
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

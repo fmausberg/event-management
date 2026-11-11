@@ -1,4 +1,5 @@
 import "server-only";
+import { queueBookingNotification } from "@/lib/companies/notifications";
 import type { Prisma } from "@prisma/client";
 import { createTicketToken } from "@/lib/tickets/public-token";
 import { ticketLink } from "@/lib/tickets/public-link";
@@ -15,6 +16,7 @@ export async function issueBookingTickets(tx: Prisma.TransactionClient, booking:
   await tx.ticket.createMany({ data: tokens.map(({ publicTokenHash, encryptedPublicToken }) => ({
     bookingId: booking.id, status: "VALID", publicTokenHash, encryptedPublicToken,
   })) });
+  await queueBookingNotification(tx, booking.id);
   return enqueueInitialTicketMail(tx, booking.id, { to: booking.customerEmail, ...bookingConfirmation({
     customerName: booking.customerName, bookingNumber: booking.number, eventName: event.name,
     beginsAt: event.beginsAt, quantity: booking.quantity, ticketLinks: tokens.map(({ token }) => ticketLink(token)),

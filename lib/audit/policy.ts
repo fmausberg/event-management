@@ -61,7 +61,7 @@ export const auditPolicies = {
   },
   CompanyMembership: {
     delegate: "companyMembership",
-    fields: { number: "Nummer", companyId: "Company-ID", userId: "Nutzer-ID", role: "Rolle", status: "Status" },
+    fields: { number: "Nummer", companyId: "Company-ID", userId: "Nutzer-ID", role: "Rolle", status: "Status", notifyBookings: "Benachrichtigungen: Buchungen", notifyCancellationRequests: "Benachrichtigungen: Stornierungsanfragen" },
     privateFields: { email: "Einladungsadresse" },
     affectedBy: [],
   },

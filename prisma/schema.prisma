@@ -93,6 +93,7 @@ enum EventStatus {
 }
 
 enum MailOutboxKind {
+  COMPANY_NOTIFICATION
   TRAINER_REMINDER
   EVENT_REVIEW
 }
@@ -247,6 +248,8 @@ model EventbriteOAuth {
 }
 
 model CompanyMembership {
+  notifyBookings Boolean @default(true)
+  notifyCancellationRequests Boolean @default(true)
   // ID & number
   id     String @id @default(cuid())
   number Int    @unique @default(autoincrement())
