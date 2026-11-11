@@ -9,6 +9,15 @@ import { accountOrigin } from "@/lib/auth/verification";
 const WINDOW_MS = 60 * 60_000;
 const LEASE_MS = 5 * 60_000;
 const BATCH_SIZE = 50;
+const AUTOMATION_DISABLED = "AUTOMATIC_TRAINER_REMINDERS_DISABLED";
+
+/** Permanently retire automatic jobs; manual requests are deliberately untouched. */
+export async function cancelAutomaticTrainerReminders() {
+  return getPrisma().mailOutbox.updateMany({
+    where: { kind: "TRAINER_REMINDER", sentAt: null, trainerReminder: { is: { manualRequestedAt: null } } },
+    data: { cancelledAt: new Date(), lockedUntil: null, lockToken: null, lastError: AUTOMATION_DISABLED },
+  });
+}
 
 function dueWhere(now: Date) {
   return {
@@ -57,7 +66,10 @@ export async function enqueueDueTrainerReminders(now = new Date()) {
         });
         // A removed and later restored assignment reuses its original stable job.
         await tx.mailOutbox.updateMany({
-          where: { trainerReminderId: reminder.id, trainerId: { in: trainerIds }, sentAt: null, cancelledAt: { not: null } },
+          where: {
+            trainerReminderId: reminder.id, trainerId: { in: trainerIds }, sentAt: null, cancelledAt: { not: null },
+            OR: [{ lastError: null }, { lastError: { not: AUTOMATION_DISABLED } }],
+          },
           data: { cancelledAt: null, availableAt: now, lastError: null },
         });
         return created.count;

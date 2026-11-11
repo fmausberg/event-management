@@ -7,7 +7,7 @@ import { ensureCheckout } from "@/lib/payments/checkout";
 import { applyCheckoutSession } from "@/lib/payments/fulfillment";
 import { deliverPendingCompanyNotifications, deliverPendingTicketMails } from "@/lib/tickets/outbox";
 import { releaseExpiredVoucherReservation } from "@/lib/vouchers/service";
-import { deliverPendingTrainerReminders, enqueueDueTrainerReminders } from "@/lib/trainers/reminders";
+import { cancelAutomaticTrainerReminders, deliverPendingTrainerReminders, enqueueDueTrainerReminders } from "@/lib/trainers/reminders";
 import { deliverPendingReviews, enqueueDueReviews } from "@/lib/reviews/invitations";
 import { withAuditContext } from "@/lib/audit/context";
 
@@ -42,10 +42,14 @@ export async function POST(request: Request) {
   } catch { failures++; console.error("Review reconciliation failed"); }
   let trainerReminders = { checked: 0, queued: 0, delivered: 0 };
   try {
-    const queued = await enqueueDueTrainerReminders();
-    const delivered = await deliverPendingTrainerReminders();
-    trainerReminders = { checked: queued.checked, queued: queued.queued, delivered: delivered.delivered };
-    failures += queued.failures + delivered.failures;
+    if (process.env.AUTO_TRAINER_REMINDERS_ENABLED === "true") {
+      const queued = await enqueueDueTrainerReminders();
+      const delivered = await deliverPendingTrainerReminders();
+      trainerReminders = { checked: queued.checked, queued: queued.queued, delivered: delivered.delivered };
+      failures += queued.failures + delivered.failures;
+    } else {
+      await cancelAutomaticTrainerReminders();
+    }
   } catch {
     failures++;
     console.error("Trainer reminder reconciliation failed");

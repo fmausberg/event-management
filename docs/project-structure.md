@@ -75,7 +75,7 @@ automatisch weitergeleitet.
 - `/api/auth/[...nextauth]`: Auth.js.
 - `POST /api/public-ticket`: geschützter Abruf öffentlicher Ticketdaten.
 - `POST /api/webhooks/stripe`: signaturgeprüfte Stripe-Events.
-- `POST /api/payments/reconcile`: autorisierter Zahlungs-, Erstattungs- und Mailabgleich einschließlich zeitgesteuerter [Trainer-Reminder](trainer-reminders.md).
+- `POST /api/payments/reconcile`: autorisierter Zahlungs-, Erstattungs- und Mailabgleich mit optionalen automatischen [Trainer-Remindern](trainer-reminders.md), standardmäßig deaktiviert (`AUTO_TRAINER_REMINDERS_ENABLED=true` zur Aktivierung).
 - `/api/health`: Datenbank-Erreichbarkeit.
 - `POST /api/webhooks/eventbrite`: nicht implementiert, HTTP 501.
 

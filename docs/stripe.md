@@ -16,7 +16,7 @@ Jede Company bekommt ein verbundenes Konto über Accounts v2 mit vollem Stripe-D
    - `refund.created`
    - `refund.updated`
    - `refund.failed`
-5. Einen Job einrichten, der jede Minute `POST /api/payments/reconcile` mit Header `Authorization: Bearer <PAYMENTS_CRON_SECRET>` ausführt. Der Job prüft bis zu 50 offene Zahlungen, 50 fällige Ticketmails und 50 Trainer-Reminder sowie zusätzlich Erstattungen und Stornierungsmails; bei größerem Volumen entsprechend häufiger aufrufen. Nicht erfolgreiche Antworten überwachen und erneut versuchen. Details zu den zeitgesteuerten Mails stehen unter [Trainer-Reminder](trainer-reminders.md).
+5. Einen Job einrichten, der jede Minute `POST /api/payments/reconcile` mit Header `Authorization: Bearer <PAYMENTS_CRON_SECRET>` ausführt. Der Job prüft bis zu 50 offene Zahlungen und 50 fällige Ticketmails sowie zusätzlich Erstattungen, Stornierungsmails, Company-Benachrichtigungen und Bewertungs-Einladungen; bei größerem Volumen entsprechend häufiger aufrufen. Automatische Trainer-Reminder sind standardmäßig deaktiviert und werden nur mit `AUTO_TRAINER_REMINDERS_ENABLED=true` eingereiht und zugestellt. Der Scheduler bleibt auch bei deaktivierter Trainer-Automatik aktiv. Nicht erfolgreiche Antworten überwachen und erneut versuchen. Details und der Umgang mit alten Aufträgen stehen unter [Trainer-Reminder](trainer-reminders.md).
 6. Als Company-Admin unter **Einstellungen → Ticketzahlungen** das Unternehmensland angeben und **Stripe einrichten** öffnen. Stripe erhebt Unternehmens-, Identitäts- und Bankdaten. Nach Rückkehr werden die aktuellen Fähigkeiten abgefragt. Bezahlen ist erst möglich, wenn Kartenzahlungen und Auszahlungen aktiv sind.
 
 Lokal können Connect-Webhooks mit der Stripe CLI weitergeleitet werden:

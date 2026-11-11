@@ -1,6 +1,25 @@
 # Zeitgesteuerte Trainer-Reminder
 
-Der vorhandene geschützte `POST /api/payments/reconcile` sucht bei jedem Lauf
+Automatische Trainer-Reminder sind standardmäßig deaktiviert. Nur der serverseitige
+Schalter `AUTO_TRAINER_REMINDERS_ENABLED=true` aktiviert im Reconcile-Endpunkt
+`enqueueDueTrainerReminders` und `deliverPendingTrainerReminders`. Fehlende, leere
+oder andere Werte lassen beide Schritte ausgeschaltet. Docker reicht den Schalter
+aus `.env.docker` weiter; nach Änderungen den App-Container neu erstellen.
+
+Bei deaktivierter Automatik verwirft jeder autorisierte Reconcile-Lauf alle noch
+unversandten automatischen Trainer-Aufträge, auch bisher stornierte oder gesperrte.
+Sie bleiben mit `AUTOMATIC_TRAINER_REMINDERS_DISABLED` dauerhaft storniert und werden
+auch nach Reaktivierung oder erneuter Trainerzuordnung nicht wiederbelebt.
+Manuelle Aufträge werden dabei nicht verworfen. Vor einer späteren Reaktivierung
+mindestens einen deaktivierten Reconcile-Lauf erfolgreich abschließen. Beim
+Deployment laufende Worker mit alter Konfiguration beenden; bereits an SMTP
+übergebene Mails können nicht zurückgerufen werden.
+
+Der externe Scheduler bleibt aktiv. Zahlungs- und Erstattungsabgleich, Ticket- und
+Stornierungsmails, Company-Benachrichtigungen sowie Bewertungs-Einladungen laufen
+unverändert weiter.
+
+Bei explizit aktivierter Automatik sucht `POST /api/payments/reconcile` bei jedem Lauf
 veröffentlichte Events mit `beginsAt > now` und `beginsAt <= now + 1 Stunde`.
 Der externe Scheduler muss den Endpunkt mindestens einmal pro Minute mit
 `Authorization: Bearer <PAYMENTS_CRON_SECRET>` aufrufen. Es werden keine
@@ -54,8 +73,10 @@ Der IMAP-Gesendet-Ordner ist weiterhin nur ein Archiv und keine Queue.
 
 Bei bestehenden Events zeigt der Bearbeitungsdrawer den Versandstatus. Der Button
 **Trainer Info schicken** fordert einen neuen manuellen Reminder sofort an und
-verarbeitet die Outbox direkt; bei einem SMTP-Fehler übernimmt der Cron die weiteren
-Versuche. Der Button bleibt nach früheren Sendungen verfügbar. Jede erfolgreich
+verarbeitet die Outbox direkt, unabhängig vom Automatik-Schalter. Bei deaktivierter
+Automatik erfolgen keine Trainer-Retries über den Cron; nach SMTP-Fehlern kann der
+manuelle Versand erneut angefordert werden. Nur bei aktivierter Automatik übernimmt
+der Cron weitere Versuche. Der Button bleibt nach früheren Sendungen verfügbar. Jede erfolgreich
 abgeschlossene Wiederholung aktualisiert `trainerReminderSentAt`.
 
 Die deaktivierte Status-Checkbox zeigt zusammen mit dem rechts stehenden Zeitstempel
