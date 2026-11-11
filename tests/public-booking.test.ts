@@ -43,7 +43,7 @@ afterEach(() => { vi.unstubAllEnvs(); vi.restoreAllMocks(); });
 it("creates a guest booking with normalized contact details, trusted status and event", async () => {
  const token = createBookingToken("event-1", "0.00", "EUR");
  expect(await bookPublicEvent("yoga", "event-1", {}, form(token, { userId: "foreign", status: "CANCELLED", ticketPrice: "0" }))).toMatchObject({ success: true, number: 42 });
- expect(db.booking.create).toHaveBeenCalledWith({ data: { id: readBookingToken(token)!.id, eventId: "event-1", userId: null, customerName: "Ada", customerEmail: "ada@example.com", quantity: 2, status: "PENDING_PAYMENT", reservedUntil: expect.any(Date), platform: null, externalBookingId: null }, select: { number: true } });
+ expect(db.booking.create).toHaveBeenCalledWith({ data: { id: readBookingToken(token)!.id, eventId: "event-1", userId: null, customerName: "Ada", customerEmail: "ada@example.com", quantity: 2, status: "PENDING_PAYMENT", reservedUntil: expect.any(Date), platform: null, origin: "PLATFORM", externalBookingId: null }, select: { number: true } });
  expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
  expect(db.event.findFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: "event-1", company: { slug: "yoga" } } }));
 });

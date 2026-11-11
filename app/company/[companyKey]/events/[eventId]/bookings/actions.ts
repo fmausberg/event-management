@@ -8,6 +8,7 @@ import { bookingSchema, type BookingState } from "@/lib/bookings/validation";
 import { issueBookingTickets } from "@/lib/bookings/fulfillment";
 import { deliverTicketMail } from "@/lib/tickets/outbox";
 function refresh(slug: string, eventId: string) {
+ revalidatePath(`/company/${encodeURIComponent(slug)}/bookings`);
  revalidatePath(`/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}`);
  revalidatePath(`/company/${encodeURIComponent(slug)}/events/${encodeURIComponent(eventId)}/bookings`);
  revalidatePath(`/company/${encodeURIComponent(slug)}/events`);
@@ -51,7 +52,7 @@ export async function saveBooking(slug: string, eventId: string, id: string | nu
     const unitPriceMinor = Number(event.ticketPrice.times(100).toFixed(0));
     const originalAmountMinor = unitPriceMinor * parsed.data.quantity;
     if (!Number.isSafeInteger(originalAmountMinor) || originalAmountMinor < 0 || originalAmountMinor > 2147483647) return { message: "Der Gesamtlistenpreis ist zu hoch oder ungültig." };
-    const booking = await tx.booking.create({ data: { ...parsed.data, eventId, platform: null, externalBookingId: null } });
+    const booking = await tx.booking.create({ data: { ...parsed.data, eventId, platform: null, origin: "MANUAL", externalBookingId: null } });
     await tx.bookingPrice.create({ data: {
      bookingId: booking.id, eventId, companyId: event.companyId, currency: event.currency,
      unitPriceMinor, quantity: booking.quantity, originalAmountMinor, discountAmountMinor: originalAmountMinor,

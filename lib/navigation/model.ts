@@ -40,6 +40,7 @@ export function buildNavigation(user: NavigationUser, hasStaffOrTrainerAssignmen
       { label: "Veranstaltungen", href: `${base}/events`, icon: "calendar" },
       { label: "Orte", href: `${base}/venues`, icon: "venue" },
       { label: "Trainer", href: `${base}/trainers`, icon: "users" },
+      { label: "Buchungen", href: `${base}/bookings`, icon: "calendar-check" },
       { label: "Stornierungen", href: `${base}/cancellations`, icon: "calendar-check" },
       { label: "Gutscheine", href: `${base}/vouchers`, icon: "calendar-check" },
     ];

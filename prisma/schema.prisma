@@ -400,6 +400,11 @@ model Event {
   @@index([status, beginsAt])
 }
 
+enum BookingOrigin {
+  PLATFORM
+  MANUAL
+}
+
 model Booking {
   notes Note[]
   reviews EventReview[]
@@ -414,6 +419,7 @@ model Booking {
   // Attribute
   // null bedeutet interne Buchung; gesetzt bedeutet Buchung über eine Plattform.
   platform          Platform?
+  origin            BookingOrigin?
   externalBookingId String?
   quantity          Int
   status            BookingStatus @default(CONFIRMED)

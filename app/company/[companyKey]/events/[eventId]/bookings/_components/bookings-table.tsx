@@ -1,4 +1,5 @@
 "use client";
+import { bookingSource } from "@/lib/bookings/source";
 import { ObjectNotes, type NoteSummaries } from "@/components/object-notes";
 import Link from "next/link";
 import { EventRevenueSummary } from "./event-revenue";
@@ -9,7 +10,7 @@ import { saveBooking, deleteBooking } from "../actions";
 import type { BookingRow, BookingState } from "@/lib/bookings/validation";
 const input = "mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700";
 const primary = "rounded-lg bg-primary-600 px-4 py-2 text-sm text-white hover:bg-primary-700 disabled:opacity-50";
-function BookingForm({ slug, eventId, row, onSaved, onCancel, modal = false }: { modal?: boolean; slug: string; eventId: string; row?: BookingRow; onSaved: (message: string) => void; onCancel: () => void }) {
+export function BookingForm({ slug, eventId, row, onSaved, onCancel, modal = false }: { modal?: boolean; slug: string; eventId: string; row?: BookingRow; onSaved: (message: string) => void; onCancel: () => void }) {
     const panel = useRef<HTMLDialogElement>(null);
     useEffect(() => {
         const dialog = panel.current!; const previous = document.activeElement as HTMLElement | null;
@@ -34,7 +35,7 @@ function BookingForm({ slug, eventId, row, onSaved, onCancel, modal = false }: {
         </form>
     </dialog>;
 }
-function RemoveBooking({ slug, eventId, row, onDeleted }: { slug: string; eventId: string; row: BookingRow; onDeleted: (message: string) => void }) {
+export function RemoveBooking({ slug, eventId, row, onDeleted }: { slug: string; eventId: string; row: BookingRow; onDeleted: (message: string) => void }) {
     const [confirm, setConfirm] = useState(false);
     const [state, action, pending] = useActionState<BookingState, FormData>(async (previous, form) => { const result = await deleteBooking(slug, eventId, row.id, previous, form); if (result.success) onDeleted(result.message!); return result; }, {});
     return <div className="max-w-64">{confirm ? <form action={action}><p>Buchung #{row.number} endgültig löschen?</p>{row.platform && <p className="text-xs">Ein Plattformimport kann die Buchung erneut anlegen.</p>}<input type="hidden" name="confirmed" value="yes" /><div className="mt-2 flex gap-3"><button disabled={pending} className="text-red-700 underline dark:text-red-300">{pending ? "Wird gelöscht …" : "Löschen bestätigen"}</button><button type="button" disabled={pending} onClick={() => setConfirm(false)} className="underline">Abbrechen</button></div></form> : <button type="button" onClick={() => setConfirm(true)} aria-label={`Buchung ${row.number} löschen`} className="text-red-700 underline dark:text-red-300">Löschen</button>}{state.message && <p role="alert" className="text-red-700 dark:text-red-300">{state.message}</p>}</div>;
@@ -42,7 +43,7 @@ function RemoveBooking({ slug, eventId, row, onDeleted }: { slug: string; eventI
 export function BookingsTable({ company, event, bookings, revenue, noteSummaries, embedded = false }: { embedded?: boolean; noteSummaries: NoteSummaries; revenue: EventRevenue; company: { name: string; slug: string }; event: { id: string; name: string; maxSeats: number | null; beginsAt: string }; bookings: BookingRow[] }) {
     const [editor, setEditor] = useState<{ row?: BookingRow } | null>(null);
     const [query, setQuery] = useState(""); const [message, setMessage] = useState("");
-    const visible = bookings.filter((b) => [b.number, b.customerName, b.customerEmail, b.externalBookingId, b.platform].join(" ").toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
+    const visible = bookings.filter((b) => [b.number, b.customerName, b.customerEmail, b.externalBookingId, bookingSource(b)].join(" ").toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
     const seats = bookings.filter((b) => b.status === "CONFIRMED").reduce((sum, b) => sum + b.quantity, 0);
     const Container = embedded ? "section" : "main";
     return <Container className={embedded ? "flex min-w-0 flex-col gap-6" : `flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black ${editor ? "xl:mr-96" : ""}`}>
@@ -74,12 +75,12 @@ export function BookingsTable({ company, event, bookings, revenue, noteSummaries
                         <td className="px-4 py-4">{row.quantity}</td>
                         <td className="whitespace-nowrap px-4 py-4 tabular-nums">{row.paymentSummary ?? "Kein Zahlungsbetrag erfasst"}</td>
                         <td className="px-4 py-4">{({ CONFIRMED: "Bestätigt", CANCELLED: "Storniert", PENDING_PAYMENT: "Zahlung ausstehend", EXPIRED: "Abgelaufen" })[row.status]}</td>
-                        <td className="whitespace-nowrap px-4 py-4">{new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(row.bookedAt))}</td><td className="px-4 py-4">{row.platform ?? "Intern"}{row.externalBookingId && <p className="text-xs text-zinc-500">{row.externalBookingId}</p>}</td>
+                        <td className="whitespace-nowrap px-4 py-4">{new Intl.DateTimeFormat("de-DE", { dateStyle: "short", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(row.bookedAt))}</td><td className="px-4 py-4">{bookingSource(row)}{row.externalBookingId && <p className="text-xs text-zinc-500">{row.externalBookingId}</p>}</td>
                         <td className="px-4 py-4">
                             <div className="flex flex-wrap gap-3">
                                 {noteSummaries.counts[row.id] !== undefined && <ObjectNotes mode="dialog" target={{ type: "booking", id: row.id }} label={`Buchung #${row.number} - ${row.customerName || event.name}`} userId={noteSummaries.userId} initialCount={noteSummaries.counts[row.id]} />}
                                 <ResendTicketEmail companySlug={company.slug} eventId={event.id} bookingId={row.id} unavailableReason={row.resendUnavailableReason} />
-                                {row.price && !row.payment ? <Link href={`/company/${encodeURIComponent(company.slug)}/cancellations`} className="underline">Stornierungen</Link> : row.payment ? <span><Link href={`/company/${encodeURIComponent(company.slug)}/cancellations`} className="underline">Stornierungen</Link> ? Stripe: {row.payment.status} – Erstattungen unter Stornierungen</span> : <>
+                                {!row.price && !row.payment && <>
                                 <button disabled={!!editor} type="button" onClick={() => { setEditor({ row }); setMessage(""); }} className="text-primary-700 underline disabled:opacity-40 dark:text-primary-300">Bearbeiten</button>
                                 {!editor && <RemoveBooking slug={company.slug} eventId={event.id} row={row} onDeleted={setMessage} />}
                                 </>}

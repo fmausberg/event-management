@@ -43,7 +43,7 @@ afterEach(() => vi.unstubAllEnvs());
 it.each(["COMPANY_USER", "COMPANY_ADMIN"])("allows active %s and normalizes manual bookings", async (role) => {
  db.companyMembership.findUnique.mockResolvedValue({ role, status: "ACTIVE" });
  expect((await saveBooking("yoga", "event-1", null, {}, form({ userId: "injected", eventId: "foreign", platform: "EVENTBRITE" }))).success).toBe(true);
- expect(db.booking.create).toHaveBeenCalledWith({ data: { customerName: "Ada", customerEmail: "ada@example.com", quantity: 2, status: "CONFIRMED", eventId: "event-1", platform: null, externalBookingId: null } });
+ expect(db.booking.create).toHaveBeenCalledWith({ data: { customerName: "Ada", customerEmail: "ada@example.com", quantity: 2, status: "CONFIRMED", eventId: "event-1", platform: null, origin: "MANUAL", externalBookingId: null } });
  expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
  expect(db.bookingPrice.create).toHaveBeenCalledWith({ data: {
   bookingId: "new-booking", eventId: "event-1", companyId: "company-id", currency: "EUR",

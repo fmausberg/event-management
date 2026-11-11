@@ -93,7 +93,7 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
           const expiresAt = Math.floor(Date.now() / 1000) + 35 * 60;
           const booking = await tx.booking.create({ data: { id: token.id, eventId, userId, customerName: parsed.data.name,
             customerEmail: parsed.data.email, quantity: parsed.data.quantity, status: "PENDING_PAYMENT",
-            reservedUntil: new Date(expiresAt * 1000), platform: null, externalBookingId: null }, select: { number: true } });
+            reservedUntil: new Date(expiresAt * 1000), platform: null, origin: "PLATFORM", externalBookingId: null }, select: { number: true } });
           let amount: number;
           if (parsed.data.code) {
             amount = (await reserveVoucherInTransaction(tx, { ...parsed.data, eventId, token: String(form.get("token")) }, userId)).price.payableAmountMinor;

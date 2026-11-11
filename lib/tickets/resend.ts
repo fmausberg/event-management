@@ -69,7 +69,7 @@ async function queueResend(access: Access, requestId: string): Promise<TicketMai
           catch { /* The persisted job remains available for background retries. */ }
         }
         return { success: true, message: sent
-          ? "Die Ticket-E-Mail wurde an den Mailserver übergeben."
+          ? "Tickets erneut versendet."
           : "Der Versandauftrag ist gespeichert, aber der Versand ist noch nicht bestätigt. Der Hintergrundversand versucht es erneut." };
       } catch (error) {
         if (attempt < 2 && error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2002"].includes(error.code)) continue;
