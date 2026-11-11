@@ -55,7 +55,9 @@ Testdaten und Zugangsdaten von produktiven Daten trennen.
 | Push auf `main` | `.github/workflows/deploy.yml` startet das Deployment ohne Testschritt |
 | Laufende Docker-App | Healthcheck prüft `/api/health`, keine Testsuite |
 
-Ein Coding-Agent kann Tests während seiner Arbeit ausführen; das ist kein
-dauerhafter CI-Schritt. Für eine automatische Freigabe vor dem Deployment muss
-ein eigener Prüfjob eingerichtet und das Deployment davon abhängig gemacht werden.
-Diese Dokumentation beschreibt den vorhandenen Ablauf und ändert ihn nicht.
+Coding-Agenten führen Tests, Lint, Typechecks und Builds nur aus, wenn der Nutzer
+diese Prüfungen ausdrücklich anfordert. Bei einer solchen Anforderung sollen
+die ausgewählten Befehle zur Änderung passen und klar benannt werden. Für eine
+automatische Freigabe vor dem Deployment muss ein eigener Prüfjob eingerichtet
+und das Deployment davon abhängig gemacht werden. Diese Dokumentation beschreibt
+den vorhandenen Ablauf und ändert ihn nicht.
