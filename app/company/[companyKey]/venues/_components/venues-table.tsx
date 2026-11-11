@@ -1,4 +1,5 @@
 "use client";
+import { countries } from "@/lib/taxes/countries";
 import { RatingSummary } from "@/components/rating-summary";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { deleteVenue, saveVenue } from "../actions";
@@ -9,9 +10,9 @@ const primary = "rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-wh
 const fields: { name: keyof VenueValues; label: string; max: number }[] = [
  { name: "name", label: "Name", max: 160 }, { name: "addressLine1", label: "Adresszeile 1", max: 250 },
  { name: "addressLine2", label: "Adresszeile 2", max: 250 }, { name: "postalCode", label: "Postleitzahl", max: 32 },
- { name: "city", label: "Ort", max: 160 }, { name: "countryCode", label: "Ländercode (z. B. DE)", max: 2 },
+ { name: "city", label: "Ort", max: 160 },
 ];
-function VenueForm({ slug, row, onSaved, onCancel }: { slug: string; row?: VenueRow; onSaved: (message: string) => void; onCancel: () => void }) {
+function VenueForm({ slug, row, allowedCountryCodes, onSaved, onCancel }: { allowedCountryCodes: string[]; slug: string; row?: VenueRow; onSaved: (message: string) => void; onCancel: () => void }) {
  const panel = useRef<HTMLDialogElement>(null);
  const [confirmingUpdate, setConfirmingUpdate] = useState(false);
  const form = useRef<HTMLFormElement>(null);
@@ -39,7 +40,7 @@ function VenueForm({ slug, row, onSaved, onCancel }: { slug: string; row?: Venue
   if (updateApproved.current) { updateApproved.current = false; return; }
   if (!row || row._count.events < 1) return;
   const data = new FormData(event.currentTarget);
-  const changed = fields.some(({ name }) => String(data.get(name) ?? "").trim() !== (row[name] ?? ""));
+  const changed = [...fields, { name: "countryCode" as const }].some(({ name }) => String(data.get(name) ?? "").trim() !== (row[name] ?? ""));
   if (changed) {
    event.preventDefault();
    setConfirmingUpdate(true);
@@ -47,10 +48,20 @@ function VenueForm({ slug, row, onSaved, onCancel }: { slug: string; row?: Venue
  }}>
   <header className="flex items-center justify-between gap-3 border-b border-zinc-200 pb-4 dark:border-zinc-800"><h2 id="venue-editor-title" className="font-semibold">{row ? "Ort bearbeiten" : "Ort erstellen"}</h2><button type="button" disabled={pending} onClick={onCancel} aria-label="Formular schließen" className="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-primary-600 dark:hover:bg-zinc-800"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>
   <fieldset disabled={pending} className="grid gap-4">{fields.map(({ name, label, max }) => <div key={name}>
-   <label htmlFor={`venue-${name}`} className="text-sm">{label}</label>
+   <label htmlFor={`venue-${name}`} className="text-sm">{label}{name === "name" && <><span aria-hidden="true" className="ml-1 text-xs text-red-600 dark:text-red-400">*</span><span className="sr-only"> (Pflichtfeld)</span></>}</label>
    <input id={`venue-${name}`} name={name} defaultValue={row?.[name] ?? ""} required={name === "name"} maxLength={max} aria-invalid={!!state.errors?.[name]} aria-describedby={state.errors?.[name] ? `error-${name}` : undefined} className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700" />
    {state.errors?.[name] && <p id={`error-${name}`} className="mt-1 text-xs text-red-700 dark:text-red-300">{state.errors[name]?.join(" ")}</p>}
-  </div>)}</fieldset>
+  </div>)}
+   <div><label htmlFor="venue-countryCode" className="text-sm">Land<><span aria-hidden="true" className="ml-1 text-xs text-red-600 dark:text-red-400">*</span><span className="sr-only"> (Pflichtfeld)</span></></label>
+    <select id="venue-countryCode" name="countryCode" required defaultValue={row?.countryCode && allowedCountryCodes.includes(row.countryCode) ? row.countryCode : ""} aria-invalid={!!state.errors?.countryCode} aria-describedby="venue-country-help" className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700">
+     <option value="" disabled>{allowedCountryCodes.length ? "Land auswählen" : "Noch keine Länder steuerlich gepflegt"}</option>
+     {countries.filter(country => allowedCountryCodes.includes(country.code)).map(country => <option key={country.code} value={country.code}>{country.name} ({country.code})</option>)}
+    </select>
+    <p id="venue-country-help" className="mt-2 text-xs text-zinc-500">Wenn du weitere Länder brauchst, melde dich bitte bei deinem Company Admin oder Admin, damit er diese Länder steuerlich einpflegt.</p>
+    {row?.countryCode && !allowedCountryCodes.includes(row.countryCode) && <p className="mt-2 text-xs text-amber-700">Das bisherige Land ({row.countryCode}) ist nicht steuerlich gepflegt. Bitte ein verfügbares Land auswählen oder den Admin kontaktieren.</p>}
+    {state.errors?.countryCode && <p role="alert" className="mt-1 text-xs text-red-700 dark:text-red-300">{state.errors.countryCode.join(" ")}</p>}
+   </div>
+  </fieldset>
   {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
   <div className="flex gap-3"><button disabled={pending} className={primary}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
  </form>{row && <VenueStaff slug={slug} venueId={row.id} />}</dialog>
@@ -73,7 +84,7 @@ function DeleteVenue({ slug, row, onDeleted }: { slug: string; row: VenueRow; on
  const used = row._count.events > 0 || row._count.suggestedForSeries > 0;
  return <div className="max-w-64">{confirming ? <form action={action} className="space-y-2"><p>„{row.name}“ endgültig löschen?</p><input type="hidden" name="confirmed" value="yes" /><div className="flex gap-3"><button disabled={pending} className="text-red-700 underline dark:text-red-300">{pending ? "Wird gelöscht …" : "Löschen bestätigen"}</button><button type="button" disabled={pending} onClick={() => setConfirming(false)} className="underline">Abbrechen</button></div></form> : <button type="button" disabled={used} title={used ? "Dieser Ort wird noch von Veranstaltungen oder Veranstaltungsreihen verwendet." : "Ort löschen"} aria-label={`${row.name} löschen`} onClick={() => setConfirming(true)} className="rounded-lg p-2 text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-40 dark:text-red-300 dark:hover:bg-red-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5 6l1 14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1l1-14M10 10v7M14 10v7" /></svg></button>}{state.message && <p role="alert" className="mt-2 text-red-700 dark:text-red-300">{state.message}</p>}</div>;
 }
-export function VenuesTable({ company, venues }: { company: { name: string; slug: string }; venues: VenueRow[] }) {
+export function VenuesTable({ company, venues, allowedCountryCodes }: { allowedCountryCodes: string[]; company: { name: string; slug: string }; venues: VenueRow[] }) {
  const [editor, setEditor] = useState<{ row?: VenueRow } | null>(null);
  const [query, setQuery] = useState("");
  const [message, setMessage] = useState("");
@@ -82,7 +93,7 @@ export function VenuesTable({ company, venues }: { company: { name: string; slug
  return <main className={`flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black ${editor ? "xl:mr-96" : ""}`}>
   <header className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-2xl font-semibold">Orte</h1><p className="mt-1 text-sm text-zinc-500">{company.name}</p></div><button type="button" disabled={!!editor} onClick={() => { setEditor({}); setMessage(""); }} className={primary}>+ Ort erstellen</button></header>
   {message && <p role="status" className="text-sm text-green-700 dark:text-green-300">{message}</p>}
-  {editor && <VenueForm key={editor.row?.id ?? "new"} slug={company.slug} row={editor.row} onSaved={saved} onCancel={() => setEditor(null)} />}
+  {editor && <VenueForm key={editor.row?.id ?? "new"} slug={company.slug} row={editor.row} allowedCountryCodes={allowedCountryCodes} onSaved={saved} onCancel={() => setEditor(null)} />}
   <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
    <div className="flex flex-wrap items-center justify-between gap-3 p-4"><label><span className="sr-only">Orte durchsuchen</span><input type="search" placeholder="Orte durchsuchen …" value={query} onChange={(event) => setQuery(event.target.value)} className="rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700" /></label><span className="text-sm text-zinc-500">{visible.length} von {venues.length} Orte</span></div>
    <table className="w-full text-left text-sm"><caption className="sr-only">Orte von {company.name}</caption><thead className="bg-zinc-100 text-xs dark:bg-zinc-900"><tr>{["Nr.", "Ort", "Adresse", "Veranstaltungen", "Veranstaltungsreihen", "Bewertung", "Aktionen"].map((label) => <th scope="col" key={label} className="px-4 py-3">{label}</th>)}</tr></thead><tbody>{visible.map((row) => <tr key={row.id} className="border-t border-zinc-200 align-top dark:border-zinc-800">

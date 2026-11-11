@@ -8,7 +8,7 @@ import { getCompanyTrainers } from "@/lib/trainers/data";
 import { getCompanyVenues } from "@/lib/venues/data";
 
 const { db, access } = vi.hoisted(() => ({ access: vi.fn(), db: {
-  eventReview: { groupBy: vi.fn() }, event: { findMany: vi.fn() },
+  companyTaxRule: { findMany: vi.fn() }, eventReview: { groupBy: vi.fn() }, event: { findMany: vi.fn() },
   trainer: { findMany: vi.fn() }, venue: { findMany: vi.fn() }, user: { findMany: vi.fn() },
 } }));
 vi.mock("server-only", () => ({}));
@@ -17,7 +17,7 @@ vi.mock("@/lib/companies/members", () => ({ requireCompanyAccess: access, Member
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 const event = (id: string, trainers: string[], venueId: string | null = "venue") => ({ id, trainers: trainers.map(trainerId => ({ trainerId })), venue: venueId ? { id: venueId, companyId: "company" } : null });
 beforeEach(() => {
-  vi.resetAllMocks(); access.mockResolvedValue({ company: { id: "company" } });
+  vi.resetAllMocks(); db.companyTaxRule.findMany.mockResolvedValue([]); access.mockResolvedValue({ company: { id: "company" } });
   db.eventReview.groupBy.mockResolvedValue([]); db.event.findMany.mockResolvedValue([]);
   db.trainer.findMany.mockResolvedValue([{ id: "trainer", email: "trainer@example.com" }]);
   db.user.findMany.mockResolvedValue([]); db.venue.findMany.mockResolvedValue([{ id: "venue" }]);

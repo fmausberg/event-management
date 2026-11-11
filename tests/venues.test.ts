@@ -5,6 +5,7 @@ import Page from "@/app/company/[companyKey]/venues/page";
 import { getCompanyVenues } from "@/lib/venues/data";
 import { venueSchema } from "@/lib/venues/validation";
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
+ $transaction: vi.fn(), companyTaxRule: { findUnique: vi.fn(), findMany: vi.fn() },
  eventReview: { groupBy: vi.fn() },
  user: { findUnique: vi.fn() }, company: { findUnique: vi.fn() }, companyMembership: { findUnique: vi.fn() },
  venue: { findMany: vi.fn(), create: vi.fn(), updateMany: vi.fn(), deleteMany: vi.fn() },
@@ -17,7 +18,7 @@ vi.mock("next/navigation", () => ({ redirect: () => { throw new Error("LOGIN"); 
 const values = { name: " Studio ", addressLine1: " Street 1 ", addressLine2: "", postalCode: "01234", city: "Berlin", countryCode: "de" };
 function form(overrides: Record<string,string> = {}) { const data = new FormData(); Object.entries({ ...values, ...overrides }).forEach(([key,value]) => data.set(key,value)); return data; }
 beforeEach(() => {
- vi.resetAllMocks(); auth.mockResolvedValue({ user: { id: "actor" } }); db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
+ vi.resetAllMocks(); db.$transaction.mockImplementation(async work => work(db)); db.companyTaxRule.findUnique.mockResolvedValue({ id: "tax-rule" }); db.companyTaxRule.findMany.mockResolvedValue([{ countryCode: "DE" }, { countryCode: "AT" }]); auth.mockResolvedValue({ user: { id: "actor" } }); db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
  db.eventReview.groupBy.mockResolvedValue([]);
  db.company.findUnique.mockResolvedValue({ id: "company-id", slug: "yoga", name: "Yoga" });
  db.venue.findMany.mockResolvedValue([]);
@@ -66,4 +67,25 @@ it("scopes listing and returns relation counts", async () => {
 it("handles a concurrent foreign-key reference safely", async () => {
  db.venue.deleteMany.mockRejectedValue(new Error("foreign key"));
  expect((await deleteVenue("yoga", "venue-1", {}, form({ confirmed: "yes" }))).success).toBeUndefined();
+});
+
+it("rejects a country without a current company tax rule", async () => {
+ db.companyTaxRule.findUnique.mockResolvedValue(null);
+ const result = await saveVenue("yoga", null, {}, form({ countryCode: "FR" }));
+ expect(result.success).not.toBe(true); expect(result.errors?.countryCode).toBeDefined();
+ expect(db.companyTaxRule.findUnique).toHaveBeenCalledWith({ where: { companyId_countryCode: { companyId: "company-id", countryCode: "FR" } }, select: { id: true } });
+ expect(db.venue.create).not.toHaveBeenCalled();
+});
+it("requires a configured country even for an otherwise valid empty country input", async () => {
+ expect((await saveVenue("yoga", null, {}, form({ countryCode: "" }))).success).not.toBe(true);
+ expect(db.venue.create).not.toHaveBeenCalled();
+});
+it("checks configured countries on edits too", async () => {
+ db.companyTaxRule.findUnique.mockResolvedValue(null);
+ expect((await saveVenue("yoga", "venue-id", {}, form({ countryCode: "FR" }))).success).not.toBe(true);
+ expect(db.venue.updateMany).not.toHaveBeenCalled();
+});
+it("returns configured country codes without exposing tax rates", async () => {
+ expect((await getCompanyVenues("yoga")).allowedCountryCodes).toEqual(["DE", "AT"]);
+ expect(db.companyTaxRule.findMany).toHaveBeenCalledWith({ where: { companyId: "company-id" }, select: { countryCode: true }, orderBy: { countryCode: "asc" } });
 });
