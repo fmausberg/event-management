@@ -69,9 +69,7 @@ export async function sendMail(input: MailMessage): Promise<{ messageId: string 
   if (!parsed.success) throw new Error("Ungültiger Empfänger, Betreff oder E-Mail-Inhalt.");
   const { transport, from, testRecipient } = getMailer();
   try {
-    const imprintUrl = new URL("/impressum", process.env.AUTH_URL ?? "http://localhost:3000");
-    if (!["http:", "https:"].includes(imprintUrl.protocol)) throw new Error("Invalid mail origin");
-    const footer = mailFooter(parsed.data.to, imprintUrl.href);
+    const footer = mailFooter(parsed.data.to, "https://event-yoga.com/impressum/");
     const content = parsed.data.html ?? `<div style="max-width:600px;margin:auto;font-family:Arial,sans-serif;line-height:1.6">${escapeHtml(parsed.data.text).replace(/\n/g, "<br>")}</div>`;
     const html = /<\/body\s*>/i.test(content)
       ? content.replace(/<\/body\s*>/i, () => `${footer.html}</body>`)

@@ -11,7 +11,7 @@ export function SiteFrame({ children }: { children: React.ReactNode }) {
         </header>
         {children}
         <footer className="border-t border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-950">
-            <div className="mx-auto flex max-w-6xl flex-wrap items-start justify-between gap-6 px-5 py-8 text-sm sm:px-8"><address className="not-italic leading-relaxed text-zinc-600 dark:text-zinc-400">Felix Mausberg<br />Breite Straße 33a<br />41460 Neuss</address><Link href="/impressum" className="rounded text-zinc-600 underline underline-offset-4 hover:text-primary-700 focus-visible:outline-primary-600 dark:text-zinc-400">Impressum</Link></div>
+            <div className="mx-auto flex max-w-6xl flex-wrap items-start justify-between gap-6 px-5 py-8 text-sm sm:px-8"><a href="https://event-yoga.com/impressum/" target="_blank" rel="noopener noreferrer" className="rounded text-zinc-600 underline underline-offset-4 hover:text-primary-700 focus-visible:outline-primary-600 dark:text-zinc-400">Impressum<span className="sr-only"> (neuer Tab)</span></a></div>
         </footer>
     </div>;
 }
