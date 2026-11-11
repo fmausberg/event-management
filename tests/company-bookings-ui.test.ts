@@ -1,4 +1,6 @@
-import { createElement } from "react";
+// @vitest-environment jsdom
+import { act, createElement } from "react";
+import { createRoot } from "react-dom/client";
 import { renderToStaticMarkup } from "react-dom/server";
 import { expect, it, vi } from "vitest";
 import { CompanyBookings } from "@/app/company/[companyKey]/bookings/table";
@@ -19,7 +21,7 @@ it("groups strictly by event end, keeps missing ends current, and offers sortabl
     paymentSummary: "Kein Zahlungsbetrag erfasst", resendUnavailableReason: null,
   }));
   const html = renderToStaticMarkup(createElement(CompanyBookings, {
-    company: { id: "company", name: "Demo", slug: "demo" }, bookings, now,
+    company: { id: "company", name: "Demo", slug: "demo" }, bookings, now, selectedBookingId: "1",
     noteSummaries: { userId: "actor", counts: {} },
   }));
   const boundary = html.indexOf("Vergangene Buchungen");
@@ -42,4 +44,29 @@ it("groups strictly by event end, keeps missing ends current, and offers sortabl
   expect(html).toContain("Studio Mitte");
   expect(html).toContain("11.11.26, 11:00 Uhr");
   expect(html).toContain("bg-green-100 text-green-800");
+  expect(past).toContain('aria-current="true"');
+  expect(current).not.toContain('aria-current="true"');
+  vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
+  const scroll = vi.fn();
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scroll });
+  const host = document.createElement("div");
+  document.body.append(host);
+  const root = createRoot(host);
+  try {
+    act(() => root.render(createElement(CompanyBookings, {
+      company: { id: "company", name: "Demo", slug: "demo" }, bookings, now, selectedBookingId: "1",
+      noteSummaries: { userId: "actor", counts: {} },
+    })));
+    expect(scroll).toHaveBeenCalledWith({ block: "center" });
+    expect(document.activeElement).toBe(host.querySelector('[aria-current="true"]'));
+    act(() => root.render(createElement(CompanyBookings, {
+      company: { id: "company", name: "Demo", slug: "demo" }, bookings, now, selectedBookingId: "missing",
+      noteSummaries: { userId: "actor", counts: {} },
+    })));
+    expect(host.textContent).toContain("Die verlinkte Buchung wurde nicht gefunden.");
+  } finally {
+    act(() => root.unmount());
+    host.remove();
+    vi.unstubAllGlobals();
+  }
 });

@@ -3,7 +3,7 @@ import { bookingSource } from "@/lib/bookings/source";
 
 
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import Link from "next/link";
 
@@ -53,7 +53,13 @@ function sortValue(row: Row, key: SortKey) {
 
 
 
-function BookingSection({ title, rows, company, noteSummaries }: { title: string; rows: Row[]; company: Data["company"]; noteSummaries: NoteSummaries }) {
+function BookingSection({ title, rows, company, noteSummaries, selectedBookingId }: { selectedBookingId?: string; title: string; rows: Row[]; company: Data["company"]; noteSummaries: NoteSummaries }) {
+
+  const selectedRow = useRef<HTMLTableRowElement>(null);
+  useEffect(() => {
+    selectedRow.current?.scrollIntoView({ block: "center" });
+    selectedRow.current?.focus({ preventScroll: true });
+  }, [selectedBookingId]);
 
   const [sort, setSort] = useState<{ key: SortKey; ascending: boolean }>({ key: "bookedAt", ascending: false });
 
@@ -93,7 +99,7 @@ function BookingSection({ title, rows, company, noteSummaries }: { title: string
 
         </tr></thead>
 
-        <tbody>{sorted.map(row => <tr key={row.id} className="border-t border-zinc-200 align-top dark:border-zinc-800">
+        <tbody>{sorted.map(row => <tr key={row.id} ref={row.id === selectedBookingId ? selectedRow : undefined} tabIndex={row.id === selectedBookingId ? -1 : undefined} aria-current={row.id === selectedBookingId ? "true" : undefined} className={`scroll-mt-24 border-t border-zinc-200 align-top dark:border-zinc-800 ${row.id === selectedBookingId ? "bg-primary-50 outline-2 -outline-offset-2 outline-primary-600 dark:bg-primary-950" : ""}`}>
 
           <td className="px-4 py-4">{row.number}</td>
 
@@ -141,7 +147,7 @@ function BookingSection({ title, rows, company, noteSummaries }: { title: string
 
 
 
-export function CompanyBookings({ company, bookings, noteSummaries, now }: Data & { noteSummaries: NoteSummaries; now: number }) {
+export function CompanyBookings({ company, bookings, noteSummaries, now, selectedBookingId }: Data & { noteSummaries: NoteSummaries; now: number; selectedBookingId?: string }) {
 
   const [query, setQuery] = useState("");
 
@@ -153,11 +159,13 @@ export function CompanyBookings({ company, bookings, noteSummaries, now }: Data 
 
     <header><h1 className="text-2xl font-semibold">Buchungen</h1><p className="text-sm text-zinc-500">{company.name} · Alle Buchungen der Company</p></header>
 
+    {selectedBookingId && !bookings.some(row => row.id === selectedBookingId) && <p role="status">Die verlinkte Buchung wurde nicht gefunden.</p>}
+
     <label className="max-w-md">Buchungen durchsuchen<input type="search" value={query} onChange={e => setQuery(e.target.value)} placeholder="Name, E-Mail, Event oder Buchungsnummer …" className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 dark:border-zinc-700" /></label>
 
-    <BookingSection title="Aktuelle Buchungen" rows={visible.filter(row => !past(row))} company={company} noteSummaries={noteSummaries} />
+    <BookingSection title="Aktuelle Buchungen" rows={visible.filter(row => !past(row))} company={company} noteSummaries={noteSummaries} selectedBookingId={selectedBookingId} />
 
-    <BookingSection title="Vergangene Buchungen" rows={visible.filter(past)} company={company} noteSummaries={noteSummaries} />
+    <BookingSection title="Vergangene Buchungen" rows={visible.filter(past)} company={company} noteSummaries={noteSummaries} selectedBookingId={selectedBookingId} />
 
   </main>;
 

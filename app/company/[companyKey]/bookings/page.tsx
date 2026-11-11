@@ -4,7 +4,7 @@ import { getCompanyBookings } from "@/lib/bookings/company";
 import { getNoteSummaries } from "@/lib/notes/service";
 import { CompanyBookings } from "./table";
 
-export default async function CompanyBookingsPage({ params }: { params: Promise<{ companyKey: string }> }) {
+export default async function CompanyBookingsPage({ params, searchParams }: { params: Promise<{ companyKey: string }>; searchParams: Promise<{ booking?: string | string[] }> }) {
   const { companyKey } = await params;
   let result;
   try { result = await getCompanyBookings(companyKey); }
@@ -15,6 +15,8 @@ export default async function CompanyBookingsPage({ params }: { params: Promise<
     }
     return <main className="flex-1 p-6"><h1 className="text-2xl font-semibold">Buchungen</h1><p role="alert">Die Buchungen konnten gerade nicht geladen werden.</p><a className="underline" href={`/company/${encodeURIComponent(companyKey)}/bookings`}>Erneut versuchen</a></main>;
   }
+  const booking = (await searchParams).booking;
+  const selectedBookingId = typeof booking === "string" ? booking : undefined;
   const noteSummaries = await getNoteSummaries("booking", result.bookings.map(row => row.id));
-  return <CompanyBookings {...result} noteSummaries={noteSummaries} />;
+  return <CompanyBookings {...result} noteSummaries={noteSummaries} selectedBookingId={selectedBookingId} />;
 }
