@@ -3,6 +3,9 @@ import type { NextConfig } from "next";
 const nextConfig: NextConfig = {
   output: "standalone",
   experimental: { serverActions: { bodySizeLimit: "12mb" } },
+  async redirects() {
+    return [{ source: "/impressum", destination: "https://event-yoga.com/impressum/", permanent: true }];
+  },
   async headers() {
     return ["/tickets", "/booking/manage", "/booking/payment/:path*"].map((source) => ({ source, headers: [
       { key: "Referrer-Policy", value: "no-referrer" },

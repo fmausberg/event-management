@@ -27,12 +27,19 @@ export async function saveVenue(slug: string, id: string | null, _previous: Venu
     const parsed = venueSchema.safeParse(Object.fromEntries(Object.keys(venueSchema.shape).map((key) => [key, form.get(key)])));
     if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
     const db = getPrisma();
-    if (id === null) {
-      await db.venue.create({ data: { ...parsed.data, companyId: company.id } });
-    } else {
-      const result = await db.venue.updateMany({ where: { id, companyId: company.id }, data: parsed.data });
-      if (!result.count) return { message: "Dieser Ort existiert nicht in dieser Company." };
-    }
+    const result = await db.$transaction(async tx => {
+      const countryCode = parsed.data.countryCode;
+      if (!countryCode || !await tx.companyTaxRule.findUnique({ where: { companyId_countryCode: { companyId: company.id, countryCode } }, select: { id: true } })) {
+        return { message: "Bitte ein steuerlich gepflegtes Land dieser Company auswählen. Weitere Länder kann dein Company Admin oder Admin in den Steuereinstellungen ergänzen.", errors: { countryCode: ["Für dieses Land fehlt eine Steuerregel dieser Company."] } };
+      }
+      if (id === null) await tx.venue.create({ data: { ...parsed.data, companyId: company.id } });
+      else {
+        const updated = await tx.venue.updateMany({ where: { id, companyId: company.id }, data: parsed.data });
+        if (!updated.count) return { message: "Dieser Ort existiert nicht in dieser Company." };
+      }
+      return { success: true };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    if (!result.success) return result;
   } catch (error) { return failure(error); }
   refresh(slug);
   return { success: true, message: id === null ? "Ort wurde erstellt." : "Ort wurde gespeichert." };

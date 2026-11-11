@@ -106,11 +106,11 @@ it("checks authentication without sending a message and sanitizes failures", asy
   await expect(verifyMailConnection()).rejects.toThrow(/^SMTP-Verbindung fehlgeschlagen/);
 });
 
-it("adds the footer inside HTML documents using the configured domain", async () => {
+it("adds the footer inside HTML documents linking to the external imprint", async () => {
   vi.stubEnv("AUTH_URL", "https://events.example.com");
   await sendMail({ ...message, html: "<html><body><p>Content</p></body></html>" });
   const sent = send.mock.calls[0][0];
-  expect(sent.html).toContain('href="https://events.example.com/impressum"');
+  expect(sent.html).toContain('href="https://event-yoga.com/impressum/"');
   expect(sent.html.indexOf("Eventverwaltung GBR")).toBeLessThan(sent.html.indexOf("</body>"));
-  expect(sent.text).toContain("https://events.example.com/impressum");
+  expect(sent.text).toContain("https://event-yoga.com/impressum/");
 });

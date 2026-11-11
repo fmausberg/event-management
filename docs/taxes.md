@@ -170,3 +170,27 @@ Kein Build, Lint, Typecheck oder vollstaendiger Testlauf; keine Datenbankmigrati
 - `tests/tax-checkout.test.ts`
 - `tests/taxes.test.ts`
 - `tests/voucher-reservations.test.ts`
+
+## Kompakte Laendertabelle und Schutz bei Aenderungen
+
+Die Einstellungen zeigen editierbare Saetze, Venue-Anzahl und kommende Events pro
+Land in einer Tabelle mit begrenzter Hoehe und fixierter Kopfzeile. Kommend bedeutet:
+Beginn nach jetzt, Status DRAFT oder PUBLISHED, tatsaechliches Venue in diesem Land
+und derselben Company. Abgesagte/abgeschlossene Events zaehlen nicht.
+
+Loeschen wird bei kommenden Events unabhaengig von Overrides serverseitig innerhalb
+der serialisierbaren Transaktion gesperrt. Bei einem geaenderten Satz und kommenden
+Events fordert der Server eine Bestaetigung an; die Warnung unterscheidet alle
+kommenden Events von den tatsaechlich erbenden Events ohne Event-/Reihen-Override.
+Bei Bestaetigung werden Satz und aktuelle Anzahlen erneut geprueft. Bestehende
+Buchungssnapshots bleiben unveraendert. Keine Schemaaenderung erforderlich.
+
+## Laenderauswahl bei Venues
+
+Orte verwenden beim Anlegen und Bearbeiten ein Dropdown, das nur die steuerlich
+gepflegten Laender der eigenen Company enthaelt. Die Ortsverwaltung erhaelt lediglich
+Laendercodes, keine Steuerwerte. Ein Hinweis verweist fuer weitere Laender an den
+Company Admin oder Plattform-Admin. Ohne konfigurierte Laender ist kein Speichern
+moeglich. Auch ein bisheriges Land ohne Regel muss vor erneutem Speichern korrigiert
+oder durch den Admin steuerlich ergaenzt werden. Die Server Action prueft die aktuelle
+Regel in derselben serialisierbaren Transaktion wie den Venue-Schreibvorgang.

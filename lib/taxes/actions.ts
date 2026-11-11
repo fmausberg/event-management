@@ -4,8 +4,13 @@ import { revalidatePath } from "next/cache";
 import { requireCompanyAdmin, requireCompanyAccess, MemberAccessError } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 import { parseTaxRate, TaxError, resolveEventTax, resolveTax } from "./service";
+import { countryTaxUsage } from "./country-usage";
 import { isCountryCode } from "./countries";
-export type TaxState = { success?: boolean; message?: string };
+type TaxConfirmation = { countryCode: string; rate: string; upcomingCount: number; affectedCount: number };
+export type TaxState = { success?: boolean; message?: string; confirmation?: TaxConfirmation };
+class TaxConfirmationRequired extends Error {
+ constructor(readonly confirmation: TaxConfirmation) { super("Bitte die Auswirkungen der Satzänderung bestätigen."); }
+}
 export async function saveTaxConfiguration(slug: string, kind: "country" | "event" | "series", id: string, _previous: TaxState, form: FormData): Promise<TaxState> {
  try {
   const company = await requireCompanyAdmin(slug);
@@ -17,11 +22,23 @@ export async function saveTaxConfiguration(slug: string, kind: "country" | "even
     const countryCode = String(form.get("countryCode") ?? "").trim().toUpperCase();
     if (!isCountryCode(countryCode)) throw new TaxError("Bitte ein gültiges Land auswählen.");
     if (form.get("intent") === "remove") {
+     const usage = await countryTaxUsage(tx, company.id, countryCode, new Date());
+     if (usage.upcomingCount > 0) throw new TaxError(`Diese Länderregel kann nicht gelöscht werden: Es gibt noch ${usage.upcomingCount} kommende Events an Venues in ${countryCode}.`);
      await tx.companyTaxRule.deleteMany({ where: { companyId: company.id, countryCode } });
     } else {
      const rate = parseTaxRate(form.get("rate"));
      if (form.get("intent") === "add") await tx.companyTaxRule.create({ data: { companyId: company.id, countryCode, rate } });
-     else await tx.companyTaxRule.update({ where: { companyId_countryCode: { companyId: company.id, countryCode } }, data: { rate } });
+     else {
+      const current = await tx.companyTaxRule.findUnique({ where: { companyId_countryCode: { companyId: company.id, countryCode } } });
+      if (!current) throw new TaxError("Diese Länderregel existiert nicht mehr. Bitte neu laden.");
+      if (!current.rate.eq(rate)) {
+       const usage = await countryTaxUsage(tx, company.id, countryCode, new Date());
+       if (usage.upcomingCount > 0 && (form.get("confirmedRate") !== rate.toString() || form.get("confirmedUpcomingCount") !== String(usage.upcomingCount) || form.get("confirmedAffectedCount") !== String(usage.affectedCount))) {
+        throw new TaxConfirmationRequired({ countryCode, rate: rate.toString(), ...usage });
+       }
+      }
+      await tx.companyTaxRule.update({ where: { companyId_countryCode: { companyId: company.id, countryCode } }, data: { rate } });
+     }
     }
    } else {
     const taxRateOverride = form.get("mode") === "automatic" ? null : form.get("mode") === "override" ? parseTaxRate(form.get("rate")) : undefined;
@@ -38,6 +55,7 @@ export async function saveTaxConfiguration(slug: string, kind: "country" | "even
   revalidatePath("/events", "layout");
   return { success: true, message: "Steuerkonfiguration wurde gespeichert." };
  } catch (error) {
+  if (error instanceof TaxConfirmationRequired) return { confirmation: error.confirmation, message: error.message };
   if (error instanceof TaxError || error instanceof MemberAccessError) return { message: error.message };
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { message: "Für dieses Land besteht bereits eine Steuerregel. Bitte den vorhandenen Eintrag bearbeiten." };
   return { message: "Die Steuerkonfiguration konnte nicht gespeichert werden. Bitte neu laden und erneut versuchen." };
