@@ -73,17 +73,17 @@ jobs:
           test -n "$DEPLOY_KEY"
 
           install -m 700 -d ~/.ssh
-          printf '%s\\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
 
-          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \\
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
             "DEPLOY_PATH='$DEPLOY_PATH' IMAGE_TAG='$IMAGE_TAG' TARGET_BRANCH='$TARGET_BRANCH' bash -s" <<'REMOTE'
           set -euo pipefail
 
           if [ ! -d "$DEPLOY_PATH/.git" ]; then
             mkdir -p "$(dirname "$DEPLOY_PATH")"
-            git clone --single-branch --branch "$TARGET_BRANCH" \\
+            git clone --single-branch --branch "$TARGET_BRANCH" \
               https://github.com/fmausberg/event-management.git "$DEPLOY_PATH"
           else
             git -C "$DEPLOY_PATH" fetch origin "$TARGET_BRANCH"
@@ -95,17 +95,17 @@ jobs:
           ENV_FILE=/opt/docker/event-management/.env.docker
           test -r "$ENV_FILE"
 
-          docker compose --env-file "$ENV_FILE" \\
-            -f compose.yaml -f compose.traefik.yaml -p event-management \\
+          docker compose --env-file "$ENV_FILE" \
+            -f compose.yaml -f compose.traefik.yaml -p event-management \
             pull app migrate
 
-          docker compose --env-file "$ENV_FILE" \\
-            -f compose.yaml -f compose.traefik.yaml -p event-management \\
+          docker compose --env-file "$ENV_FILE" \
+            -f compose.yaml -f compose.traefik.yaml -p event-management \
             up -d --no-build
 
           used_ids="$(docker ps -aq | xargs -r docker inspect --format '{{.Image}}' | sort -u)"
-          for repo in \\
-            ghcr.io/fmausberg/event-management-app \\
+          for repo in \
+            ghcr.io/fmausberg/event-management-app \
             ghcr.io/fmausberg/event-management-migrate
           do
             docker image ls "$repo" --format '{{.ID}} {{.Repository}}:{{.Tag}}' |
