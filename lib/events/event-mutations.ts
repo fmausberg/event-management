@@ -1,3 +1,4 @@
+import { resolveEventTax, TaxError } from "@/lib/taxes/service";
 import { Prisma } from "@prisma/client";
 import { getPrisma } from "@/lib/db/prisma";
 import type { EventInput } from "./validate-event";
@@ -12,7 +13,11 @@ function assertEventId(id: string) {
 
 export function saveEventChanges(id: string, data: EventInput) {
   assertEventId(id);
-  return getPrisma().event.update({ where: { id }, data });
+  return getPrisma().$transaction(async tx => {
+    const event = await tx.event.update({ where: { id }, data });
+    if (event.status === "PUBLISHED") await resolveEventTax(tx, id);
+    return event;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 
 export async function removeEvent(id: string) {
@@ -33,6 +38,7 @@ export async function removeEvent(id: string) {
 }
 
 export function eventMutationErrorMessage(error: unknown): string {
+  if (error instanceof TaxError) return error.message;
   if (error instanceof EventMutationError) return error.message;
   if (error instanceof Prisma.PrismaClientKnownRequestError) {
     if (error.code === "P2025") return "Diese Veranstaltung existiert nicht mehr.";

@@ -1,3 +1,4 @@
+import { TaxConfiguration } from "@/components/tax-configuration";
 import { SeriesDetails } from "../_components/series-details";
 import { ObjectNotesSection } from "@/components/object-notes-section";
 import Link from "next/link";
@@ -31,7 +32,7 @@ export default async function CompanyEventSeriesDetailPage({ params, searchParam
   }
   const series = result.series.find((row) => row.id === seriesId);
   if (!series) notFound();
-  return <EventsTable {...result} defaultSeriesId={series.id} seriesNotes={<ObjectNotesSection target={{ type: "eventSeries", id: series.id }} label={series.name} />} seriesHistory={<SeriesHistory companyKey={companyKey} seriesId={series.id} page={historyPage} />} seriesDetails={<>
+  return <EventsTable {...result} defaultSeriesId={series.id} seriesTaxes={<TaxConfiguration slug={companyKey} kind="series" id={series.id} collapsible />} seriesNotes={<ObjectNotesSection target={{ type: "eventSeries", id: series.id }} label={series.name} />} seriesHistory={<SeriesHistory companyKey={companyKey} seriesId={series.id} page={historyPage} />} seriesDetails={<>
     <PageBreadcrumb label={series.name} />
     <SeriesDetails slug={companyKey} row={series} venues={result.venues} trainers={result.trainers} canManage={result.canManage} />
   </>} />;

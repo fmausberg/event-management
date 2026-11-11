@@ -1,4 +1,5 @@
 "use server";
+import { bookingTaxSnapshot, TaxError } from "@/lib/taxes/service";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { getPrisma } from "@/lib/db/prisma";
@@ -16,6 +17,7 @@ function refresh(slug: string, eventId: string) {
  revalidatePath(`/events/${encodeURIComponent(slug)}/${encodeURIComponent(eventId)}`);
 }
 function failure(error: unknown): BookingState {
+ if (error instanceof TaxError) return { message: error.message };
  if (error instanceof MemberAccessError) return { message: error.message };
  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return { message: "Eine andere Buchung wurde gleichzeitig geändert. Bitte versuche es erneut." };
  return { message: "Die Buchung konnte nicht gespeichert werden. Bitte versuche es erneut." };
@@ -56,7 +58,7 @@ export async function saveBooking(slug: string, eventId: string, id: string | nu
     await tx.bookingPrice.create({ data: {
      bookingId: booking.id, eventId, companyId: event.companyId, currency: event.currency,
      unitPriceMinor, quantity: booking.quantity, originalAmountMinor, discountAmountMinor: originalAmountMinor,
-     voucherAmountMinor: 0, payableAmountMinor: 0, calculationVersion: 1,
+     voucherAmountMinor: 0, payableAmountMinor: 0, calculationVersion: 1, ...await bookingTaxSnapshot(tx, eventId, 0),
     } });
     const mail = await issueBookingTickets(tx, booking, event);
     return { success: true, initialMailId: mail.id };

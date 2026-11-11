@@ -1,10 +1,11 @@
 "use server";
+import { resolveEventTax, TaxError, taxOverrideFromForm } from "@/lib/taxes/service";
 import { withSessionAudit } from "@/lib/audit/session";
 import { sanitizeDescription } from "@/lib/descriptions/html";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
-import { requireCompanyAccess, MemberAccessError } from "@/lib/companies/members";
+import { requireCompanyAccess, requireCompanyAdmin, MemberAccessError } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 import { eventSchema, publishEventSchema, emptyEvent, type EventState } from "@/lib/company-events/model";
 import { uploadEventImage, deleteEventImage, EventImageError, type UploadedEventImage } from "@/lib/events/images";
@@ -23,6 +24,7 @@ function refresh(slug: string) {
  for (const path of [`/company/${encodeURIComponent(slug)}/events`, `/company/${encodeURIComponent(slug)}/event-series`, `/company/${encodeURIComponent(slug)}/venues`, "/admin/companies", "/admin/events", "/events", `/events/${encodeURIComponent(slug)}`]) revalidatePath(path);
 }
 function failure(error: unknown): EventState {
+ if (error instanceof TaxError) return { message: "Die Veranstaltung kann wegen einer unvollständigen Steuerkonfiguration nicht veröffentlicht werden. Bitte einen Company Admin kontaktieren." };
  if (error instanceof MemberAccessError) return { message: error.message };
  if (error instanceof EventImageError) return { message: error.message };
  if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return { message: "Die Daten wurden gleichzeitig geändert. Es wurde nichts gespeichert. Bitte prüfe die Termine und versuche es erneut." };
@@ -50,9 +52,14 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
  let saved = false;
  let createdCount = 0;
  let createdId: string | undefined;
+ let canConfigureTaxes = false;
  try {
-  const { company } = await requireCompanyAccess(slug);
+  const { company, canManageMembers } = await requireCompanyAccess(slug);
+  canConfigureTaxes = canManageMembers;
   if (id !== null && !validId(id)) return { message: "Ungültige Veranstaltung." };
+  const taxFields = form.has("taxMode") || form.has("taxRate") || form.has("taxRateOverride");
+  if (taxFields) await requireCompanyAdmin(slug);
+  const taxData = taxFields ? { taxRateOverride: taxOverrideFromForm(form) } : {};
   const db = getPrisma();
   const existing = id === null ? null : await db.event.findFirst({ where: { id, companyId: company.id }, select: { status: true, imageUrl: true } });
   if (id !== null && (!existing || (intent !== "save" && existing.status !== "DRAFT"))) return { message: "Die Veranstaltung ist nicht verfügbar. Bitte lade die Seite neu." };
@@ -100,7 +107,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
    if (warnings.length) return { warnings, message: "Möchtest du die fehlenden Angaben noch ergänzen?" };
   }
   if (hasUpload) uploaded = await uploadEventImage(company.id, file);
-  const data = { ...fields, ...(uploaded ?? (removeImage ? { imageUrl: null, imagePublicId: null } : id === null && series ? { imageUrl: series.imageUrl, imagePublicId: null } : {})), trainerName: null, beginsAt: parsed.data.beginsAt ? new Date(parsed.data.beginsAt) : null, endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null };
+  const data = { ...fields, ...taxData, ...(uploaded ?? (removeImage ? { imageUrl: null, imagePublicId: null } : id === null && series ? { imageUrl: series.imageUrl, imagePublicId: null } : {})), trainerName: null, beginsAt: parsed.data.beginsAt ? new Date(parsed.data.beginsAt) : null, endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null };
   if (id === null) {
    const session = await auth();
    if (!session?.user?.id) return { message: "Bitte melde dich erneut an." };
@@ -121,13 +128,20 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
      if (currentTrainers.length !== trainerIds.length) return { message: "Mindestens ein Trainer ist nicht mehr verfügbar.", errors: { trainerIds: ["Bitte die Trainerzuordnung prüfen."] } };
      if (!hasUpload && !removeImage && currentSeries.imageUrl !== series?.imageUrl) return { message: "Das Bild der Reihe wurde geändert. Bitte die Auswahl prüfen und erneut speichern." };
      if (intent === "publish" && occurrences.some(item => new Date(item.endsAt) <= new Date())) return { message: "Mindestens ein Termin ist inzwischen beendet. Bitte die Auswahl prüfen. Es wurde nichts angelegt." };
-     for (const occurrence of occurrences) await tx.event.create({ data: { ...creationData, beginsAt: new Date(occurrence.beginsAt), endsAt: occurrence.endsAt ? new Date(occurrence.endsAt) : null } });
+     for (const occurrence of occurrences) {
+      const created = await tx.event.create({ data: { ...creationData, beginsAt: new Date(occurrence.beginsAt), endsAt: occurrence.endsAt ? new Date(occurrence.endsAt) : null } });
+      if (created.status === "PUBLISHED") await resolveEventTax(tx, created.id);
+     }
      return { success: true };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable, timeout: 30000 });
     if (!result.success) return result;
     createdCount = occurrences.length;
    } else {
-    const created = await db.event.create({ data: creationData, select: { id: true } });
+    const created = await db.$transaction(async tx => {
+     const created = await tx.event.create({ data: creationData, select: { id: true, status: true } });
+     if (created.status === "PUBLISHED") await resolveEventTax(tx, created.id);
+     return created;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
     createdId = created.id;
    }
   } else {
@@ -136,6 +150,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
     if (!current || current.status !== existing?.status || (intent !== "save" && current.status !== "DRAFT")) return { count: 0 };
     const updated = await tx.event.updateMany({ where: { id, companyId: company.id, status: current.status }, data: { ...data, status: intent === "publish" ? "PUBLISHED" : current.status } });
     if (!updated.count) return updated;
+    if (intent === "publish" || current.status === "PUBLISHED") await resolveEventTax(tx, id);
     await tx.eventTrainer.deleteMany({ where: { eventId: id, trainerId: { notIn: trainerIds } } });
     if (trainerIds.length) await tx.eventTrainer.createMany({ data: trainerIds.map((trainerId) => ({ eventId: id, trainerId })), skipDuplicates: true });
     return updated;
@@ -143,7 +158,10 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
    if (!result.count) return { message: "Die Veranstaltung existiert nicht in dieser Company oder sein Status hat sich geändert. Bitte lade die Seite neu." };
   }
   saved = true;
- } catch (error) { return failure(error); }
+ } catch (error) {
+  if (error instanceof TaxError && canConfigureTaxes) return { message: error.message };
+  return failure(error);
+ }
  finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
  refresh(slug);
  if (multiple) return { success: true, message: `${createdCount} Veranstaltungen wurden ${intent === "publish" ? "veröffentlicht" : "als Entwurf erstellt"}.` };

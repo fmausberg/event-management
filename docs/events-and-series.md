@@ -70,3 +70,8 @@ Speichervorgänge bereinigen den neuen Upload.
 Implementierung: `lib/event-series/preview.ts`, `lib/event-series/update.ts`
 und `app/company/[companyKey]/event-series/_components/series-preview-dialog.tsx`.
 Tests: `tests/event-series.test.ts` und `tests/event-series-preview.test.ts`.
+
+
+Manuelle Steuersaetze, Venue-Vererbung und eingefrorene Buchungs-/Checkout-Werte:
+siehe [Steuerpilot](taxes.md). Im Pilot reduzieren auch Wertgutscheine die Steuerbasis
+auf den verbleibenden Zahlbetrag (ausdrueckliche Produktentscheidung).

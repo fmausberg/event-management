@@ -1,3 +1,4 @@
+import { resolveEventTax } from "@/lib/taxes/service";
 import { sanitizeDescription } from "@/lib/descriptions/html";
 import "server-only";
 import { createHash, createHmac, timingSafeEqual } from "node:crypto";
@@ -9,7 +10,7 @@ import { seriesLabels, type SeriesAttribute, type SeriesPreview } from "./previe
 import { cancellationPolicyText } from "@/lib/cancellations/policy";
 import { uploadEventImage, deleteEventImage, type UploadedEventImage } from "@/lib/events/images";
 
-type Fields = Omit<z.output<typeof seriesSchema>, "imageUrl"> & { imageUrl?: string | null; suggestedTrainerName: null };
+type Fields = Omit<z.output<typeof seriesSchema>, "imageUrl"> & { imageUrl?: string | null; suggestedTrainerName: null; taxRateOverride?: Prisma.Decimal | null };
 const include = { trainers: { include: { trainer: true }, orderBy: { trainerId: "asc" as const } }, venue: true };
 type Event = Prisma.EventGetPayload<{ include: typeof include }>;
 export class SeriesConflict extends Error {
@@ -86,6 +87,10 @@ export async function updateSeriesWithPreview(companyId: string, id: string, fie
       if (current.hash !== initial.hash) throw new SeriesConflict();
       const result = await tx.eventSeries.updateMany({ where: { id, companyId, updatedAt: current.series.updatedAt }, data: { ...fields, ...(uploaded ? { imageUrl: uploaded.imageUrl } : {}) } });
       if (result.count !== 1) throw new SeriesConflict();
+      if (fields.taxRateOverride !== undefined) {
+        const published = await tx.event.findMany({ where: { companyId, eventSeriesId: id, status: "PUBLISHED" }, select: { id: true } });
+        for (const event of published) await resolveEventTax(tx, event.id);
+      }
       for (const event of current.events) {
         const selected = current.tabs.filter((tab) => selection[tab.key]?.includes(event.id)).map((tab) => tab.key);
         if (!selected.length) continue;
@@ -102,6 +107,7 @@ export async function updateSeriesWithPreview(companyId: string, id: string, fie
         if (event.status === "PUBLISHED" && (data.endsAt === null || data.maxSeats === null || data.ticketPrice === null || data.venueId === null || data.shortdescription === null)) throw new SeriesConflict("Ein veröffentlichtes Veranstaltung benötigt Kurzbeschreibung, Ende, Teilnehmerzahl, Ticketpreis und Ort. Bitte wähle es beim Leeren dieser Vorgabe ab.");
         const updated = await tx.event.updateMany({ where: { id: event.id, companyId, eventSeriesId: id, updatedAt: event.updatedAt, beginsAt: { gt: new Date() } }, data });
         if (updated.count !== 1) throw new SeriesConflict();
+        if (event.status === "PUBLISHED") await resolveEventTax(tx, event.id);
         if (selected.includes("suggestedTrainerId")) {
           await tx.eventTrainer.deleteMany({ where: { eventId: event.id } });
           if (fields.suggestedTrainerId) await tx.eventTrainer.createMany({ data: [{ eventId: event.id, trainerId: fields.suggestedTrainerId }] });

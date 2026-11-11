@@ -1,4 +1,5 @@
 "use client";
+import { TaxOverrideFields } from "@/components/tax-override-fields";
 import { DescriptionEditor } from "@/components/description-editor";
 import { CancellationPolicyField } from "@/components/cancellation-policy-field";
 import { TrainerPicker } from "@/components/trainer-picker";
@@ -57,7 +58,7 @@ const columns: { key: SortKey; label: string }[] = [
 ];
 function RequiredMark() { return <><span aria-hidden="true" className="ml-1 text-xs text-red-600 dark:text-red-400">*</span><span className="sr-only"> (zum Veröffentlichen erforderlich)</span></>; }
 export function StatusTag({ status }: { status: EventValues["status"] }) { return <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[status]}`}>{statuses[status]}</span>; }
-type Props = { defaultSeriesId?: string; seriesDetails?: React.ReactNode; seriesHistory?: React.ReactNode; seriesNotes?: React.ReactNode; canManage: boolean; company: { name: string; slug: string }; events: EventRow[]; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[] };
+type Props = { defaultSeriesId?: string; seriesDetails?: React.ReactNode; seriesHistory?: React.ReactNode; seriesTaxes?: React.ReactNode; seriesNotes?: React.ReactNode; canManage: boolean; company: { name: string; slug: string }; events: EventRow[]; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[] };
 export function TrainerReminderControls({ slug, row, embedded = false }: { slug: string; row: EventRow; embedded?: boolean }) {
  const [sentAt, setSentAt] = useState(row.trainerReminderSentAt ?? null);
  const requestId = useRef<string | null>(null);
@@ -205,6 +206,7 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
      if (!row && !manualEnd.current) next.endsAt = suggestedEndDate(next.beginsAt, selected?.suggestedDuration);
      return next;
     }); }} className={input}><option value="">Keine Veranstaltungsreihe</option>{series.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select>{!inline && <p className="mt-1 text-xs text-zinc-500">Die Auswahl übernimmt die Vorgaben der Reihe und ersetzt die entsprechenden Formularfelder. Beginn und Status bleiben erhalten. Bei neuen Veranstaltungen wird das Ende anhand der vorgegebenen Dauer berechnet, solange es nicht manuell angepasst wurde. Alle Werte sind danach bearbeitbar.</p>}</div>
+    <TaxOverrideFields slug={slug} kind="event" id={row?.id} venueId={values.venueId} seriesId={values.eventSeriesId} />
     {!row && <fieldset className={inline ? "space-y-2 sm:col-span-2" : "space-y-2"}><legend className="mb-2 text-sm font-medium">Erstellung</legend><div className="flex flex-wrap gap-3">
       <label className="flex items-center gap-2 text-sm"><input type="radio" name="creationMode" value="single" checked={!multiple} onChange={() => setCreationMode(false)} />Eine Veranstaltung erstellen</label>
       <label className={`flex items-center gap-2 text-sm ${!values.eventSeriesId ? "text-zinc-400" : ""}`}><input type="radio" name="creationMode" value="multiple" checked={multiple} disabled={!values.eventSeriesId} onChange={() => setCreationMode(true)} />Mehrere Veranstaltungen erstellen</label>
@@ -256,7 +258,7 @@ function DeleteEvent({ slug, row, onDeleted }: { slug: string; row: EventRow; on
  const [state, action, pending] = useActionState<EventState, FormData>(async (previous, data) => { const result = await deleteEvent(slug, row.id, previous, data); if (result.success) onDeleted(result.message!); return result; }, {});
  return <div className="max-w-64">{confirming ? <form action={action}><p>„{row.name}“ endgültig löschen?</p><input type="hidden" name="confirmed" value="yes" /><div className="mt-2 flex gap-3"><button disabled={pending} className="text-red-700 underline dark:text-red-300">{pending ? "Wird gelöscht …" : "Löschen bestätigen"}</button><button type="button" disabled={pending} onClick={() => setConfirming(false)} className="underline">Abbrechen</button></div></form> : <button type="button" disabled={row._count.bookings > 0 || row._count.platformEvents > 0} title="Löschen nur ohne Buchungen und Plattformzuordnungen" aria-label={`${row.name || "Unbenannter Entwurf"} löschen`} onClick={() => setConfirming(true)} className="rounded-lg px-2 py-0.5 text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-40 dark:text-red-300 dark:hover:bg-red-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5 6l1 14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1l1-14M10 10v7M14 10v7" /></svg></button>}{state.message && <p role="alert" className="text-red-700 dark:text-red-300">{state.message}</p>}</div>;
 }
-export function EventsTable({ company, events, series, venues, trainers, canManage, seriesDetails, seriesHistory, seriesNotes, defaultSeriesId }: Props) {
+export function EventsTable({ company, events, series, venues, trainers, canManage, seriesDetails, seriesHistory, seriesNotes, seriesTaxes, defaultSeriesId }: Props) {
  const visibleColumns = columns.filter(column => !seriesDetails || column.key !== "series");
  const [editor, setEditor] = useState<{ row?: EventRow } | null>(null);
  const [query, setQuery] = useState(""); const [message, setMessage] = useState("");
@@ -324,5 +326,6 @@ export function EventsTable({ company, events, series, venues, trainers, canMana
   {renderSection(filtered.filter(isPreviousDay), "Vergangene Veranstaltungen", pastSort, setPastSort, true)}
   {seriesNotes}
   {seriesHistory}
+  {seriesTaxes}
  </main>;
 }

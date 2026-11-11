@@ -1,3 +1,4 @@
+import { TaxConfiguration } from "@/components/tax-configuration";
 import { notFound, redirect } from "next/navigation";
 import { refreshConnectAccount } from "@/lib/payments/connect";
 import { startStripeOnboarding } from "./actions";
@@ -54,6 +55,7 @@ export default async function CompanySettingsPage({ params, searchParams }: { pa
    </form>}
    {connected && <a href="https://dashboard.stripe.com/" target="_blank" rel="noopener noreferrer" className="block underline">Zahlungen und Erstattungen bei Stripe verwalten</a>}
   </section>
+  <TaxConfiguration slug={companyKey} kind="country" />
   <EventbriteSettingsSection companyKey={companyKey} error={error} />
  </main>;
 }

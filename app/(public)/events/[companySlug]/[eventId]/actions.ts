@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { euroAmount, paymentOrigin } from "@/lib/payments/stripe";
 import { refreshConnectAccount } from "@/lib/payments/connect";
 import { ensureCheckout } from "@/lib/payments/checkout";
+import { bookingTaxSnapshot, TaxError } from "@/lib/taxes/service";
 import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
@@ -102,7 +103,7 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
             amount = token.price === "0.00" ? 0 : euroAmount(token.price, event.currency, parsed.data.quantity);
             await tx.bookingPrice.create({ data: { bookingId: token.id, eventId, companyId: event.companyId, currency: event.currency,
               unitPriceMinor: Number(token.price.replace(".", "")), quantity: parsed.data.quantity, originalAmountMinor: amount,
-              discountAmountMinor: 0, voucherAmountMinor: 0, payableAmountMinor: amount, calculationVersion: 1 } });
+              discountAmountMinor: 0, voucherAmountMinor: 0, payableAmountMinor: amount, calculationVersion: 1, ...await bookingTaxSnapshot(tx, eventId, amount) } });
           }
           if (amount > 0) {
             if (!connectChecked) throw new ConnectRefreshRequired(event.companyId);
@@ -112,7 +113,7 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
             await tx.payment.create({ data: { id: paymentId, bookingId: token.id, publicToken, stripeAccountId: event.company.stripeAccountId,
               amount, currency: event.currency, checkoutRequest: {
                 mode: "payment", allowed_payment_method_types: ["card"], client_reference_id: token.id, customer_email: parsed.data.email,
-                metadata: { paymentId, bookingPriceVersion: "1" }, payment_intent_data: { metadata: { paymentId } },
+                metadata: { paymentId, bookingPriceVersion: "1", pilotTaxStatus: "pending" }, payment_intent_data: { metadata: { paymentId } },
                 expires_at: expiresAt, success_url: returnUrl, cancel_url: returnUrl,
                 // Order discount may not divide evenly by ticket count: one booking line.
                 line_items: [{ price_data: { currency: "eur", unit_amount: amount,
@@ -142,6 +143,7 @@ export async function bookPublicEvent(slug: string, eventId: string, _previous: 
   } catch (error) {
     if (error instanceof TicketCodeError) console.error("[tickets:create] Code unavailable", error.reason);
     if (error instanceof VoucherError) return { message: error.code === "UNAVAILABLE" ? "Die Gutscheinprüfung ist derzeit nicht verfügbar." : error.message };
+    if (error instanceof TaxError) return { message: error.message };
     if (error instanceof BookingError) return { message: error.message };
     if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2034", "P2002"].includes(error.code)) return { message: "Eine Buchung wurde gleichzeitig verarbeitet. Bitte klicke erneut auf Buchen; eine bereits gespeicherte Buchung wird nicht doppelt angelegt." };
     return { message: "Die Buchung konnte gerade nicht abgeschlossen werden. Bitte versuche es erneut." };

@@ -187,6 +187,7 @@ model AuthRateLimit {
 }
 
 model Company {
+  taxRules CompanyTaxRule[]
   eventbriteConnection EventbriteConnection?
   eventbriteOAuth EventbriteOAuth?
   ownedVoucherCampaigns  VoucherCampaign[]        @relation("VoucherCampaignOwner")
@@ -309,6 +310,7 @@ model Venue {
 }
 
 model EventSeries {
+  taxRateOverride Decimal? @db.Decimal(7, 4)
   notes Note[]
   voucherCampaignTargets VoucherCampaignEventSeries[]
   // ID & number
@@ -349,6 +351,7 @@ model EventSeries {
 }
 
 model Event {
+  taxRateOverride Decimal? @db.Decimal(7, 4)
   notes Note[]
   reviews EventReview[]
   voucherCampaignTargets VoucherCampaignEvent[]
@@ -1100,7 +1103,31 @@ model VoucherBalanceEntry {
 }
 
 // Optional for existing Bookings. No backfill; SQL migration makes snapshots append-only.
+enum TaxRuleSource {
+  EVENT_OVERRIDE
+  SERIES_OVERRIDE
+  COMPANY_COUNTRY_RULE
+}
+
+model CompanyTaxRule {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  countryCode String @db.Char(2)
+  rate Decimal @db.Decimal(7, 4)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([companyId, countryCode])
+}
+
 model BookingPrice {
+  taxCountryCode String? @db.Char(2)
+  taxRate Decimal? @db.Decimal(7, 4)
+  taxGrossMinor Int?
+  taxMinor Int?
+  taxNetMinor Int?
+  taxSource TaxRuleSource?
+  taxCalculationVersion Int?
   bookingId           String   @id
   booking             Booking  @relation(fields: [bookingId], references: [id], onDelete: Restrict, onUpdate: Restrict)
   eventId             String
@@ -1163,4 +1190,15 @@ model Note {
   @@index([ticketId, createdAt, id])
   @@index([trainerId, createdAt, id])
   @@index([cancellationRequestId, createdAt, id])
+}
+
+// Connected-account-local immutable manual tax identity.
+model StripeTaxRateCache {
+  stripeAccountId String
+  countryCode String @db.Char(2)
+  rate Decimal @db.Decimal(7,4)
+  displayName String
+  stripeTaxRateId String
+  createdAt DateTime @default(now())
+  @@id([stripeAccountId, countryCode, rate, displayName])
 }

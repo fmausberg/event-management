@@ -1046,3 +1046,8 @@ Formularbedienung und einmalige Klartextanzeige; Navigationstests prüfen die Ro
 Die bestehenden Gutschein-/Buchungs-/Storno-Tests bleiben maßgeblich.
 Die Testdoubles ersetzen keine echte PostgreSQL-Parallelitätsprüfung. Keine
 Migration oder Änderung bestehender Daten war für die Verwaltung erforderlich.
+
+
+Manuelle Steuersaetze, Venue-Vererbung und eingefrorene Buchungs-/Checkout-Werte:
+siehe [Steuerpilot](taxes.md). Im Pilot reduzieren auch Wertgutscheine die Steuerbasis
+auf den verbleibenden Zahlbetrag (ausdrueckliche Produktentscheidung).

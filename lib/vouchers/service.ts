@@ -1,4 +1,5 @@
 import "server-only";
+import { bookingTaxSnapshot } from "@/lib/taxes/service";
 import { Prisma } from "@prisma/client";
 import { auth } from "@/auth";
 import { getPrisma } from "@/lib/db/prisma";
@@ -170,7 +171,7 @@ export async function reserveVoucherInTransaction(tx: Tx, input: VoucherReservat
   await tx.bookingPrice.create({ data: { bookingId: booking.id, eventId: event.id, companyId: event.companyId,
     currency: price.currency, unitPriceMinor: price.unitPriceMinor, quantity: price.quantity,
     originalAmountMinor: price.originalAmountMinor, discountAmountMinor: price.discountAmountMinor,
-    voucherAmountMinor: price.voucherAmountMinor, payableAmountMinor: price.payableAmountMinor, calculationVersion: 1 } });
+    voucherAmountMinor: price.voucherAmountMinor, payableAmountMinor: price.payableAmountMinor, calculationVersion: 1, ...await bookingTaxSnapshot(tx, event.id, price.payableAmountMinor) } });
   return { bookingId: booking.id, price, replay: false };
 }
 

@@ -1,3 +1,4 @@
+import { assertCheckoutTax } from "./tax-rates";
 import { hasVoucher, reverseBookingVoucher, voucherHistory } from "@/lib/vouchers/reversal";
 import { queueCancellationMail } from "@/lib/cancellations/mail";
 import "server-only";
@@ -16,6 +17,7 @@ export async function applyCheckoutSession(session: Stripe.Checkout.Session, acc
     if (payment.stripeAccountId !== accountId || (payment.checkoutSessionId && payment.checkoutSessionId !== session.id) ||
       session.client_reference_id !== payment.bookingId || session.amount_total !== payment.amount || session.currency !== payment.currency.toLowerCase() || session.mode !== "payment") throw new Error("Checkout mismatch");
     if (eventId && await tx.stripeWebhookEvent.findUnique({ where: { id: eventId } })) return payment.id;
+    assertCheckoutTax(session, payment);
     const paid = session.status === "complete" && session.payment_status === "paid";
     const expired = session.status === "expired";
     if (payment.status === "PENDING" && (paid || expired)) {

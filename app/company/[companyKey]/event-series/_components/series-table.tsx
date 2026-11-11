@@ -1,4 +1,5 @@
 "use client";
+import { TaxOverrideFields } from "@/components/tax-override-fields";
 import { DescriptionEditor } from "@/components/description-editor";
 import { DescriptionHtml } from "@/components/description-html";
 import { isDescriptionEmpty } from "@/lib/descriptions/html";
@@ -64,6 +65,7 @@ export function SeriesForm({ slug, row, venues, trainers, onSaved, onCancel, inl
     {!inline && <header className="flex items-center justify-between"><h2 id="series-form-title" className="font-semibold">{row ? "Veranstaltungsreihe bearbeiten" : "Veranstaltungsreihe erstellen"}</h2><button type="button" disabled={pending || trainerBusy} aria-label="Formular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>}
     <fieldset disabled={pending || !!preview} className={inline ? "grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : "space-y-4"}>
       <div className={inline ? "grid min-w-0 gap-4 sm:grid-cols-2" : "space-y-4"}>
+      {!readOnly && <TaxOverrideFields slug={slug} kind="series" id={row?.id} />}
       {fields.map(({ name, label, ...attributes }) => <div key={name} className="min-w-0"><label htmlFor={`series-${name}`} className="text-sm text-zinc-500">{label}</label>{readOnly ? <p id={`series-${name}`} className={readValueClass}>{row?.[name] ?? "—"}{name === "suggestedTicketPrice" && row?.suggestedTicketPrice !== null ? ` ${row?.suggestedCurrency ?? "EUR"}` : ""}</p> : <><input {...attributes} id={`series-${name}`} name={name} required={name === "name"} defaultValue={row?.[name] ?? ""} aria-invalid={!!state.errors?.[name]} aria-describedby={state.errors?.[name] ? `error-${name}` : undefined} className={inputClass} />{error(name)}</>}</div>)}
       <div className="min-w-0">{readOnly ? <><p className="text-sm text-zinc-500">Kostenfreie Stornofrist (optional)</p><p className={readValueClass}>{cancellationPolicyText(row?.suggestedFreeCancellationUntilMinutesBeforeStart ?? null)}</p></> : <CancellationPolicyField name="suggestedFreeCancellationUntilMinutesBeforeStart" value={cancellationMinutes} onChange={setCancellationMinutes} error={state.errors?.suggestedFreeCancellationUntilMinutesBeforeStart} />}</div>
 

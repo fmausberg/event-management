@@ -3,13 +3,9 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { calculateEventRevenue } from "@/lib/bookings/revenue";
 
-it.each([["DE", 19], ["AT", 20], [" at ", 20], [null, 19], ["CH", 19]])("uses the configured calculation rate for %s", (country, rate) => {
+it.each(["DE", "AT", null, "CH"])("never invents legacy tax from %s", country => {
   const revenue = calculateEventRevenue([{ status: "CONFIRMED", quantity: 1, payment: { status: "PAID", amount: 10000, currency: "EUR" } }], country);
-  expect(revenue.vatRate).toBe(rate);
-  expect(revenue.vat).toBe(`${rate}.00`);
-  expect(revenue.net).toBe(rate === 20 ? "78.25" : "79.25");
-  const html = renderToStaticMarkup(createElement(EventRevenueSummary, { revenue }));
-  expect(html).toContain(`${rate} % des Bruttoumsatzes`);
+  expect(revenue).toMatchObject({ vatRate: null, vat: null, net: null, unknownTaxCount: 1 });
 });
 import { EventRevenueSummary } from "@/app/company/[companyKey]/events/[eventId]/bookings/_components/event-revenue";
 
@@ -47,13 +43,13 @@ it("uses decimal arithmetic for legacy quantities and preserves a negative diffe
 });
 it("does not invent revenue, fees or missing-payment warnings for complimentary tickets", () => {
   const revenue = calculateEventRevenue([{ status: "CONFIRMED", quantity: 1, payment: null, price: { payableAmountMinor: 0, originalAmountMinor: 10000, currency: "EUR" } }]);
-  expect(revenue).toMatchObject({ gross: "0.00", stripeFees: "0.00", net: "0.00", excludedCount: 0 });
+  expect(revenue).toMatchObject({ gross: "0.00", stripeFees: "0.00", net: null, excludedCount: 0 });
 });
 
 it("uses stored booking totals and charges the flat fee per booking, not per ticket", () => {
   const bookings = [{ ...paid(6000), quantity: 3 }, { ...paid(4000), quantity: 2 }];
   const result = calculateEventRevenue(bookings);
-  expect(result).toEqual({ listGross: null, listDifference: null, gross: "100.00", vat: "19.00", stripeFees: "2.00", net: "79.00", bookingCount: 2, excludedCount: 0, vatRate: 19 });
+  expect(result).toMatchObject({ listGross: null, listDifference: null, gross: "100.00", vat: null, stripeFees: "2.00", net: null, bookingCount: 2, excludedCount: 0, vatRate: null });
 });
 it("excludes manual bookings, unpaid or refunded payments and inactive bookings", () => {
   const result = calculateEventRevenue([
@@ -61,7 +57,7 @@ it("excludes manual bookings, unpaid or refunded payments and inactive bookings"
     ...["PENDING", "EXPIRED", "REFUNDED"].map((status) => ({ ...paid(2000), payment: { ...paid(2000).payment, status } })),
     ...["PENDING_PAYMENT", "EXPIRED", "CANCELLED"].map((status) => ({ ...paid(2000), status })),
   ]);
-  expect(result).toEqual({ listGross: null, listDifference: null, gross: "20.00", vat: "3.80", stripeFees: "0.55", net: "15.65", bookingCount: 1, excludedCount: 1, vatRate: 19 });
+  expect(result).toMatchObject({ listGross: null, listDifference: null, gross: "20.00", vat: null, stripeFees: "0.55", net: null, bookingCount: 1, excludedCount: 1, vatRate: null });
 });
 it("does not mix currencies or invent partial-refund amounts", () => {
   const result = calculateEventRevenue([
@@ -71,13 +67,26 @@ it("does not mix currencies or invent partial-refund amounts", () => {
   expect(result.gross).toBe("0.00"); expect(result.excludedCount).toBe(2); expect(result.stripeFees).toBe("0.00");
 });
 it("rounds deductions to cents and subtracts the displayed rounded values", () => {
-  expect(calculateEventRevenue([paid(1999)])).toMatchObject({ gross: "19.99", vat: "3.80", stripeFees: "0.55", net: "15.64" });
-  expect(calculateEventRevenue([paid(100)])).toMatchObject({ stripeFees: "0.27", net: "0.54" });
+  expect(calculateEventRevenue([taxed(1999, 319)])).toMatchObject({ gross: "19.99", vat: "3.19", stripeFees: "0.55", net: "16.25" });
+  expect(calculateEventRevenue([taxed(100, 16)])).toMatchObject({ stripeFees: "0.27", net: "0.57" });
 });
 it("renders the five calculations and explains excluded amounts", () => {
-  const html = renderToStaticMarkup(createElement(EventRevenueSummary, { revenue: calculateEventRevenue([paid(10000), { status: "CONFIRMED", quantity: 1, payment: null }]) }));
-  for (const label of ["Bruttoumsatz", "MwSt.", "Stripe-Gebühren", "Nettoumsatz", "100,00", "19,00", "1,75", "79,25", "1 bestätigte Buchungen sind nicht eingerechnet"]) expect(html).toContain(label);
+  const html = renderToStaticMarkup(createElement(EventRevenueSummary, { revenue: calculateEventRevenue([taxed(10000, 1597), { status: "CONFIRMED", quantity: 1, payment: null }]) }));
+  for (const label of ["Bruttoumsatz", "Enthaltene Steuer", "Stripe-Gebühren", "Nettoumsatz", "100,00", "15,97", "1,75", "82,28", "1 bestätigte Buchungen sind nicht eingerechnet"]) expect(html).toContain(label);
 });
 it("shows zero totals for an empty event", () => {
-  expect(calculateEventRevenue([])).toEqual({ listGross: "0.00", listDifference: "0.00", gross: "0.00", vat: "0.00", stripeFees: "0.00", net: "0.00", bookingCount: 0, excludedCount: 0, vatRate: 19 });
+  expect(calculateEventRevenue([])).toMatchObject({ listGross: "0.00", listDifference: "0.00", gross: "0.00", vat: "0.00", stripeFees: "0.00", net: "0.00", bookingCount: 0, excludedCount: 0, vatRate: null });
+});
+
+function taxed(amount: number, taxMinor: number, rate = "19") {
+ return { ...paid(amount), price: { payableAmountMinor: amount, originalAmountMinor: amount, currency: "EUR", taxMinor, taxRate: rate, taxGrossMinor: amount, taxCalculationVersion: 1 } };
+}
+it("adds the actual mixed-rate snapshots", () => {
+ expect(calculateEventRevenue([taxed(11900, 1900), taxed(10700, 700, "7")])).toMatchObject({ gross: "226.00", vat: "26.00", vatRate: null, taxRates: ["19", "7"] });
+});
+it("does not render tax revenue fields for Company Users", () => {
+ const { vat, vatRate, net, taxGross, unknownTaxCount, taxRates, ...publicRevenue } = calculateEventRevenue([taxed(11900, 1900)]);
+ const html = renderToStaticMarkup(createElement(EventRevenueSummary, { revenue: publicRevenue }));
+ expect(html).not.toContain("Enthaltene Steuer"); expect(html).not.toContain("Nettoumsatz");
+ expect(html).toContain("119,00");
 });

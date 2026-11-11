@@ -1,3 +1,4 @@
+import { prepareTaxCheckout, assertCheckoutTax } from "./tax-rates";
 import "server-only";
 import Stripe from "stripe";
 import type { Payment, Prisma } from "@prisma/client";
@@ -6,10 +7,16 @@ import { getStripe } from "./stripe";
 import { releaseVoucherInTransaction, voucherTransaction } from "@/lib/vouchers/service";
 
 export async function ensureCheckout(payment: Payment) {
+  payment = await getPrisma().payment.findUniqueOrThrow({ where: { id: payment.id } });
   const stripe = getStripe();
-  if (payment.checkoutSessionId) return stripe.checkout.sessions.retrieve(payment.checkoutSessionId, {}, { stripeAccount: payment.stripeAccountId });
+  if (payment.checkoutSessionId) {
+    const session = await stripe.checkout.sessions.retrieve(payment.checkoutSessionId, {}, { stripeAccount: payment.stripeAccountId });
+    assertCheckoutTax(session, payment);
+    return session;
+  }
   // Do not reuse a pruned Stripe idempotency key after 24 hours.
   if (Date.now() - payment.createdAt.getTime() > 23 * 60 * 60_000) throw new Error("Checkout requires manual reconciliation");
+  payment = await prepareTaxCheckout(payment);
   let session;
   const requestMetadata = (payment.checkoutRequest as { metadata?: { checkoutRequestVersion?: string } }).metadata;
   const keySuffix = requestMetadata?.checkoutRequestVersion === "card-filter-v2" ? "-card-filter-v2" : "";
@@ -47,5 +54,6 @@ export async function ensureCheckout(payment: Payment) {
     throw error;
   }
   await getPrisma().payment.update({ where: { id: payment.id }, data: { checkoutSessionId: session.id } });
+  assertCheckoutTax(session, payment);
   return session;
 }

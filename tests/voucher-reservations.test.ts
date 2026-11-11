@@ -10,7 +10,7 @@ const { db, auth } = vi.hoisted(() => ({
   auth: vi.fn(),
   db: {
     $transaction: vi.fn(), $queryRaw: vi.fn(),
-    event: { findUnique: vi.fn() }, booking: { findUnique: vi.fn() },
+    event: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn() }, booking: { findUnique: vi.fn() },
     voucherCode: { findMany: vi.fn(), findUniqueOrThrow: vi.fn() },
     voucherCampaign: { findUnique: vi.fn() },
     voucherRedemption: { count: vi.fn(), create: vi.fn(), update: vi.fn() },
@@ -53,6 +53,7 @@ beforeEach(() => {
   db.voucherCode.findUniqueOrThrow.mockImplementation(async () => code);
   db.event.findUnique.mockResolvedValue({ id: "event", companyId: "company", eventSeriesId: null, venueId: null, eventSeries: null, venue: null,
     status: "PUBLISHED", beginsAt: new Date(Date.now() + 86400000), ticketPrice: new Prisma.Decimal("20.00"), currency: "EUR" });
+  db.event.findUniqueOrThrow.mockResolvedValue({ companyId: "company", taxRateOverride: new Prisma.Decimal(19), eventSeries: null, venue: { companyId: "company", countryCode: "DE" } });
   db.voucherRedemption.count.mockResolvedValue(0); db.voucherBalanceUse.count.mockResolvedValue(0);
   db.voucherBalance.updateMany.mockResolvedValue({ count: 1 });
   db.voucherBalanceUse.create.mockImplementation(async ({ data }) => ({ id: "use", status: "RESERVED", ...data }));
@@ -74,7 +75,7 @@ it("quotes without writing and sends only digests to the code lookup", async () 
 it("reserves a single campaign use for multiple tickets and persists trusted price snapshots", async () => {
   expect(await reserve()).toMatchObject({ ok: true, value: { replay: false, price: { originalAmountMinor: 4000, discountAmountMinor: 800 } } });
   expect(db.voucherRedemption.create).toHaveBeenCalledOnce();
-  expect(db.bookingPrice.create).toHaveBeenCalledWith({ data: expect.objectContaining({ unitPriceMinor: 2000, quantity: 2, payableAmountMinor: 3200 }) });
+  expect(db.bookingPrice.create).toHaveBeenCalledWith({ data: expect.objectContaining({ unitPriceMinor: 2000, quantity: 2, payableAmountMinor: 3200, taxGrossMinor: 3200, taxMinor: 511, taxNetMinor: 2689 }) });
   expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "Serializable" });
   expect(db.$queryRaw).toHaveBeenCalled();
 });
@@ -251,4 +252,10 @@ it.each(["campaign", "code", "balance"])("retries two overlapping %s reservation
  expect(results.find(result => !result.ok)).toMatchObject({ ok: false, error: { code: limit === "balance" ? "NO_BALANCE" : "LIMIT_REACHED" } });
  expect(committedUses).toBe(1); expect(db.$transaction).toHaveBeenCalledTimes(3);
  if (limit === "balance") expect(reservedMinor).toBe(4000);
+});
+
+it("reduces the pilot tax basis to zero for a fully covering stored-value voucher", async () => {
+ stored();
+ expect(await reserve()).toMatchObject({ ok: true, value: { price: { payableAmountMinor: 0, voucherAmountMinor: 4000 } } });
+ expect(db.bookingPrice.create).toHaveBeenCalledWith({ data: expect.objectContaining({ taxGrossMinor: 0, taxMinor: 0, taxNetMinor: 0 }) });
 });

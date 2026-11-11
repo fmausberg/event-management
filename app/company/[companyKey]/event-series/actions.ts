@@ -1,4 +1,5 @@
 "use server";
+import { taxOverrideFromForm, TaxError } from "@/lib/taxes/service";
 import { sanitizeDescription } from "@/lib/descriptions/html";
 
 import { SeriesConflict, updateSeriesWithPreview } from "@/lib/event-series/update";
@@ -6,7 +7,7 @@ import { Prisma } from "@prisma/client";
 import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { withAuditContext } from "@/lib/audit/context";
-import { MemberAccessError, requireCompanyAccess } from "@/lib/companies/members";
+import { MemberAccessError, requireCompanyAccess, requireCompanyAdmin } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 import { seriesSchema, type SeriesState } from "@/lib/event-series/validation";
 
@@ -22,6 +23,7 @@ function refresh(slug: string) {
   revalidatePath("/admin/companies");
 }
 function failure(error: unknown): SeriesState {
+  if (error instanceof TaxError) return { message: "Die Steuerkonfiguration ist unvollstaendig. Bitte einen Company Admin kontaktieren." };
   if (error instanceof SeriesConflict) return { message: error.message };
   if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034") return { message: "Die Daten wurden gleichzeitig geändert. Bitte lade die Seite neu und prüfe die Vorschau erneut." };
   if (error instanceof EventImageError) return { message: error.message };
@@ -42,9 +44,14 @@ async function saveSeriesWithContext(slug: string, id: string | null, _previous:
   let uploaded: UploadedEventImage | undefined;
   let saved = false;
   let createdId: string | undefined;
+  let canConfigureTaxes = false;
   try {
-    const { company } = await requireCompanyAccess(slug);
+    const { company, canManageMembers } = await requireCompanyAccess(slug);
+    canConfigureTaxes = canManageMembers;
     if (id !== null && !validId(id)) return { message: "Ungültige Veranstaltungsreihe." };
+    const taxFields = form.has("taxMode") || form.has("taxRate") || form.has("taxRateOverride");
+    if (taxFields) await requireCompanyAdmin(slug);
+    const taxData = taxFields ? { taxRateOverride: taxOverrideFromForm(form) } : {};
     const parsed = seriesSchema.safeParse(Object.fromEntries(Object.keys(seriesSchema.shape).map((key) => [key, key === "suggestedCurrency" ? "EUR" : key === "imageUrl" ? "" : form.get(key) ?? ""])));
     if (!parsed.success) return { message: "Bitte korrigiere die markierten Felder.", errors: parsed.error.flatten().fieldErrors };
   parsed.data.description = sanitizeDescription(parsed.data.description);
@@ -59,20 +66,23 @@ async function saveSeriesWithContext(slug: string, id: string | null, _previous:
     if (id !== null) {
       const { imageUrl: ignored, ...fields } = parsed.data;
       void ignored;
-      const result = await updateSeriesWithPreview(company.id, id, { ...fields, ...(removeImage ? { imageUrl: null } : {}), suggestedTrainerName: null }, hasUpload ? file : null, form);
+      const result = await updateSeriesWithPreview(company.id, id, { ...fields, ...taxData, ...(removeImage ? { imageUrl: null } : {}), suggestedTrainerName: null }, hasUpload ? file : null, form);
       if (result.success) refresh(slug);
       return result;
     }
     if (hasUpload) uploaded = await uploadEventImage(company.id, file);
     const { imageUrl: ignoredImageUrl, ...fields } = parsed.data;
     void ignoredImageUrl;
-    const data = { ...fields, ...(uploaded ? { imageUrl: uploaded.imageUrl } : removeImage ? { imageUrl: null } : {}), suggestedTrainerName: null };
+    const data = { ...fields, ...taxData, ...(uploaded ? { imageUrl: uploaded.imageUrl } : removeImage ? { imageUrl: null } : {}), suggestedTrainerName: null };
     const session = await auth();
     if (!session?.user?.id) return { message: "Bitte melde dich erneut an." };
     const created = await db.eventSeries.create({ data: { ...data, companyId: company.id, createdById: session.user.id }, select: { id: true } });
     createdId = created.id;
     saved = true;
-  } catch (error) { return failure(error); }
+  } catch (error) {
+    if (error instanceof TaxError && canConfigureTaxes) return { message: error.message };
+    return failure(error);
+  }
   finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
   refresh(slug);
   return { success: true, id: createdId, message: id === null ? "Veranstaltungsreihe wurde erstellt." : "Veranstaltungsreihe wurde gespeichert." };

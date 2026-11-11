@@ -1,3 +1,4 @@
+import { TaxConfiguration } from "@/components/tax-configuration";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { PageBreadcrumb } from "@/components/page-breadcrumb";
@@ -30,6 +31,7 @@ export default async function CompanyEventDetailPage({ params, searchParams }: {
       <EventBookings slug={result.company.slug} eventId={event.id} />
       <EventTickets slug={result.company.slug} eventId={event.id} />
     </EventDetails>
+    <TaxConfiguration slug={companyKey} kind="event" id={event.id} />
     <EventReviews slug={result.company.slug} eventId={event.id} />
     <EventHistory slug={result.company.slug} eventId={event.id} page={historyPage} />
   </main>;

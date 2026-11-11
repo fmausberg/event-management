@@ -75,3 +75,8 @@ Teilrefunds lösen keine anteilige Gutscheinrückgabe aus. Reconciliation prüft
 verlorene externe Refund-Ereignisse bei Gutscheinbuchungen. Ablaufdatum und
 Guthabenstatus bleiben unverändert. Details, Grenzen und Prüfungen:
 [Gutschein-Vollstorno](vouchers.md#14-vollstorno-und-erstattung).
+
+
+Manuelle Steuersaetze, Venue-Vererbung und eingefrorene Buchungs-/Checkout-Werte:
+siehe [Steuerpilot](taxes.md). Im Pilot reduzieren auch Wertgutscheine die Steuerbasis
+auf den verbleibenden Zahlbetrag (ausdrueckliche Produktentscheidung).
