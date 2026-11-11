@@ -71,3 +71,12 @@ it("verifies the Stripe tax total, including explicit zero", async () => {
  expect(log).toHaveBeenCalledWith("[payments:tax] Checkout tax total mismatch; reconciliation required");
  log.mockRestore();
 });
+
+it("skips existing Stripe tax rates with null metadata", async () => {
+ stripe.taxRates.list.mockReturnValue((async function* () {
+  yield { id: "txr_unrelated", metadata: null, country: "DE", display_name: "MwSt.", percentage: 19 };
+ })());
+ const current = await prepareTaxCheckout(payment);
+ expect(stripe.taxRates.create).toHaveBeenCalledOnce();
+ expect(current.checkoutRequest).toMatchObject({ line_items: [{ tax_rates: ["txr_19"] }] });
+});

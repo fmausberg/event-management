@@ -15,7 +15,7 @@ async function manualTaxRate(stripeAccountId: string, countryCode: string, rate:
  // Recover rates even after Stripe prunes its 24-hour idempotency cache.
  let stripeTaxRateId: string | undefined;
  for await (const existing of stripe.taxRates.list({ active: true, inclusive: true, limit: 100 }, { stripeAccount: stripeAccountId })) {
-  if (existing.metadata.pilotTaxKey === key && existing.country === countryCode && existing.display_name === displayName && rate.eq(String(existing.percentage))) { stripeTaxRateId = existing.id; break; }
+  if (existing.metadata?.pilotTaxKey === key && existing.country === countryCode && existing.display_name === displayName && rate.eq(String(existing.percentage))) { stripeTaxRateId = existing.id; break; }
  }
  if (!stripeTaxRateId) {
   const created = await stripe.taxRates.create({ country: countryCode, percentage: rate.toNumber(), inclusive: true,
