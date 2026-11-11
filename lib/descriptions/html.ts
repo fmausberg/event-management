@@ -8,7 +8,7 @@ export function isDescriptionEmpty(html: string | null | undefined): boolean {
 }
 export function sanitizeDescription(html: string | null | undefined): string | null {
   if (html == null) return null;
-  const clean = sanitizeHtml(html, { allowedTags: ["p", "br", "strong", "em", "u", "ul", "ol", "li"], allowedAttributes: {}, nonTextTags: ["script", "style", "textarea", "option", "iframe", "object"], transformTags: { b: "strong", i: "em" } });
+  const clean = sanitizeHtml(html, { allowedTags: ["p", "br", "strong", "em", "u", "ul", "ol", "li", "a"], allowedAttributes: { a: ["href", "title"] }, allowedSchemes: ["http", "https", "mailto", "tel"], allowProtocolRelative: false, nonTextTags: ["script", "style", "textarea", "option", "iframe", "object"], transformTags: { b: "strong", i: "em" } });
   return isDescriptionEmpty(clean) ? null : clean;
 }
 // Explicit plaintext conversion only; never use for inherited HTML.

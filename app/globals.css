@@ -59,3 +59,4 @@ body {
 .description-html strong { font-weight: 700; }
 .description-html em { font-style: italic; }
 .description-html u { text-decoration: underline; }
+.description-html a { color: var(--color-primary-600); text-decoration: underline; text-underline-offset: 2px; }

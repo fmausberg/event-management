@@ -4,11 +4,19 @@ import { PGlite } from "@electric-sql/pglite";
 import { descriptionToText, isDescriptionEmpty, plainTextToDescription, sanitizeDescription } from "@/lib/descriptions/html";
 
 describe("HTML descriptions", () => {
-  it("keeps only supported formatting without attributes or active content", () => {
-    expect(sanitizeDescription('<p onclick="evil()" class="word"><b>B</b><i>I</i><u style="color:red">U</u><br><a href="javascript:evil()">link</a><img src=x onerror=evil()></p><script>evil()</script><iframe>bad</iframe>')).toBe('<p><strong>B</strong><em>I</em><u>U</u><br />link</p>');
+  it("keeps only supported formatting and safe attributes without active content", () => {
+    expect(sanitizeDescription('<p onclick="evil()" class="word"><b>B</b><i>I</i><u style="color:red">U</u><br><a href="javascript:evil()">link</a><img src=x onerror=evil()></p><script>evil()</script><iframe>bad</iframe>')).toBe('<p><strong>B</strong><em>I</em><u>U</u><br /><a>link</a></p>');
     const html = '<ul><li><p>One</p></li></ul><ol><li><p>Two</p></li></ol>';
     expect(sanitizeDescription(html)).toBe(html);
     expect(sanitizeDescription(sanitizeDescription(html))).toBe(html);
+  });
+  it.each(["https://example.com/?a=1&amp;b=2", "http://example.com", "mailto:yoga@example.com", "tel:+4930123456"])("preserves a safe link when saving again: %s", (href) => {
+    const html = `<p><a href="${href}" title="Kontakt"><strong>Mehr erfahren</strong></a></p>`;
+    expect(sanitizeDescription(html)).toBe(html);
+    expect(sanitizeDescription(sanitizeDescription(html))).toBe(html);
+  });
+  it.each(["javascript:alert(1)", "jav&#x61;script:alert(1)", "data:text/html,evil", "//example.com"])("removes unsafe link destinations and attributes: %s", (href) => {
+    expect(sanitizeDescription(`<p><a href="${href}" onclick="evil()" target="_blank" style="color:red">Text</a></p>`)).toBe('<p><a>Text</a></p>');
   });
   it.each([null, "", "  ", "<p></p>", "<p><br></p>", "<p>&nbsp; &#160; &#xA0;</p>"])("recognizes empty content: %s", (html) => {
     expect(isDescriptionEmpty(html)).toBe(true);
