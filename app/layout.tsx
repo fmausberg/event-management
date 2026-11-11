@@ -24,7 +24,9 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  const navigation = await getNavigation();
+  // A database outage must not prevent the public status page from rendering.
+  // Protected pages still enforce their own authorization.
+  const navigation = await getNavigation().catch(() => null);
   return (
     <html
       lang="de"

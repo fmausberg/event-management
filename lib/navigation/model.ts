@@ -62,6 +62,7 @@ export function buildNavigation(user: NavigationUser, hasStaffOrTrainerAssignmen
       { label: "Benutzer", href: "/admin/users", icon: "users" },
       { label: "Trainer", href: "/admin/trainers", icon: "users" },
       { label: "Audit", href: "/admin/audit", icon: "audit" },
+      { label: "Plattformstatus", href: "/status/overview", icon: "settings" },
     ],
   });
   return { user: { name: user.name, email: user.email }, groups };

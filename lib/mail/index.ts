@@ -31,7 +31,7 @@ const messageSchema = z.object({
 });
 export type MailMessage = z.input<typeof messageSchema>;
 
-function getMailer() {
+function getMailer(timeoutMs?: number) {
   // Lazy configuration: building and running unrelated pages needs no SMTP secret.
   const result = configSchema.safeParse({
     host: process.env.SMTP_HOST,
@@ -52,9 +52,9 @@ function getMailer() {
     requireTLS: true,
     tls: { minVersion: "TLSv1.2", rejectUnauthorized: true },
     auth: { user: config.user, pass: config.password },
-    connectionTimeout: 15_000,
-    greetingTimeout: 15_000,
-    socketTimeout: 30_000,
+    connectionTimeout: timeoutMs ?? 15_000,
+    greetingTimeout: timeoutMs ?? 15_000,
+    socketTimeout: timeoutMs ?? 30_000,
     logger: false,
     debug: false,
     disableFileAccess: true,
@@ -95,11 +95,16 @@ export async function sendMail(input: MailMessage): Promise<{ messageId: string 
 }
 
 /** Checks connection/authentication without sending an email. */
-export async function verifyMailConnection(): Promise<void> {
-  const { transport } = getMailer();
+export async function verifyMailConnection(timeoutMs?: number): Promise<void> {
+  const { transport } = getMailer(timeoutMs);
   try {
     await transport.verify();
-  } catch {
-    throw new Error("SMTP-Verbindung fehlgeschlagen. Bitte Zugangsdaten und Servereinstellungen prüfen.");
+  } catch (error) {
+    const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
+    throw Object.assign(new Error("SMTP-Verbindung fehlgeschlagen. Bitte Zugangsdaten und Servereinstellungen prüfen."), {
+      code: code === "EAUTH" || code === "ETIMEDOUT" ? code : undefined,
+    });
+  } finally {
+    transport.close?.();
   }
 }

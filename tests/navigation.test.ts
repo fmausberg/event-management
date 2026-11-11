@@ -42,7 +42,7 @@ describe("navigation visibility", () => {
     expect(buildNavigation(user).groups.some((group) => group.id === "admin")).toBe(false);
     const result = buildNavigation({ ...user, role: "ADMIN" });
     expect(result.groups.find((group) => group.id === "admin")?.items.map((item) => item.href)).toEqual([
-      "/admin/companies", "/admin/vouchers", "/admin/venues", "/admin/event-series", "/admin/events", "/admin/users", "/admin/trainers", "/admin/audit",
+      "/admin/companies", "/admin/vouchers", "/admin/venues", "/admin/event-series", "/admin/events", "/admin/users", "/admin/trainers", "/admin/audit", "/status/overview",
     ]);
     expect(result.groups[1].items).toHaveLength(9);
   });
