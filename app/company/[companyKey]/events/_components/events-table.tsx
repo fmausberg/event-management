@@ -6,12 +6,14 @@ import type { TrainerOption } from "@/lib/trainers/validation";
 import { EventStaff } from "./event-staff";
 import { PublishConfirmation } from "./publish-confirmation";
 import { CancelConfirmation } from "./cancel-confirmation";
+import { BookedEventConfirmation } from "./booked-event-confirmation";
 import { EventImage } from "./event-image";
 import { BatchDates } from "./batch-dates";
 import type { BatchSelection } from "@/lib/company-events/batch-schedule";
 import { formatBerlinDateTime } from "@/lib/events/berlin-date-time";
 import Link from "next/link";
 import { useActionState, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { saveEvent, deleteEvent, sendTrainerInfo, type TrainerReminderActionState } from "../actions";
 import { suggestedEndDate, applySeries, emptyEvent, localDateTime, type EventRow, type EventState, type EventValues } from "@/lib/company-events/model";
 import type { SeriesRow, VenueOption } from "@/lib/event-series/validation";
@@ -106,9 +108,17 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
  const [publishWarnings, setPublishWarnings] = useState<string[] | null>(null);
  const publishDecision = useRef<((publish: boolean) => void) | null>(null);
  const [cancelConfirmation, setCancelConfirmation] = useState(false);
+ const [bookedEventConfirmation, setBookedEventConfirmation] = useState(false);
+ const bookedEventDecision = useRef<((save: boolean) => void) | null>(null);
+ function decideBookedEvent(save: boolean) {
+  setBookedEventConfirmation(false);
+  bookedEventDecision.current?.(save);
+  bookedEventDecision.current = null;
+  if (!save) requestAnimationFrame(() => formElement.current?.querySelector<HTMLButtonElement>('button[name="intent"]')?.focus());
+ }
  const cancelButton = useRef<HTMLButtonElement>(null);
  const cancelSubmit = useRef<HTMLButtonElement>(null);
- useEffect(() => () => { publishDecision.current?.(false); }, []);
+ useEffect(() => () => { publishDecision.current?.(false); bookedEventDecision.current?.(false); }, []);
  function decideCancellation(cancel: boolean) {
   setCancelConfirmation(false);
   if (cancel && cancelSubmit.current) cancelSubmit.current.form?.requestSubmit(cancelSubmit.current);
@@ -146,6 +156,13 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
    const date = new Date(String(data.get(key)));
    if (!Number.isFinite(date.getTime())) return { message: "Bitte gib gültige Start- und Endzeiten ein." };
    data.set(key, date.toISOString());
+  }
+  if (row && row._count.bookings > 0 && data.get("intent") !== "cancel") {
+   const confirmed = await new Promise<boolean>(resolve => {
+    bookedEventDecision.current = resolve;
+    flushSync(() => setBookedEventConfirmation(true));
+   });
+   if (!confirmed) return {};
   }
   let result = await saveEvent(slug, row?.id ?? null, previous, data);
   if (result.warnings?.length) {
@@ -229,6 +246,7 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
   {row && !inline && <EventStaff slug={slug} eventId={row.id} />}
   {publishWarnings && <PublishConfirmation missing={publishWarnings} count={multiple ? batch.dates.length : undefined} onDecision={decidePublication} />}
   {cancelConfirmation && <CancelConfirmation onDecision={decideCancellation} />}
+  {bookedEventConfirmation && <BookedEventConfirmation onDecision={decideBookedEvent} />}
   {row && !inline && <TrainerReminderControls slug={slug} row={row} />}
  </>;
  return inline ? <div>{content}</div> : <dialog ref={panel} aria-labelledby="event-form-title" onCancel={(e) => { e.preventDefault(); if (!pending && !trainerBusy) onCancel(); }} className={`fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full ${multiple ? "max-w-3xl xl:w-[48rem]" : "max-w-md xl:w-[28rem]"} overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100`}>{content}</dialog>;
