@@ -99,16 +99,46 @@ function DeleteSeries({ slug, row, onDeleted }: { slug: string; row: SeriesRow; 
   }, {});
   return <div className="max-w-64">{confirm ? <form action={action} className="space-y-2"><p>„{row.name}“ endgültig löschen?</p><input type="hidden" name="confirmed" value="yes" /><div className="flex gap-3"><button disabled={pending} className="text-red-700 underline dark:text-red-300">{pending ? "Wird gelöscht ..." : "Löschen bestätigen"}</button><button type="button" disabled={pending} onClick={() => setConfirm(false)} className="underline">Abbrechen</button></div></form> : <button type="button" disabled={row._count.events > 0} title={row._count.events ? "Diese Veranstaltungsreihe hat noch Veranstaltungen." : "Veranstaltungsreihe löschen"} aria-label={`${row.name} löschen`} onClick={() => setConfirm(true)} className="rounded-lg p-2 text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-red-600 disabled:opacity-40 dark:text-red-300 dark:hover:bg-red-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5 6l1 14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1l1-14M10 10v7M14 10v7" /></svg></button>}{state.message && <p role="alert" className="mt-2 text-red-700 dark:text-red-300">{state.message}</p>}</div>;
 }
+type SeriesSortKey = "number" | "name" | "venue" | "duration" | "participants" | "price" | "events";
+const seriesColumns: { key: SeriesSortKey; label: string }[] = [
+  { key: "number", label: "Nr." },
+  { key: "name", label: "Veranstaltungsreihe" },
+  { key: "venue", label: "Ort" },
+  { key: "duration", label: "Dauer" },
+  { key: "participants", label: "Teilnehmer" },
+  { key: "price", label: "Preis" },
+  { key: "events", label: "Veranstaltungen" },
+];
 export function SeriesTable({ company, series, venues }: { company: { name: string; slug: string }; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[] }) {
   const [query, setQuery] = useState("");
   const [message, setMessage] = useState("");
-  const visible = series.filter((row) => `${row.name} ${row.number} ${row.shortdescription ?? ""}`.toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
+  const [sort, setSort] = useState<{ key: SeriesSortKey; direction: "asc" | "desc" } | null>(null);
+  function sortValue(row: SeriesRow, key: SeriesSortKey): string | number | null {
+    if (key === "number") return row.number;
+    if (key === "name") return row.name;
+    if (key === "venue") return venues.find(venue => venue.id === row.suggestedVenueId)?.name ?? null;
+    if (key === "duration") return row.suggestedDuration;
+    if (key === "participants") return row.suggestedMaxSeats;
+    if (key === "price") return row.suggestedTicketPrice === null || row.suggestedTicketPrice === "" ? null : Number(row.suggestedTicketPrice);
+    return row._count.events;
+  }
+  function changeSort(key: SeriesSortKey) {
+    setSort(current => current?.key === key ? { key, direction: current.direction === "asc" ? "desc" : "asc" } : { key, direction: "asc" });
+  }
+  const filtered = series.filter((row) => `${row.name} ${row.number} ${row.shortdescription ?? ""}`.toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
+  const visible = sort ? filtered.map((row, index) => ({ row, index })).sort((left, right) => {
+    const a = sortValue(left.row, sort.key), b = sortValue(right.row, sort.key);
+    if (a === null || a === "") return b === null || b === "" ? left.index - right.index : 1;
+    if (b === null || b === "") return -1;
+    const compared = typeof a === "number" && typeof b === "number" ? a - b : String(a).localeCompare(String(b), "de-DE", { numeric: true, sensitivity: "base" });
+    return (sort.direction === "asc" ? compared : -compared) || left.index - right.index;
+  }).map(item => item.row) : filtered;
   return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
     <header className="flex flex-wrap items-center justify-between gap-4"><div><h1 className="text-2xl font-semibold">Veranstaltungsreihen</h1><p className="mt-1 text-sm text-zinc-500">{company.name}</p></div><Link href={`/company/${encodeURIComponent(company.slug)}/event-series/new`} className={primaryClass}>+ Veranstaltungsreihe erstellen</Link></header>
     {message && <p role="status" className="text-sm text-green-700 dark:text-green-300">{message}</p>}
     <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       <div className="flex flex-wrap items-center justify-between gap-3 p-4"><label className="text-sm"><span className="sr-only">Veranstaltungsreihen durchsuchen</span><input type="search" placeholder="Veranstaltungsreihen durchsuchen …" value={query} onChange={(event) => setQuery(event.target.value)} className={inputClass} /></label><span className="text-sm text-zinc-500">{visible.length} von {series.length} Veranstaltungsreihen</span></div>
-      <table className="w-full text-left text-sm"><caption className="sr-only">Veranstaltungsreihen von {company.name}</caption><thead className="bg-zinc-100 text-xs dark:bg-zinc-900"><tr>{["Nr.", "Veranstaltungsreihe", "Ort", "Dauer", "Teilnehmer", "Preis", "Veranstaltungen", "Aktionen"].map((label) => <th scope="col" key={label} className="px-4 py-3">{label}</th>)}</tr></thead><tbody>{visible.map((row) => <tr key={row.id} className="border-t border-zinc-200 align-top dark:border-zinc-800"><td className="px-4 py-4">{row.number}</td><th scope="row" className="min-w-48 px-4 py-4 font-medium"><Link href={`/company/${encodeURIComponent(company.slug)}/event-series/${encodeURIComponent(row.id)}`} className="text-primary-700 underline focus-visible:outline-primary-600 dark:text-primary-300">{row.name}</Link>{row.shortdescription && <p className="mt-1 text-xs font-normal text-zinc-500">{row.shortdescription}</p>}</th><td className="px-4 py-4">{venues.find((venue) => venue.id === row.suggestedVenueId)?.name ?? "—"}</td><td className="whitespace-nowrap px-4 py-4">{row.suggestedDuration ? `${row.suggestedDuration} Min.` : "—"}</td><td className="px-4 py-4">{row.suggestedMaxSeats ?? "—"}</td><td className="whitespace-nowrap px-4 py-4">{row.suggestedTicketPrice === null ? "—" : `${row.suggestedTicketPrice.replace(".", ",")} ${row.suggestedCurrency}`}</td><td className="px-4 py-4">{row._count.events}</td><td className="px-4 py-4"><div className="flex items-start gap-2"><DeleteSeries slug={company.slug} row={row} onDeleted={setMessage} /></div></td></tr>)}</tbody></table>
+      <table className="w-full text-left text-sm"><caption className="sr-only">Veranstaltungsreihen von {company.name}</caption><thead className="bg-zinc-100 text-xs dark:bg-zinc-900"><tr>{seriesColumns.map(column => <th key={column.key} scope="col" aria-sort={sort?.key === column.key ? sort.direction === "asc" ? "ascending" : "descending" : "none"} className="px-2 py-2"><button type="button" onClick={() => changeSort(column.key)} className="flex w-full items-center gap-1 rounded px-2 py-1 text-left font-semibold hover:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-primary-600 dark:hover:bg-zinc-800">{column.label}<span aria-hidden="true" className="w-3">{sort?.key === column.key ? sort.direction === "asc" ? "↑" : "↓" : "↕"}</span></button></th>)}<th scope="col" className="px-4 py-3">Aktionen</th></tr></thead><tbody>{visible.map((row) => <tr key={row.id} className="border-t border-zinc-200 align-top dark:border-zinc-800"><td className="px-4 py-4">{row.number}</td><th scope="row" className="min-w-48 px-4 py-4 font-medium"><Link href={`/company/${encodeURIComponent(company.slug)}/event-series/${encodeURIComponent(row.id)}`} className="text-primary-700 underline focus-visible:outline-primary-600 dark:text-primary-300">{row.name}</Link>{row.shortdescription && <p className="mt-1 text-xs font-normal text-zinc-500">{row.shortdescription}</p>}</th><td className="px-4 py-4">{venues.find((venue) => venue.id === row.suggestedVenueId)?.name ?? "—"}</td><td className="whitespace-nowrap px-4 py-4">{row.suggestedDuration ? `${row.suggestedDuration} Min.` : "—"}</td><td className="px-4 py-4">{row.suggestedMaxSeats ?? "—"}</td><td className="whitespace-nowrap px-4 py-4">{row.suggestedTicketPrice === null ? "—" : `${row.suggestedTicketPrice.replace(".", ",")} ${row.suggestedCurrency}`}</td><td className="px-4 py-4">{row._count.events}</td><td className="px-4 py-4"><div className="flex items-start gap-2"><DeleteSeries slug={company.slug} row={row} onDeleted={setMessage} /></div></td></tr>)}</tbody></table>
       {!visible.length && <p className="p-8 text-center text-sm text-zinc-500">{series.length ? "Keine passenden Veranstaltungsreihen gefunden." : "Noch keine Veranstaltungsreihen vorhanden. Erstelle die erste Veranstaltungsreihe über den Button oben."}</p>}
     </div>
     <p className="text-xs text-zinc-500">Veranstaltungsreihen mit zugeordneten Veranstaltungen können nicht gelöscht werden.</p>

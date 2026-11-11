@@ -24,7 +24,7 @@ it.each(["0", "-1", "1.5", "abc", "2147483648"])("rejects invalid duration %s", 
 });
 it("saves duration as integer minutes and allows clearing it", async () => {
  expect((await saveSeries("yoga", null, {}, form({ suggestedDuration: "90" }))).success).toBe(true);
- expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ suggestedDuration: 90 }) });
+ expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ suggestedDuration: 90 }), select: { id: true } });
  await saveSeries("yoga", "series-1", {}, form({ suggestedDuration: "" }));
  expect(db.eventSeries.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ suggestedDuration: null }) }));
 });
@@ -42,11 +42,12 @@ beforeEach(() => {
  db.eventSeries.findFirst.mockResolvedValue({ ...seriesSchema.parse(values), id: "series-1", companyId: "company-id", updatedAt: new Date("2026-01-01"), suggestedTrainerName: null }); db.trainer.findMany.mockResolvedValue([]); auth.mockResolvedValue({ user: { id: "actor" } }); db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
  db.company.findUnique.mockResolvedValue({ id: "company-id", slug: "yoga", name: "Yoga" });
  db.eventSeries.findMany.mockResolvedValue([]); db.venue.findMany.mockResolvedValue([]);
+ db.eventSeries.create.mockResolvedValue({ id: "series-1" });
  db.eventSeries.updateMany.mockResolvedValue({ count: 1 }); db.eventSeries.deleteMany.mockResolvedValue({ count: 1 });
 });
 it("creates with trusted company and creator, normalizing price and currency", async () => {
  expect((await saveSeries("yoga", null, {}, form({ companyId: "foreign", createdById: "foreign" }))).success).toBe(true);
- expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ name: "Yoga", companyId: "company-id", createdById: "actor", suggestedTicketPrice: "12.50", suggestedCurrency: "EUR", suggestedMaxSeats: null }) });
+ expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ name: "Yoga", companyId: "company-id", createdById: "actor", suggestedTicketPrice: "12.50", suggestedCurrency: "EUR", suggestedMaxSeats: null }), select: { id: true } });
 });
 it("scopes updates and deletes to company and preserves events", async () => {
  await saveSeries("yoga", "series-1", {}, form());
@@ -76,7 +77,7 @@ it("rejects foreign trainers and saves a same-company trainer as the default", a
  db.trainer.findFirst.mockResolvedValue({ id: "trainer-1" });
  expect((await saveSeries("yoga", null, {}, form({ suggestedTrainerId: "trainer-1", suggestedTrainerName: "Ignored" }))).success).toBe(true);
  expect(db.trainer.findFirst).toHaveBeenLastCalledWith({ where: { id: "trainer-1", companyId: "company-id" }, select: { id: true } });
- expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ suggestedTrainerId: "trainer-1", suggestedTrainerName: null }) });
+ expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ suggestedTrainerId: "trainer-1", suggestedTrainerName: null }), select: { id: true } });
 });
 it("rejects missing confirmation, missing series and linked events", async () => {
  expect((await deleteSeries("yoga", "series-1", {}, form())).success).toBeUndefined();
@@ -106,7 +107,7 @@ it.each(["COMPANY_USER", "COMPANY_ADMIN", "ADMIN"])("allows %s to upload a serie
  vi.mocked(uploadEventImage).mockResolvedValue({ imageUrl: "https://example.com/new.jpg", imagePublicId: "new" });
  const data = form(); data.set("coverImage", new File(["image"], "cover.jpg", { type: "image/jpeg" }));
  expect((await saveSeries("yoga", null, {}, data)).success).toBe(true);
- expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ imageUrl: "https://example.com/new.jpg" }) });
+ expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ imageUrl: "https://example.com/new.jpg" }), select: { id: true } });
  expect(deleteEventImage).not.toHaveBeenCalled();
 });
 it("rejects uploads for a foreign series before contacting Cloudinary", async () => {
@@ -235,7 +236,7 @@ it("rejects a replay after the series version changed", async () => {
 it("sanitizes descriptions on creation and update without altering shortdescription", async () => {
  const data = form({ description: '<p onclick="bad()"><u>Text</u></p><script>bad()</script>', shortdescription: '<p>Kurz</p>' });
  expect((await saveSeries("yoga", null, {}, data)).success).toBe(true);
- expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ description: '<p><u>Text</u></p>', shortdescription: '<p>Kurz</p>' }) });
+ expect(db.eventSeries.create).toHaveBeenCalledWith({ data: expect.objectContaining({ description: '<p><u>Text</u></p>', shortdescription: '<p>Kurz</p>' }), select: { id: true } });
  await saveSeries("yoga", "series-1", {}, data);
  expect(db.eventSeries.updateMany).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ description: '<p><u>Text</u></p>' }) }));
 });
