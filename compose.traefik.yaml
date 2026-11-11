@@ -9,7 +9,7 @@ services:
       traefik.enable: "true"
       traefik.docker.network: "web"
 
-      traefik.http.routers.event-yoga-app.rule: "Host(`app.event-yoga.com`)"
+      traefik.http.routers.event-yoga-app.rule: "Host(`events.mausberg.net`) || Host(`app.event-yoga.com`)"
       traefik.http.routers.event-yoga-app.entrypoints: "websecure"
       traefik.http.routers.event-yoga-app.tls: "true"
       traefik.http.routers.event-yoga-app.tls.certresolver: "myresolver"
@@ -17,7 +17,7 @@ services:
 
       traefik.http.services.event-yoga-app.loadbalancer.server.port: "3000"
 
-      traefik.http.routers.event-yoga-app-http.rule: "Host(`app.event-yoga.com`)"
+      traefik.http.routers.event-yoga-app-http.rule: "Host(`events.mausberg.net`) || Host(`app.event-yoga.com`)"
       traefik.http.routers.event-yoga-app-http.entrypoints: "web"
       traefik.http.routers.event-yoga-app-http.middlewares: "event-yoga-app-https"
       traefik.http.routers.event-yoga-app-http.service: "event-yoga-app"
