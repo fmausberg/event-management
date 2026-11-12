@@ -1,0 +1,121 @@
+name: Deploy IONOS production
+
+on:
+  push:
+    branches:
+      - prod/app.event-yoga.com
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ionos-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/prod/app.event-yoga.com'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and publish app image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: runner
+          push: true
+          tags: ghcr.io/fmausberg/event-management-app:${{ github.sha }}
+          cache-from: type=gha,scope=ionos-app
+          cache-to: type=gha,mode=max,scope=ionos-app
+
+      - name: Build and publish migration image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          target: migrate
+          push: true
+          tags: ghcr.io/fmausberg/event-management-migrate:${{ github.sha }}
+          cache-from: type=gha,scope=ionos-migrate
+          cache-to: type=gha,mode=max,scope=ionos-migrate
+
+  deploy:
+    if: github.ref == 'refs/heads/prod/app.event-yoga.com'
+    needs: build
+    runs-on: ubuntu-latest
+    environment: ionos-production
+    steps:
+      - name: Deploy images on IONOS
+        env:
+          DEPLOY_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          IMAGE_TAG: ${{ github.sha }}
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          test -n "$DEPLOY_HOST"
+          test -n "$DEPLOY_USER"
+          test -n "$DEPLOY_PATH"
+          test -n "$DEPLOY_KEY"
+
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+
+          ssh -i ~/.ssh/deploy_key "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' IMAGE_TAG='$IMAGE_TAG' TARGET_BRANCH='$TARGET_BRANCH' bash -s" <<'REMOTE'
+          set -euo pipefail
+
+          if [ ! -d "$DEPLOY_PATH/.git" ]; then
+            mkdir -p "$(dirname "$DEPLOY_PATH")"
+            git clone --single-branch --branch "$TARGET_BRANCH" \
+              https://github.com/fmausberg/event-management.git "$DEPLOY_PATH"
+          else
+            git -C "$DEPLOY_PATH" fetch origin "$TARGET_BRANCH"
+            git -C "$DEPLOY_PATH" checkout "$TARGET_BRANCH"
+            git -C "$DEPLOY_PATH" reset --hard "origin/$TARGET_BRANCH"
+          fi
+
+          cd "$DEPLOY_PATH"
+          ENV_FILE=/opt/docker/event-management/.env.docker
+          test -r "$ENV_FILE"
+
+          docker compose --env-file "$ENV_FILE" \
+            -f compose.yaml -f compose.traefik.yaml -p event-management \
+            pull app migrate
+
+          docker compose --env-file "$ENV_FILE" \
+            -f compose.yaml -f compose.traefik.yaml -p event-management \
+            up -d --no-build
+
+          used_ids="$(docker ps -aq | xargs -r docker inspect --format '{{.Image}}' | sort -u)"
+          for repo in \
+            ghcr.io/fmausberg/event-management-app \
+            ghcr.io/fmausberg/event-management-migrate
+          do
+            docker image ls "$repo" --format '{{.ID}} {{.Repository}}:{{.Tag}}' |
+            while read -r image_id image_ref; do
+              [ -n "$image_id" ] || continue
+              [ "$image_ref" = "$repo:$IMAGE_TAG" ] && continue
+              if grep -Fxq "$image_id" <<<"$used_ids"; then
+                continue
+              fi
+              docker image rm "$image_ref"
+            done
+          done
+          REMOTE

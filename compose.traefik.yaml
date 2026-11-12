@@ -9,19 +9,19 @@ services:
       traefik.enable: "true"
       traefik.docker.network: "web"
 
-      traefik.http.routers.event-management.rule: "Host(`events.mausberg.net`)"
-      traefik.http.routers.event-management.entrypoints: "websecure"
-      traefik.http.routers.event-management.tls: "true"
-      traefik.http.routers.event-management.tls.certresolver: "myresolver"
-      traefik.http.routers.event-management.service: "event-management"
+      traefik.http.routers.event-yoga-app.rule: "Host(`events.mausberg.net`) || Host(`app.event-yoga.com`)"
+      traefik.http.routers.event-yoga-app.entrypoints: "websecure"
+      traefik.http.routers.event-yoga-app.tls: "true"
+      traefik.http.routers.event-yoga-app.tls.certresolver: "myresolver"
+      traefik.http.routers.event-yoga-app.service: "event-yoga-app"
 
-      traefik.http.services.event-management.loadbalancer.server.port: "3000"
+      traefik.http.services.event-yoga-app.loadbalancer.server.port: "3000"
 
-      traefik.http.routers.event-management-http.rule: "Host(`events.mausberg.net`)"
-      traefik.http.routers.event-management-http.entrypoints: "web"
-      traefik.http.routers.event-management-http.middlewares: "event-management-https"
-      traefik.http.routers.event-management-http.service: "event-management"
-      traefik.http.middlewares.event-management-https.redirectscheme.scheme: "https"
+      traefik.http.routers.event-yoga-app-http.rule: "Host(`events.mausberg.net`) || Host(`app.event-yoga.com`)"
+      traefik.http.routers.event-yoga-app-http.entrypoints: "web"
+      traefik.http.routers.event-yoga-app-http.middlewares: "event-yoga-app-https"
+      traefik.http.routers.event-yoga-app-http.service: "event-yoga-app"
+      traefik.http.middlewares.event-yoga-app-https.redirectscheme.scheme: "https"
 
 networks:
   default:
