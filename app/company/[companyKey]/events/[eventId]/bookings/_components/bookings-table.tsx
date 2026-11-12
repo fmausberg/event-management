@@ -1,4 +1,5 @@
 "use client";
+import { UnsavedChangesForm } from "@/components/unsaved-changes";
 import { bookingSource } from "@/lib/bookings/source";
 import { ObjectNotes, type NoteSummaries } from "@/components/object-notes";
 import Link from "next/link";
@@ -21,7 +22,7 @@ export function BookingForm({ slug, eventId, row, onSaved, onCancel, modal = fal
     }, [modal]);
     const [state, action, pending] = useActionState<BookingState, FormData>(async (previous, form) => { const result = await saveBooking(slug, eventId, row?.id ?? null, previous, form); if (result.success) onSaved(result.message!); return result; }, {});
     return <dialog ref={panel} aria-labelledby="booking-form-title" onCancel={(e) => { e.preventDefault(); if (!pending) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
-        <form action={action} className="space-y-5"><header className="flex items-center justify-between"><h2 id="booking-form-title" className="font-semibold">{row ? "Buchung bearbeiten" : "Buchung erstellen"}</h2><button type="button" disabled={pending} onClick={onCancel} aria-label="Formular schließen" className="p-2 text-xl">×</button></header>
+        <UnsavedChangesForm saveState={state} action={action} className="space-y-5"><header className="flex items-center justify-between"><h2 id="booking-form-title" className="font-semibold">{row ? "Buchung bearbeiten" : "Buchung erstellen"}</h2><button type="button" disabled={pending} data-discard-changes onClick={onCancel} aria-label="Formular schließen" className="p-2 text-xl">×</button></header>
             <fieldset disabled={pending} className="space-y-4">
                 <div><label htmlFor="booking-name">Name</label><input id="booking-name" name="customerName" required={!row} defaultValue={row?.customerName ?? ""} maxLength={160} className={input} /></div>
                 <div><label htmlFor="booking-email">E-Mail-Adresse</label><input id="booking-email" name="customerEmail" type="email" required={!row} defaultValue={row?.customerEmail ?? ""} maxLength={254} className={input} /></div>
@@ -31,8 +32,8 @@ export function BookingForm({ slug, eventId, row, onSaved, onCancel, modal = fal
             {!row && <p className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200"><strong>Hinweis:</strong> Beim Erstellen werden die Buchungsbestätigung und die Tickets automatisch an die angegebene E-Mail-Adresse versendet. Die Buchung ist kostenlos (100 % Rabatt). Es wird keine Finanztransaktion durchgeführt. Ein Benutzeraccount ist nicht erforderlich.</p>}
             {row?.platform && <p className="text-xs text-zinc-500">Änderungen gelten lokal. Ein späterer Plattformimport kann sie überschreiben.</p>}
             {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
-            <div className="flex gap-3"><button disabled={pending} className={primary}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} onClick={onCancel} className="underline">Abbrechen</button></div>
-        </form>
+            <div className="flex gap-3"><button disabled={pending} className={primary}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} data-discard-changes onClick={onCancel} className="underline">Abbrechen</button></div>
+        </UnsavedChangesForm>
     </dialog>;
 }
 export function RemoveBooking({ slug, eventId, row, onDeleted }: { slug: string; eventId: string; row: BookingRow; onDeleted: (message: string) => void }) {

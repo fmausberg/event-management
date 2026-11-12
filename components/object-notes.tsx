@@ -1,4 +1,5 @@
 "use client";
+import { UnsavedChangesForm } from "@/components/unsaved-changes";
 
 import { useEffect, useId, useRef, useState } from "react";
 import { createNote, deleteNote, listNotes, updateNote } from "@/app/company/notes/actions";
@@ -17,7 +18,7 @@ function NoteForm({ note, target, onSaved, onCancel }: { note?: Note; target: No
   const [pending, setPending] = useState(false);
   const locked = useRef(false);
   const [error, setError] = useState("");
-  return <form className="space-y-3" onSubmit={async event => {
+  return <UnsavedChangesForm className="space-y-3" onSubmit={async event => {
     event.preventDefault();
     if (locked.current || !body.trim()) return;
     locked.current = true; setPending(true); setError("");
@@ -32,8 +33,8 @@ function NoteForm({ note, target, onSaved, onCancel }: { note?: Note; target: No
     <div><label htmlFor={id} className="text-sm">Notiztext</label><textarea autoFocus id={id} required rows={3} value={body} disabled={pending} onChange={event => setBody(event.target.value)} aria-describedby={error ? `${id}-error` : undefined} className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-base focus:ring-2 focus:ring-primary-500 dark:border-zinc-700" /></div>
     <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={privateNote} disabled={pending} onChange={event => setPrivate(event.target.checked)} />Private Notiz – nur für mich sichtbar</label>
     {error && <p id={`${id}-error`} role="alert" className="text-sm text-red-700 dark:text-red-300">{error}</p>}
-    <div className="flex gap-2"><button disabled={pending || !body.trim()} className={`${button} bg-primary-600 text-white hover:bg-primary-700`}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} className={button} onClick={onCancel}>Abbrechen</button></div>
-  </form>;
+    <div className="flex gap-2"><button disabled={pending || !body.trim()} className={`${button} bg-primary-600 text-white hover:bg-primary-700`}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} className={button} data-discard-changes onClick={onCancel}>Abbrechen</button></div>
+  </UnsavedChangesForm>;
 }
 
 function NoteItem({ note, target, userId, onChanged, onDeleted }: { note: Note; target: NoteTarget; userId: string; onChanged: (note: Note) => void; onDeleted: () => void }) {
@@ -98,7 +99,7 @@ function NotesDialog({ target, label, userId, onClose, onCount }: { target: Note
     return () => { element.close(); previous?.focus(); };
   }, []);
   return <dialog ref={dialog} aria-labelledby={title} onCancel={event => { event.preventDefault(); onClose(); }} className="fixed inset-0 m-auto max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-2xl overflow-hidden rounded-2xl border border-zinc-200 bg-white p-0 text-zinc-950 shadow-2xl backdrop:bg-black/40 dark:border-zinc-700 dark:bg-zinc-950 dark:text-zinc-100">
-    <div className="flex max-h-[calc(100dvh-2rem)] flex-col"><header className="flex shrink-0 items-start justify-between gap-4 border-b border-zinc-200 p-4 dark:border-zinc-800"><div><h2 id={title} className="text-lg font-semibold">Notizen</h2><p className="break-words text-sm text-zinc-500">{label}</p></div><button autoFocus type="button" className={button} aria-label="Notizen schließen" onClick={onClose}>×</button></header><div className="overflow-y-auto overscroll-contain p-4"><NoteList target={target} userId={userId} onCount={onCount} /></div></div>
+    <div className="flex max-h-[calc(100dvh-2rem)] flex-col"><header className="flex shrink-0 items-start justify-between gap-4 border-b border-zinc-200 p-4 dark:border-zinc-800"><div><h2 id={title} className="text-lg font-semibold">Notizen</h2><p className="break-words text-sm text-zinc-500">{label}</p></div><button autoFocus type="button" className={button} aria-label="Notizen schließen" data-discard-changes onClick={onClose}>×</button></header><div className="overflow-y-auto overscroll-contain p-4"><NoteList target={target} userId={userId} onCount={onCount} /></div></div>
   </dialog>;
 }
 

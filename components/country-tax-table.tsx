@@ -1,4 +1,5 @@
 "use client";
+import { UnsavedChangesForm } from "@/components/unsaved-changes";
 import { useActionState, useId, useState } from "react";
 import { useRouter } from "next/navigation";
 import { countries } from "@/lib/taxes/countries";
@@ -22,12 +23,12 @@ function CountryRow({ slug, row, onSaved }: { slug: string; row: CountryTaxRow; 
    <td className="px-4 py-3"><div className="flex items-center gap-2"><input form={formId} name="rate" aria-label={`Steuersatz für ${countryName} in Prozent`} inputMode="decimal" maxLength={8} value={rate} disabled={pending} onChange={event => { setRate(event.target.value); setConfirmation(undefined); }} className="w-24 rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-right tabular-nums outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700" /><span>%</span></div></td>
    <td className="px-4 py-3 text-right tabular-nums">{row.venueCount}</td>
    <td className="px-4 py-3 text-right tabular-nums">{row.upcomingCount}</td>
-   <td className="px-4 py-3"><form id={formId} action={action} className="flex items-center gap-3">
+   <td className="px-4 py-3"><UnsavedChangesForm saveState={state} id={formId} action={action} className="flex items-center gap-3">
     <input type="hidden" name="countryCode" value={row.countryCode} />
     {confirmation && <><input type="hidden" name="confirmedRate" value={confirmation.rate} /><input type="hidden" name="confirmedUpcomingCount" value={confirmation.upcomingCount} /><input type="hidden" name="confirmedAffectedCount" value={confirmation.affectedCount} /></>}
     <button name="intent" value="update" disabled={pending} aria-label={confirmation ? `Änderung für ${countryName} bestätigen` : `Steuersatz für ${countryName} speichern`} title={confirmation ? "Änderung bestätigen" : "Speichern"} className="rounded-lg p-2 text-primary-700 hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-primary-600 disabled:opacity-40 dark:text-primary-300 dark:hover:bg-primary-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h12l4 4v12a2 2 0 0 1-2 2Z" /><path d="M7 3v6h10V3M7 21v-8h10v8" /></svg></button>
     <button name="intent" value="remove" disabled={pending || row.upcomingCount > 0} aria-label={`Länderregel für ${countryName} löschen`} title={row.upcomingCount ? "Löschen ist erst ohne kommende Events möglich." : "Länderregel löschen"} className="rounded-lg p-2 text-red-700 hover:bg-red-50 focus-visible:outline-2 focus-visible:outline-red-600 disabled:cursor-not-allowed disabled:opacity-40 dark:text-red-300 dark:hover:bg-red-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2M5 6l1 14a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1l1-14M10 10v7M14 10v7" /></svg></button>
-   </form></td>
+   </UnsavedChangesForm></td>
   </tr>
   {(confirmation || state.message && !state.confirmation) && <tr className="border-t border-zinc-200 dark:border-zinc-800"><td colSpan={5} className="px-4 py-3">
    {confirmation ? <div role="alert" className="space-y-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-100">

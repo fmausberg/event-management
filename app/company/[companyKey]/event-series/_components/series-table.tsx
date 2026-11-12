@@ -1,4 +1,5 @@
 "use client";
+import { UnsavedChangesForm } from "@/components/unsaved-changes";
 import { TaxOverrideFields } from "@/components/tax-override-fields";
 import { DescriptionEditor } from "@/components/description-editor";
 import { DescriptionHtml } from "@/components/description-html";
@@ -61,8 +62,8 @@ export function SeriesForm({ slug, row, venues, trainers, onSaved, onCancel, inl
   const trainer = trainers.find(item => item.id === row?.suggestedTrainerId);
   const readValueClass = "mt-1 min-h-11 rounded-lg border border-transparent px-3 py-2 whitespace-pre-wrap break-words";
   const content = (
-    <form ref={formElement} action={action} onSubmit={(e) => { if (readOnly || trainerBusy || preview) e.preventDefault(); }} className="space-y-4">
-    {!inline && <header className="flex items-center justify-between"><h2 id="series-form-title" className="font-semibold">{row ? "Veranstaltungsreihe bearbeiten" : "Veranstaltungsreihe erstellen"}</h2><button type="button" disabled={pending || trainerBusy} aria-label="Formular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>}
+    <UnsavedChangesForm saveState={state} ref={formElement} action={action} onSubmit={(e) => { if (readOnly || trainerBusy || preview) e.preventDefault(); }} className="space-y-4">
+    {!inline && <header className="flex items-center justify-between"><h2 id="series-form-title" className="font-semibold">{row ? "Veranstaltungsreihe bearbeiten" : "Veranstaltungsreihe erstellen"}</h2><button type="button" disabled={pending || trainerBusy} aria-label="Formular schließen" data-discard-changes onClick={onCancel} className="rounded p-2 text-xl">×</button></header>}
     <fieldset disabled={pending || !!preview} className={inline ? "grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : "space-y-4"}>
       <div className={inline ? "grid min-w-0 gap-4 sm:grid-cols-2" : "space-y-4"}>
       {!readOnly && <TaxOverrideFields slug={slug} kind="series" id={row?.id} />}
@@ -80,8 +81,8 @@ export function SeriesForm({ slug, row, venues, trainers, onSaved, onCancel, inl
     </fieldset>
     {!readOnly && <><p className="text-xs text-zinc-500">Vorgaben dienen als Vorlage. Änderungen können beim Speichern einzeln auf zukünftige Veranstaltungen übertragen werden.</p>
     {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
-    <div className="flex gap-3"><button disabled={pending || trainerBusy} className={primaryClass}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending || trainerBusy} onClick={onCancel} className="text-sm underline">Abbrechen</button></div></>}
-  </form>
+    <div className="flex gap-3"><button disabled={pending || trainerBusy} className={primaryClass}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending || trainerBusy} data-discard-changes onClick={onCancel} className="text-sm underline">Abbrechen</button></div></>}
+  </UnsavedChangesForm>
   );
   return <>{inline ? <div>{content}</div> : <dialog ref={panel} aria-labelledby="series-form-title" onCancel={(e) => { e.preventDefault(); if (!pending && !trainerBusy) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">{content}</dialog>}
     {preview && <SeriesPreviewDialog key={preview.token} preview={preview} pending={pending} message={state.message} onCancel={() => { setPreview(null); submitted.current = null; }} onApply={(selection) => {

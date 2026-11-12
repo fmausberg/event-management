@@ -1,4 +1,5 @@
 "use client";
+import { UnsavedChangesForm } from "@/components/unsaved-changes";
 import { useActionState, useState, useTransition } from "react";
 import { redirect } from "next/navigation";
 import { bookPublicEvent, previewPublicVoucher, type PublicBookingState, type PublicVoucherState } from "@/app/(public)/events/[companySlug]/[eventId]/actions";
@@ -18,7 +19,7 @@ export function PublicBookingForm({ slug, eventId, token, price, currency, avail
     if (state.success) return <section aria-live="polite" className="rounded-xl border border-primary-200 bg-primary-50 p-6"><h2 className="text-xl font-semibold text-primary-900">Vielen Dank für deine Buchung!</h2><p className="mt-3">Deine Buchungsnummer: <strong>#{state.number}</strong></p><p className="mt-2 text-sm text-zinc-600">{state.message} Bitte notiere dir diese Nummer.</p></section>;
     if (started || available === 0) return <section className="rounded-xl border border-zinc-200 bg-zinc-50 p-6"><h2 className="text-xl font-semibold">{started ? "Buchung geschlossen" : "Ausgebucht"}</h2><p className="mt-2 text-sm text-zinc-600">{started ? "Diese Veranstaltung hat bereits begonnen." : "Für diese Veranstaltung sind aktuell keine Plätze mehr frei."}</p></section>;
     const input = "mt-2 w-full rounded-md border border-zinc-300 bg-white px-3 py-2.5 outline-none focus:ring-2 focus:ring-primary-600";
-    return <form action={action} className="space-y-5 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
+    return <UnsavedChangesForm saveState={state} action={action} className="space-y-5 rounded-xl border border-zinc-200 bg-white p-6 shadow-sm">
         <h2 className="text-xl font-semibold">Plätze buchen</h2>
         <p className="text-sm text-zinc-500">Noch {available} {available === 1 ? "Platz verfügbar" : "Plätze verfügbar"}<br />Kein Account erforderlich</p>
         <input type="hidden" name="token" value={token} />

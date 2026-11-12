@@ -1,4 +1,5 @@
 "use client";
+import { UnsavedChangesForm } from "@/components/unsaved-changes";
 import { RatingSummary } from "@/components/rating-summary";
 import { AccountStatusTag } from "@/components/account-status-tag";
 
@@ -33,8 +34,8 @@ function TrainerForm({ slug, row, onSaved, onCancel }: { slug: string; row?: Tra
     return result;
   }, {});
   return <dialog ref={panel} aria-labelledby="trainer-editor-title" onCancel={(event) => { event.preventDefault(); if (!pending) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
-    <form action={action} className="space-y-5">
-      <header className="flex items-center justify-between gap-3"><h2 id="trainer-editor-title" className="font-semibold">{row ? "Trainer bearbeiten" : "Trainer erstellen"}</h2><button type="button" disabled={pending} onClick={onCancel} aria-label="Formular schließen" className="rounded p-2 text-xl">×</button></header>
+    <UnsavedChangesForm saveState={state} action={action} className="space-y-5">
+      <header className="flex items-center justify-between gap-3"><h2 id="trainer-editor-title" className="font-semibold">{row ? "Trainer bearbeiten" : "Trainer erstellen"}</h2><button type="button" disabled={pending} data-discard-changes onClick={onCancel} aria-label="Formular schließen" className="rounded p-2 text-xl">×</button></header>
       <fieldset disabled={pending} className="space-y-4">{fields.map(({ name, label, max }) => <div key={name}>
         <label htmlFor={`trainer-${name}`} className="text-sm">{label}</label>
         <input id={`trainer-${name}`} name={name} type={name === "email" ? "email" : "text"} defaultValue={row?.[name] ?? ""} required maxLength={max} aria-invalid={!!state.errors?.[name]} aria-describedby={state.errors?.[name] ? `trainer-error-${name}` : undefined} className={input} />
@@ -42,8 +43,8 @@ function TrainerForm({ slug, row, onSaved, onCancel }: { slug: string; row?: Tra
       </div>)}</fieldset>
       <p className="text-xs text-zinc-500">Trainer können ohne Benutzeraccount angelegt werden. Es wird keine Einladung versendet.</p>
       {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
-      <div className="flex gap-3"><button disabled={pending} className={primary}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
-    </form>
+      <div className="flex gap-3"><button disabled={pending} className={primary}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} data-discard-changes onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
+    </UnsavedChangesForm>
   </dialog>;
 }
 
