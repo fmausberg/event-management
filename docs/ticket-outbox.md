@@ -66,7 +66,9 @@ zustellen; alle verwenden denselben Worker und dieselbe Sperre.
 Eine atomare Datenbankoperation reserviert den Auftrag für fünf Minuten, erhöht
 attempts und setzt eine zufällige lockToken. Abschluss und Fehlerfreigabe prüfen
 dieselbe lockToken, sodass ein alter Worker keine neue Sperre überschreibt.
-Nach SMTP-Erfolg werden sentAt gesetzt und Chiffrat/Sperre entfernt. Nach Fehlern
+Nach Annahme durch den konfigurierten Mailtransport werden sentAt gesetzt und
+Chiffrat/Sperre entfernt. Bei Microsoft Graph bedeutet HTTP 202 Accepted, dass
+Exchange den Auftrag angenommen hat; die tatsächliche Zustellung wird nicht bestätigt. Nach Fehlern
 bleibt das Chiffrat erhalten; availableAt verzögert den nächsten Versuch um
 30 Sekunden, dann exponentiell bis maximal eine Stunde. Fehlercode: DELIVERY_FAILED.
 Abgelaufene Sperren werden nach Prozessabbruch erneut übernommen. Fehlerhafte
@@ -77,12 +79,13 @@ AUTH_SECRET darf nicht gewechselt werden, solange ausstehende verschlüsselte
 Ticket-/Stornierungsmails es benötigen. Die permanente Ticket-Code-Verschlüsselung
 mit TICKET_CODE_ENCRYPTION_KEYS ist davon unabhängig und unverändert.
 
-SMTP besitzt keine transaktionale Exactly-once-Zustellung: Wenn SMTP die Mail
-angenommen hat, aber der Prozess vor sentAt abstürzt, kann ein Retry dieselbe Mail
-erneut zustellen. Das ist die bestehende At-least-once-Grenze, keine Erzeugung
-neuer Tickets oder Codes. Lange SMTP-/IMAP-Vorgänge müssen unter der Lease-Dauer
-bleiben; Timeouts und Queue-Rückstand überwachen. sentAt bedeutet SMTP-Annahme,
-nicht garantierte Zustellung im Posteingang.
+Mailtransporte bieten keine transaktionale Exactly-once-Zustellung mit der Datenbank:
+Wenn SMTP die Mail angenommen oder Graph HTTP 202 zurückgegeben hat, aber der Prozess
+vor sentAt abstürzt, kann ein Retry dieselbe Mail erneut zustellen. Das ist die
+bestehende At-least-once-Grenze, keine Erzeugung neuer Tickets oder Codes. Lange
+SMTP-/IMAP-Vorgänge müssen unter der Lease-Dauer bleiben; Timeouts und Queue-Rückstand
+überwachen. sentAt bedeutet Annahme durch den Transport, nicht garantierte Zustellung
+im Posteingang.
 
 ## Deployment ohne Verlust vorhandener Stripe-Mails
 
