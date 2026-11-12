@@ -59,5 +59,5 @@ export function PublicBookingForm({ slug, eventId, token, price, currency, avail
         <p className="text-xs leading-relaxed text-zinc-500">Hier buchst du deine Plätze direkt beim Veranstalter. Kostenpflichtige Tickets bezahlst du im nächsten Schritt sicher über Stripe. Deine Tickets erhältst du nach bestätigter Zahlung per E-Mail.</p>
         {state.message && <p role="alert" className="text-sm text-red-700">{state.message}</p>}
         <button disabled={pending || checking || !!code.trim() && !quoted} className="w-full rounded-md bg-accent-500 px-5 py-3 font-semibold text-zinc-950 hover:bg-accent-400 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600 disabled:opacity-50">{pending ? "Wird gebucht …" : (quoted ? quoted.requiresCheckout : Number(price) > 0) ? "Zahlungspflichtig buchen" : "Jetzt buchen"}</button>
-    </form >;
+    </UnsavedChangesForm>;
 }
