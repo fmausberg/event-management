@@ -1,4 +1,5 @@
 import { notFound, redirect } from "next/navigation";
+import { UnsavedChangesForm } from "@/components/unsaved-changes";
 import { MemberAccessError, requireCompanyAdmin } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 import { configuration, decrypt, errorCode, organizations, pending } from "@/lib/eventbrite/connection";
@@ -49,7 +50,7 @@ export async function EventbriteSettingsSection({ companyKey, error }: {
       {flow && <p role="status">Verbindung wird eingerichtet. {connection && "Die bisherige Verbindung bleibt bis zur bestätigten Auswahl erhalten."}</p>}
       {!configured && <p>Eventbrite muss zuerst vom Plattformadministrator eingerichtet werden.</p>}
       {failure && <p role="alert" className="text-red-700">{messages[failure] ?? messages.provider}</p>}
-      {choices.length > 0 && <form action={selectEventbriteOrganization.bind(null, companyKey)} className="space-y-3">
+      {choices.length > 0 && <UnsavedChangesForm action={selectEventbriteOrganization.bind(null, companyKey)} className="space-y-3">
         <label className="block">Eventbrite-Organisation
           <select name="organizationId" required defaultValue="" className="mt-2 block w-full rounded border border-zinc-300 p-2">
             <option value="" disabled>Bitte auswählen</option>
@@ -58,7 +59,7 @@ export async function EventbriteSettingsSection({ companyKey, error }: {
         </label>
         <p>Bestätige die Organisation ausdrücklich. Eine bisherige Zuordnung wird dadurch ersetzt.</p>
         <button className={button}>Organisation verbindlich zuordnen</button>
-      </form>}
+      </UnsavedChangesForm>}
       {configured && <form action={startEventbrite.bind(null, companyKey)}>
         <button className={button}>{connection ? "Erneut autorisieren / Organisation wechseln" : flow ? "Einrichtung neu starten" : "Mit Eventbrite verbinden"}</button>
       </form>}

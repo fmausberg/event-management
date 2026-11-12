@@ -1,4 +1,5 @@
 "use client";
+import { UnsavedChangesForm } from "@/components/unsaved-changes";
 import { useActionState, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { saveCampaign, setCampaignStatus, createCodes, editCode, setCodeStatus } from "@/app/company/[companyKey]/vouchers/actions";
@@ -51,8 +52,8 @@ export function VoucherCampaignForm({ slug, options, row, start, drawer = false,
   }, [drawer]);
   if (state.success && !row && !onSaved) return <div role="status" className="rounded-xl border border-emerald-300 p-5">{state.message} <Link className="underline" href={`/company/${slug}/vouchers/${state.campaignId}`}>Kampagne öffnen und Codes ausgeben</Link></div>;
   const locked = !!row?.locked;
-  const form = <form action={action} className={drawer ? "space-y-5" : "space-y-5 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950"}>
-    <header className="flex items-center justify-between gap-4"><h2 id={drawer ? "voucher-campaign-form-title" : undefined} className="text-lg font-semibold">{row ? "Kampagne bearbeiten" : "Neue Kampagne"}</h2>{drawer && <button type="button" disabled={pending} aria-label="Formular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button>}</header>
+  const form = <UnsavedChangesForm saveState={state} action={action} className={drawer ? "space-y-5" : "space-y-5 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950"}>
+    <header className="flex items-center justify-between gap-4"><h2 id={drawer ? "voucher-campaign-form-title" : undefined} className="text-lg font-semibold">{row ? "Kampagne bearbeiten" : "Neue Kampagne"}</h2>{drawer && <button type="button" disabled={pending} aria-label="Formular schließen" data-discard-changes onClick={onCancel} className="rounded p-2 text-xl">×</button>}</header>
     <fieldset disabled={pending || row?.archived} className="space-y-4">
       <FieldLabel label="Name" help="Der interne Name der Kampagne, zum Beispiel „Sommeraktion 2027“. Er wird nicht als Gutscheincode verwendet."><input className={input} name="name" required maxLength={160} defaultValue={row?.name} /></FieldLabel>
       <FieldLabel label="Interne Beschreibung" help="Notizen für die Verwaltung, etwa Zweck, Zielgruppe oder Ansprechpartner. Diese Beschreibung sehen Buchende nicht."><textarea className={input} name="description" maxLength={2000} defaultValue={row?.description} /></FieldLabel>
@@ -90,10 +91,10 @@ export function VoucherCampaignForm({ slug, options, row, start, drawer = false,
         </details>)}
       </div>
       <p className="text-sm text-zinc-500">Ziele gelten per ODER; Überschneidungen erhöhen den Rabatt nicht. Company-, Reihen- und Ortsziele erfassen auch spätere Zuordnungen. Wertguthaben ist auf die ausstellende Company beschränkt. Ein Entwurf darf ohne Ziel gespeichert, aber nicht aktiviert oder mit Codes ausgestattet werden.</p>
-      <div className="flex gap-3"><button className={button} disabled={pending || row?.archived}>{pending ? "Wird gespeichert …" : "Kampagne speichern"}</button>{drawer && <button type="button" disabled={pending} onClick={onCancel} className="text-sm underline">Abbrechen</button>}</div>
+      <div className="flex gap-3"><button className={button} disabled={pending || row?.archived}>{pending ? "Wird gespeichert …" : "Kampagne speichern"}</button>{drawer && <button type="button" disabled={pending} data-discard-changes onClick={onCancel} className="text-sm underline">Abbrechen</button>}</div>
     </fieldset>
     {state.message && <p role="status" className="text-sm">{state.message}</p>}
-  </form>;
+  </UnsavedChangesForm>;
   if (!drawer) return form;
   return <dialog ref={panel} aria-labelledby="voucher-campaign-form-title" onCancel={(event) => { event.preventDefault(); if (!pending) onCancel?.(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-lg overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-[32rem] dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">{form}</dialog>;
 }
@@ -102,7 +103,7 @@ export function VoucherStatusForm({ slug, campaignId, status, codeId }: { slug: 
   const fn = codeId ? setCodeStatus.bind(null, slug, campaignId, codeId) : setCampaignStatus.bind(null, slug, campaignId);
   const [state, action, pending] = useActionState<VoucherAdminState, FormData>(fn, {});
   if (status === "ARCHIVED") return <span className="text-sm text-zinc-500">Archiviert</span>;
-  return <form action={action} className="flex flex-wrap items-center gap-2">
+  return <UnsavedChangesForm saveState={state} action={action} className="flex flex-wrap items-center gap-2">
     <label className="inline-flex items-center gap-2 text-sm font-medium" htmlFor={`status-${codeId ?? campaignId}`}>Neuer Status
       <FieldInfo label="Neuer Status">{codeId ? "Aktiv erlaubt neue Einlösungen. Gesperrt stoppt neue Einlösungen vorübergehend. Archivieren ist endgültig und steht bei ausgegebenem Wertguthaben nicht zur Verfügung." : "Aktiv erlaubt neue Einlösungen. Pausiert stoppt sie vorübergehend. Archivieren ist endgültig; bereits ausgegebenes Wertguthaben kann nur pausiert werden."}</FieldInfo>
     </label>
@@ -110,7 +111,7 @@ export function VoucherStatusForm({ slug, campaignId, status, codeId }: { slug: 
       <option value="ACTIVE">Aktiv</option><option value={codeId ? "DISABLED" : "PAUSED"}>{codeId ? "Gesperrt" : "Pausiert"}</option><option value="ARCHIVED">Archivieren (endgültig)</option>
     </select><button className={button} disabled={pending}>Status speichern</button>
     {state.message && <p role="status" className="w-full text-sm">{state.message}</p>}
-  </form>;
+  </UnsavedChangesForm>;
 }
 
 type VoucherCodeRow = { id: string; mode: string; source: string | null; codeSuffix: string | null; status: string };
@@ -136,7 +137,7 @@ function VoucherCodeEditForm({ slug, campaignId, code, onSaved, onCancel }: { sl
     return () => { desktop.removeEventListener("change", open); dialog.close(); previous?.focus(); };
   }, []);
   return <dialog ref={panel} aria-labelledby="voucher-code-edit-title" onCancel={event => { event.preventDefault(); if (!pending) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
-    <form action={action} className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 id="voucher-code-edit-title" className="text-lg font-semibold">Code bearbeiten</h2><button type="button" disabled={pending} aria-label="Codeformular schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
+    <UnsavedChangesForm saveState={state} action={action} className="space-y-5"><header className="flex items-center justify-between gap-4"><h2 id="voucher-code-edit-title" className="text-lg font-semibold">Code bearbeiten</h2><button type="button" disabled={pending} aria-label="Codeformular schließen" data-discard-changes onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
       <p className="text-sm text-zinc-500">{code.mode === "PUBLIC" ? "Öffentlicher Mehrfachcode" : "Individueller Code"} · bisherige Endzeichen: <span className="font-mono">{code.codeSuffix ?? "—"}</span></p>
       <fieldset disabled={pending} className="space-y-4">
         <FieldLabel label="Trackingquelle des Codes" help="Interne Herkunft dieses Codes, zum Beispiel ein Influencer oder Vertriebskanal. Sie ändert die Kampagnenregeln nicht."><input className={input} name="source" maxLength={160} defaultValue={code.source ?? ""} /></FieldLabel>
@@ -144,8 +145,8 @@ function VoucherCodeEditForm({ slug, campaignId, code, onSaved, onCancel }: { sl
         <FieldLabel label="Code-Status" help="Aktiv erlaubt neue Einlösungen, Gesperrt stoppt sie vorübergehend. Archivieren ist endgültig und bei Wertgutscheinen nicht verfügbar."><select className={input} name="status" defaultValue={code.status}><option value="ACTIVE">Aktiv</option><option value="DISABLED">Gesperrt</option><option value="ARCHIVED">Archiviert</option></select></FieldLabel>
       </fieldset>
       {state.message && <p role={state.success ? "status" : "alert"} className="text-sm">{state.message}</p>}
-      <div className="flex gap-3"><button className={button} disabled={pending}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
-    </form>
+      <div className="flex gap-3"><button className={button} disabled={pending}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} data-discard-changes onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
+    </UnsavedChangesForm>
   </dialog>;
 }
 function VoucherCodeIssueDrawer({ slug, campaignId, stored, requestId, onCancel }: { slug: string; campaignId: string; stored: boolean; requestId: string; onCancel: () => void }) {
@@ -158,7 +159,7 @@ function VoucherCodeIssueDrawer({ slug, campaignId, stored, requestId, onCancel 
     return () => { desktop.removeEventListener("change", open); dialog.close(); previous?.focus(); };
   }, []);
   return <dialog ref={panel} aria-labelledby="voucher-code-issue-title" onCancel={event => { event.preventDefault(); onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white p-6 text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
-    <header className="mb-5 flex items-center justify-between gap-4"><h2 id="voucher-code-issue-title" className="text-lg font-semibold">Code hinzufügen</h2><button type="button" aria-label="Codeausgabe schließen" onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
+    <header className="mb-5 flex items-center justify-between gap-4"><h2 id="voucher-code-issue-title" className="text-lg font-semibold">Code hinzufügen</h2><button type="button" aria-label="Codeausgabe schließen" data-discard-changes onClick={onCancel} className="rounded p-2 text-xl">×</button></header>
     <VoucherIssueForm slug={slug} campaignId={campaignId} stored={stored} requestId={requestId} embedded onCancel={onCancel} />
   </dialog>;
 }
@@ -185,9 +186,9 @@ export function VoucherIssueForm({ slug, campaignId, stored, requestId, embedded
     {!embedded && <h2 className="text-lg font-semibold">Codeausgabe</h2>}<p>{state.message}</p>
     {!!state.codes?.length && <textarea aria-label="Einmalig angezeigte Gutscheincodes" className={`${input} font-mono`} rows={Math.min(state.codes.length + 1, 12)} readOnly value={state.codes.join("\n")} spellCheck={false} />}
     <p className="text-sm">Nur im vorgesehenen Empfängerkreis weitergeben. Nach Verlassen dieser Ansicht ist keine erneute Klartextanzeige möglich.</p>
-    {onCancel ? <button type="button" onClick={onCancel} className="underline">Anzeige schließen</button> : <a className="underline" href={`/company/${encodeURIComponent(slug)}/vouchers/${encodeURIComponent(campaignId)}`}>Anzeige schließen / neue Ausgabe vorbereiten</a>}
+    {onCancel ? <button type="button" data-discard-changes onClick={onCancel} className="underline">Anzeige schließen</button> : <a className="underline" href={`/company/${encodeURIComponent(slug)}/vouchers/${encodeURIComponent(campaignId)}`}>Anzeige schließen / neue Ausgabe vorbereiten</a>}
   </section>;
-  return <form action={action} className={`space-y-4 ${embedded ? "" : "rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950"}`}>
+  return <UnsavedChangesForm saveState={state} action={action} className={`space-y-4 ${embedded ? "" : "rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950"}`}>
     {!embedded && <h2 className="text-lg font-semibold">Codes ausgeben</h2>}
     <p className="text-sm text-zinc-500">{stored ? "Administrative Guthabenausgabe ohne Verkauf oder Zahlung. Das Guthaben wird pro Code ausgegeben." : "Mehrere öffentliche Mehrfachcodes und individuelle Einmalcodes können dieselbe Kampagne nutzen."} Klartextcodes werden nur einmal angezeigt.</p>
     <fieldset disabled={pending} className="grid gap-4 sm:grid-cols-2">
@@ -203,5 +204,5 @@ export function VoucherIssueForm({ slug, campaignId, stored, requestId, embedded
       <button className={`${button} sm:col-span-2`} disabled={pending}>{pending ? "Ausgabe läuft …" : stored ? "Guthaben verbindlich ausgeben" : "Codes erstellen"}</button>
     </fieldset>
     {state.message && <p role="alert" className="text-sm">{state.message}</p>}
-  </form>;
+  </UnsavedChangesForm>;
 }

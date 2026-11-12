@@ -1,4 +1,5 @@
 "use client";
+import { UnsavedChangesForm } from "@/components/unsaved-changes";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { loadReview, updateReview, updateReviewRating } from "./actions";
@@ -14,6 +15,7 @@ export function ReviewForm() {
   const [state, setState] = useState("loading");
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState(false);
+  const [saveState, setSaveState] = useState<{ success?: boolean }>({});
   const [unsavedRatings, setUnsavedRatings] = useState<string[]>([]);
   useEffect(() => {
     let active = true;
@@ -64,7 +66,10 @@ export function ReviewForm() {
     setBusy(true);
     try {
       const result = await updateReview(token, review, true);
-      if (result.state === "saved") setMessage("Vorläufig gespeichert – noch nicht endgültig abgesendet. Du kannst deine Bewertung weiter ändern.");
+      if (result.state === "saved") {
+        setSaveState({ success: true });
+        setMessage("Vorläufig gespeichert – noch nicht endgültig abgesendet. Du kannst deine Bewertung weiter ändern.");
+      }
       else if (result.state === "error") setMessage(result.message);
       else setState(result.state);
     } catch { setMessage("Speichern gerade nicht möglich. Bitte versuche es erneut; deine Eingaben bleiben erhalten."); }
@@ -78,7 +83,7 @@ export function ReviewForm() {
     <h1 className="text-2xl font-semibold">Wie war {review.eventName}?</h1>
     {review.date && <p className="mt-2 text-zinc-500">{new Intl.DateTimeFormat("de-DE", { dateStyle: "long", timeStyle: "short", timeZone: "Europe/Berlin" }).format(new Date(review.date))}</p>}
     <p className="my-5">Dein Feedback bleibt intern. Detailbewertungen und Kommentare sind freiwillig.</p>
-    <form onSubmit={event => { event.preventDefault(); void submit(); }} className="space-y-6">
+    <UnsavedChangesForm saveState={saveState} additionalDirty={unsavedRatings.length > 0} onSubmit={event => { event.preventDefault(); void submit(); }} className="space-y-6">
       <fieldset disabled={busy} className="space-y-6">
         {categories.filter(([key]) => key !== "trainer" || review.hasTrainer).map(([key, label]) => {
           const ratingKey = `${key}Rating` as const;
@@ -88,7 +93,7 @@ export function ReviewForm() {
             <legend className="px-1 font-semibold">{label}{key !== "overall" && " (optional)"}</legend>
             <div className="flex flex-wrap items-center gap-1">
               {[1, 2, 3, 4, 5].map(star => <label key={star} className="relative cursor-pointer p-2 text-3xl">
-                <input type="radio" name={ratingKey} value={star} checked={value === star} required={key === "overall"}
+                <input data-unsaved-ignore type="radio" name={ratingKey} value={star} checked={value === star} required={key === "overall"}
                   onClick={() => void selectRating(ratingKey, star)} onChange={() => {}}
                   className="peer sr-only" aria-label={`${star} von 5 Sternen`} />
                 <span aria-hidden="true" className={`${value && star <= value ? "text-accent-500" : "text-zinc-400"} peer-focus-visible:outline peer-focus-visible:outline-2`}>★</span>
@@ -107,6 +112,6 @@ export function ReviewForm() {
         <button type="submit" disabled={busy || unsavedRatings.length > 0 || !review.overallRating} className={button}>Bewertung absenden</button>
       </div>
       <p className="text-sm text-zinc-500">Nur „Bewertung absenden“ schließt die Bewertung ab und sperrt weitere Änderungen.</p>
-    </form>
+    </UnsavedChangesForm>
   </>;
 }

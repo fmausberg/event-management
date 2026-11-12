@@ -1,4 +1,5 @@
 "use client";
+import { UnsavedChangesForm } from "@/components/unsaved-changes";
 
 import Link from "next/link";
 import { CancellationPolicyField } from "@/components/cancellation-policy-field";
@@ -23,7 +24,7 @@ export function EventForm({ action, initialValues = emptyValues }: Props) {
   const [state, formAction, pending] = useActionState(action, { values: initialValues });
 
   return (
-    <form action={formAction} className="max-w-xl space-y-6">
+    <UnsavedChangesForm action={formAction} className="max-w-xl space-y-6">
       <p id="event-timezone" className="text-sm text-zinc-600 dark:text-zinc-400">
         Alle Zeiten gelten für Europe/Berlin. Doppelte Uhrzeiten bei der Herbstumstellung
         werden bei neuen Eingaben als erstes Auftreten (Sommerzeit) gespeichert.
@@ -58,6 +59,6 @@ export function EventForm({ action, initialValues = emptyValues }: Props) {
           {pending ? "Wird gespeichert …" : "Veranstaltung speichern"}
         </button>
       </div>
-    </form>
+    </UnsavedChangesForm>
   );
 }

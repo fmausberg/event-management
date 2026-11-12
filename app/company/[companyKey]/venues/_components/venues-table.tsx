@@ -1,4 +1,5 @@
 "use client";
+import { UnsavedChangesForm } from "@/components/unsaved-changes";
 import { countries } from "@/lib/taxes/countries";
 import { RatingSummary } from "@/components/rating-summary";
 import { useActionState, useEffect, useRef, useState } from "react";
@@ -36,7 +37,7 @@ function VenueForm({ slug, row, allowedCountryCodes, onSaved, onCancel }: { allo
   return result;
  }, {});
  return <><dialog ref={panel} aria-labelledby="venue-editor-title" onCancel={(event) => { event.preventDefault(); if (!pending) onCancel(); }} className="fixed inset-y-0 left-auto right-0 z-50 m-0 h-dvh max-h-none w-full max-w-md overflow-y-auto border-l border-zinc-200 bg-white text-zinc-950 shadow-xl backdrop:bg-black/40 xl:w-96 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-100">
- <form ref={form} action={action} className="space-y-5 p-6" onSubmit={(event) => {
+ <UnsavedChangesForm saveState={state} ref={form} action={action} className="space-y-5 p-6" onSubmit={(event) => {
   if (updateApproved.current) { updateApproved.current = false; return; }
   if (!row || row._count.events < 1) return;
   const data = new FormData(event.currentTarget);
@@ -46,7 +47,7 @@ function VenueForm({ slug, row, allowedCountryCodes, onSaved, onCancel }: { allo
    setConfirmingUpdate(true);
   }
  }}>
-  <header className="flex items-center justify-between gap-3 border-b border-zinc-200 pb-4 dark:border-zinc-800"><h2 id="venue-editor-title" className="font-semibold">{row ? "Ort bearbeiten" : "Ort erstellen"}</h2><button type="button" disabled={pending} onClick={onCancel} aria-label="Formular schließen" className="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-primary-600 dark:hover:bg-zinc-800"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>
+  <header className="flex items-center justify-between gap-3 border-b border-zinc-200 pb-4 dark:border-zinc-800"><h2 id="venue-editor-title" className="font-semibold">{row ? "Ort bearbeiten" : "Ort erstellen"}</h2><button type="button" disabled={pending} data-discard-changes onClick={onCancel} aria-label="Formular schließen" className="rounded-md p-2 text-zinc-500 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-primary-600 dark:hover:bg-zinc-800"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="m6 6 12 12M18 6 6 18" /></svg></button></header>
   <fieldset disabled={pending} className="grid gap-4">{fields.map(({ name, label, max }) => <div key={name}>
    <label htmlFor={`venue-${name}`} className="text-sm">{label}{name === "name" && <><span aria-hidden="true" className="ml-1 text-xs text-red-600 dark:text-red-400">*</span><span className="sr-only"> (Pflichtfeld)</span></>}</label>
    <input id={`venue-${name}`} name={name} defaultValue={row?.[name] ?? ""} required={name === "name"} maxLength={max} aria-invalid={!!state.errors?.[name]} aria-describedby={state.errors?.[name] ? `error-${name}` : undefined} className="mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 outline-none focus:ring-2 focus:ring-primary-500 dark:border-zinc-700" />
@@ -63,8 +64,8 @@ function VenueForm({ slug, row, allowedCountryCodes, onSaved, onCancel }: { allo
    </div>
   </fieldset>
   {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
-  <div className="flex gap-3"><button disabled={pending} className={primary}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
- </form>{row && <VenueStaff slug={slug} venueId={row.id} />}</dialog>
+  <div className="flex gap-3"><button disabled={pending} className={primary}>{pending ? "Wird gespeichert …" : "Speichern"}</button><button type="button" disabled={pending} data-discard-changes onClick={onCancel} className="text-sm underline">Abbrechen</button></div>
+ </UnsavedChangesForm>{row && <VenueStaff slug={slug} venueId={row.id} />}</dialog>
  {confirmingUpdate && row && <VenueUpdateConfirmation eventCount={row._count.events} onDecision={(save) => {
   setConfirmingUpdate(false);
   if (save) {
