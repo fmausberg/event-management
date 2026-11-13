@@ -2,8 +2,11 @@
 
 Alle Versandstellen (Buchungsbestätigung, Zahlungsbestätigung, Verifizierung und
 Zuordnungen) verwenden `lib/mail/index.ts`. Nodemailer erzeugt einmal eine
-RFC-822/MIME-Nachricht. Dieselben Bytes werden per SMTP versendet und danach mit
-ImapFlow per IMAP APPEND als gelesen (`\Seen`) im Gesendet-Ordner gespeichert.
+RFC-822/MIME-Nachricht. Bei `MAIL_TRANSPORT=smtp` werden dieselben Bytes per SMTP
+versendet und danach mit ImapFlow per IMAP APPEND als gelesen (`\Seen`) im
+Gesendet-Ordner gespeichert. Bei `MAIL_TRANSPORT=microsoft-graph` legt Graph die
+gesendete Nachricht selbst im Ordner „Gesendete Elemente“ des Absenderpostfachs ab;
+IMAP-Archivierung wird in diesem Transport nicht ausgeführt.
 Message-ID, Empfänger, Text, HTML, Footer und Anhänge bleiben identisch.
 Es werden keine vorhandenen Nachrichten nachträglich archiviert.
 
@@ -22,6 +25,9 @@ Sind **beide** IMAP-Zugangsdaten leer und die Hosts exakt `smtp.strato.de` und
 `imap.strato.de`, werden `SMTP_USER` und `SMTP_PASSWORD` wiederverwendet. Ein
 abweichender `MAIL_FROM_ADDRESS` wird nicht als IMAP-Benutzer verwendet.
 Bei anderen Hosts oder expliziten IMAP-Zugangsdaten müssen beide Werte gesetzt sein.
+Diese IMAP-Konfiguration gilt nur für den SMTP-Transport. Microsoft Graph speichert
+die Versandkopie selbst im Exchange-Ordner „Gesendete Elemente“ und benötigt dafür
+keine IMAP-Zugangsdaten.
 Keine Passwörter in Git einchecken. Docker Compose übernimmt die Variablen aus der
 Deployment-Konfiguration; nach Änderungen den App-Container neu erstellen.
 

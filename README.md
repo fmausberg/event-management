@@ -2,7 +2,7 @@
 
 Webplattform für Companies, Veranstaltungsreihen, Events, Buchungen und Tickets.
 Technik: Next.js App Router, TypeScript, Prisma 7 und PostgreSQL.
-Stripe Connect ermöglicht Direct Charges; SMTP und IMAP übernehmen Mailversand und Versandkopien.
+Stripe Connect ermöglicht Direct Charges; SMTP/IMAP oder Microsoft Graph übernehmen den Mailversand und Versandkopien.
 
 ## Lokal starten
 
