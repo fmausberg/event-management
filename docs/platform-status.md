@@ -10,6 +10,7 @@ Kontostände, Zugangsdaten oder ursprünglichen Fehlermeldungen veröffentlicht.
 | Cloudinary | Authentifizierter Admin-API-Ping | API erreichbar und Zugang akzeptiert. Uploadrechte, Kontingent und CDN nicht geprüft. |
 | Stripe | Plattform-Balance lesen, ohne Connected-Account-Header | Plattformzugriff erfolgreich, auch im Testmodus. Keine Kontostände ausgegeben; Zahlungen, Webhooks und Connected Accounts nicht geprüft. Ein eingeschränkter Key benötigt Leserechte für Balance. |
 | SMTP | Nodemailer `verify()` | Verbindung, TLS und Login erfolgreich; keine Nachricht versendet. Absenderannahme und Zustellung nicht geprüft. |
+| Microsoft Graph | Frisches App-Token per OAuth Client Credentials abrufen | Bei `MAIL_TRANSPORT=microsoft-graph` anstelle von SMTP angezeigt. App-Zugangsdaten akzeptiert; Exchange-Mailboxberechtigung und Zustellung nicht geprüft. Keine Testmail versendet. |
 | IMAP | Nur Vorhandensein der Archiv-Zugangsdaten, einschließlich STRATO-Fallback | Nicht geprüft, nicht konfiguriert oder explizit deaktiviert. Kein Login und kein Schreibtest. |
 | Eventbrite | Lokale App-Konfiguration validieren | Nicht geprüft oder nicht konfiguriert. Keine Unternehmens-Tokens gelesen und keine OAuth-Verbindungen geprüft. |
 | Google / GitHub | Vorhandensein der OAuth-Zugangsdaten | Nicht geprüft oder nicht konfiguriert. Ein vollständiger Login ist für eine Funktionsprüfung nötig. |

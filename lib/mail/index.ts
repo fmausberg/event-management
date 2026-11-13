@@ -173,8 +173,10 @@ export async function verifyMailConnection(timeoutMs?: number): Promise<void> {
       await verifyMicrosoftGraphConnection(credentials, timeoutMs);
     } catch (error) {
       const statusCode = error && typeof error === "object" && "statusCode" in error ? error.statusCode : undefined;
+      const code = error && typeof error === "object" && "code" in error ? error.code : undefined;
       throw Object.assign(new Error("Microsoft-Graph-Verbindung fehlgeschlagen. Zugangsdaten prüfen."), {
         statusCode: typeof statusCode === "number" ? statusCode : undefined,
+        code: code === "ETIMEDOUT" ? code : undefined,
       });
     }
     return;

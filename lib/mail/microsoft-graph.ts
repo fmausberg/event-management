@@ -43,8 +43,10 @@ async function requestToken(credentials: MicrosoftGraphCredentials, timeoutMs: n
       body,
       signal: AbortSignal.timeout(timeoutMs),
     });
-  } catch {
-    throw new Error("Microsoft OAuth-Token konnte nicht abgerufen werden.");
+  } catch (error) {
+    throw Object.assign(new Error("Microsoft OAuth-Token konnte nicht abgerufen werden."), {
+      code: error instanceof Error && error.name === "TimeoutError" ? "ETIMEDOUT" : undefined,
+    });
   }
 
   if (!response.ok) throw safeProviderError(response.status);
@@ -85,7 +87,8 @@ export async function verifyMicrosoftGraphConnection(
   credentials: MicrosoftGraphCredentials,
   timeoutMs = 7_000,
 ): Promise<void> {
-  await getAccessToken(credentials, timeoutMs);
+  // A status probe must contact Microsoft even when sending has cached a token.
+  await requestToken(credentials, timeoutMs);
 }
 
 /**
