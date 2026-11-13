@@ -35,6 +35,17 @@ export async function probe(name: string, configured: boolean, detail: string, c
 }
 
 const has = (...keys: string[]) => keys.every(key => !!process.env[key]?.trim());
+const mailTransport = process.env.MAIL_TRANSPORT?.trim() || "smtp";
+const isGraphMail = mailTransport === "microsoft-graph";
+const mailTransportConfigured = mailTransport === "smtp"
+  ? has("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD")
+  : isGraphMail
+    ? has("MS_GRAPH_TENANT_ID", "MS_GRAPH_CLIENT_ID", "MS_GRAPH_CLIENT_SECRET", "MAIL_FROM_ADDRESS")
+    : false;
+const mailTransportName = isGraphMail ? "Mailversand (Microsoft Graph)" : mailTransport === "smtp" ? "Mailversand (SMTP)" : "Mailversand";
+const mailTransportDetail = isGraphMail
+  ? "App-Token erfolgreich abgerufen. Exchange-Mailboxberechtigung und Empfängerzustellung werden dabei nicht geprüft."
+  : "SMTP-Verbindung, TLS und Login erfolgreich. Keine Testmail versendet; Zustellung nicht geprüft.";
 function configurationStatus(name: string, configured: boolean, detail: string): ServiceStatus {
   return { name, state: configured ? "unchecked" : "unconfigured", detail: configured ? detail : "Nicht oder unvollständig konfiguriert." };
 }
@@ -47,13 +58,15 @@ async function collect() {
       if (result.status !== "ok") throw new Error("Unexpected ping response");
     }),
     probe("Stripe", has("STRIPE_SECRET_KEY"), "Plattform-API erreichbar und authentifiziert. Connected Accounts, Webhooks und Zahlungen nicht geprüft.", () => getStripe().balance.retrieve({}, { timeout: 7_000, maxNetworkRetries: 0 })),
-    probe("Mailversand (SMTP)", has("SMTP_HOST", "SMTP_USER", "SMTP_PASSWORD"), "SMTP-Verbindung, TLS und Login erfolgreich. Keine Testmail versendet; Zustellung nicht geprüft.", () => verifyMailConnection(7_000)),
+    probe(mailTransportName, mailTransportConfigured, mailTransportDetail, () => verifyMailConnection(7_000)),
   ]);
   let eventbriteConfigured = false;
   try { eventbriteConfiguration(); eventbriteConfigured = true; } catch { /* Configuration only; no company tokens used. */ }
   services.push(
-    process.env.IMAP_ARCHIVE_ENABLED === "false"
-      ? { name: "Mailarchiv (IMAP)", state: "disabled", detail: "Archivierung gesendeter Mails ist deaktiviert." }
+    isGraphMail
+      ? { name: "Mailarchiv (IMAP)", state: "disabled", detail: "Nicht genutzt: Microsoft Graph speichert gesendete Nachrichten im Gesendet-Ordner des Absenderpostfachs." }
+      : process.env.IMAP_ARCHIVE_ENABLED === "false"
+        ? { name: "Mailarchiv (IMAP)", state: "disabled", detail: "Archivierung gesendeter Mails ist deaktiviert." }
       : configurationStatus("Mailarchiv (IMAP)", has("IMAP_USER", "IMAP_PASSWORD") || (process.env.SMTP_HOST === "smtp.strato.de" && (!process.env.IMAP_HOST?.trim() || process.env.IMAP_HOST === "imap.strato.de") && !process.env.IMAP_USER?.trim() && !process.env.IMAP_PASSWORD && has("SMTP_USER", "SMTP_PASSWORD")), "Zugangsdaten vorhanden. Login, Archivordner und Schreibrechte nicht geprüft."),
     configurationStatus("Eventbrite", eventbriteConfigured, "App-Konfiguration gültig. OAuth und Unternehmensverbindungen nicht geprüft."),
     configurationStatus("Google-Login", has("AUTH_GOOGLE_ID", "AUTH_GOOGLE_SECRET"), "Zugangsdaten vorhanden. Ein vollständiger OAuth-Login ist für eine Funktionsprüfung nötig."),

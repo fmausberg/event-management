@@ -4,14 +4,17 @@ Bewertungseinladungen nach eingelöster Teilnahme nutzen ebenfalls die bestehend
 Mail-Outbox und den Reconciliation-Job. Ablauf, Linkschutz und Deployment:
 [Eventbewertungen](event-reviews.md).
 
-`lib/mail/index.ts` stellt ein internes, serverseitiges Nodemailer-Modul bereit.
-Es benötigt die Node.js-Runtime, keine Edge-Runtime. Importieren allein baut keine
-Verbindung auf; fehlende SMTP-Konfiguration beeinflusst andere Seiten nicht.
+`lib/mail/index.ts` stellt ein internes, serverseitiges Mailmodul bereit. Es erstellt
+eine MIME-Nachricht und sendet sie je nach `MAIL_TRANSPORT` entweder über SMTP
+(Nodemailer) oder Microsoft Graph. Es benötigt die Node.js-Runtime, keine Edge-Runtime.
+Importieren allein baut keine Verbindung auf; fehlende Mailkonfiguration beeinflusst
+andere Seiten nicht.
 
 ## STRATO einrichten
 
-Die SMTP-Werte aus `.env.example` in die lokale `.env` übernehmen und
-`SMTP_PASSWORD` mit dem Passwort des Postfachs `ticket@mausberg.net` füllen.
+In der Strato-Umgebung `MAIL_TRANSPORT=smtp` setzen, die SMTP-Werte aus
+`.env.example` übernehmen und `SMTP_PASSWORD` mit dem Passwort des Postfachs
+`ticket@mausberg.net` füllen.
 SMTP-Host ist `smtp.strato.de`, Port `465`, `SMTP_SECURE=true` (direktes TLS).
 Benutzername und Absender sind `ticket@mausberg.net`. `MAIL_FROM_NAME` bestimmt
 den angezeigten Absendernamen. Danach den Entwicklungsserver neu starten.
@@ -24,6 +27,46 @@ Anführungszeichen schreiben (Compose expandiert darin keine Dollarzeichen).
 App-Container mit der bestehenden Deployment-Konfiguration neu erstellen.
 
 Quelle: [STRATO: E-Mailserver-Adressen und Ports](https://www.strato.de/faq/mail/e-mailserver-adressen-ports-ssl-tls/).
+
+## Microsoft Graph für den Plattformserver
+
+Für die Microsoft-Umgebung `MAIL_TRANSPORT=microsoft-graph` setzen. Der Server
+verwendet OAuth 2.0 Client Credentials (App-only): Er ruft mit Tenant-ID,
+Application Client ID und Client Secret ein App-Token ab, hält es bis kurz vor
+Ablauf im Prozessspeicher und sendet als die Adresse in `MAIL_FROM_ADDRESS`.
+Es gibt keinen interaktiven Microsoft-Login.
+
+Beispiel für `.env.docker` auf dem Microsoft-Server:
+
+```dotenv
+MAIL_TRANSPORT=microsoft-graph
+MS_GRAPH_TENANT_ID="<Directory (tenant) ID>"
+MS_GRAPH_CLIENT_ID="<Application (client) ID>"
+MS_GRAPH_CLIENT_SECRET="<Secret Value>"
+MAIL_FROM_ADDRESS="ticket@event-yoga.com"
+MAIL_FROM_NAME="Event Yoga"
+MAIL_REPLY_TO="info@event-yoga.com"
+IMAP_ARCHIVE_ENABLED=false
+```
+
+`MS_GRAPH_CLIENT_SECRET` braucht den **Secret Value**, nicht die Secret ID.
+Die Secret ID und die App-Object-ID gehören nicht in diese Env-Konfiguration.
+Der Absender muss exakt dem Exchange-Application-RBAC-Scope entsprechen
+(`ticket@event-yoga.com`). Der Microsoft-Server legt Versandkopien automatisch
+in „Gesendete Elemente“ dieses Postfachs ab; der separate IMAP-Archivpfad wird
+für Graph nicht verwendet. Zugangsdaten nur in der geschützten Serverdatei
+hinterlegen, nie in Git oder mit `NEXT_PUBLIC_`.
+
+Auf Strato bleibt `MAIL_TRANSPORT=smtp`; dort bleiben SMTP und optional IMAP
+wie bisher konfiguriert. Beide Umgebungen können dasselbe Image verwenden,
+wenn jede ihre eigenen Env-Werte an den App-Container weiterreicht.
+
+`verifyMailConnection()` ruft bei Graph ein App-Token ab, sendet aber keine
+Testmail und prüft dadurch nicht die Exchange-Mailboxberechtigung. Ein erfolgreicher
+Graph-Aufruf liefert `202 Accepted`: Exchange hat die Nachricht angenommen, was
+noch keine bestätigte Zustellung im Empfängerpostfach bedeutet. Für einen
+kontrollierten Versandtest vor Livebetrieb `MAIL_TEST_RECIPIENT` auf eine
+Testadresse setzen.
 
 ## Im Servercode verwenden
 
@@ -38,7 +81,7 @@ Empfänger zurückzufallen. Nach Änderungen Server bzw. App-Container neu start
 ```ts
 import { sendMail, verifyMailConnection } from "@/lib/mail";
 
-// Optional: prüft TLS-Verbindung und Login, versendet keine Nachricht.
+// Optional: prüft SMTP-Login oder ruft bei Graph ein App-Token ab; es wird keine Nachricht versendet.
 await verifyMailConnection();
 
 const { messageId } = await sendMail({
@@ -61,7 +104,7 @@ Verbindungszeitlimits verhindern unbegrenzt hängende Requests. SMTP-Logging sow
 Datei- und URL-Zugriffe für Mailinhalte sind deaktiviert. Fehler werden ohne
 SMTP-Antworten, Zugangsdaten oder Mailinhalte weitergegeben.
 
-Die Rückgabe bestätigt die Annahme durch SMTP, nicht die Zustellung im Posteingang.
+Die Rückgabe bestätigt die Annahme durch den ausgewählten Transport (SMTP-Annahme bzw. Graph 202 Accepted), nicht die Zustellung im Posteingang.
 Der SMTP-Transport selbst wiederholt keine Zustellung. Ticketmails verwenden
 jedoch eine dauerhafte gemeinsame Outbox für kostenlose und bezahlte Buchungen
 sowie expliziten Neuversand. Tickets und initialer Auftrag entstehen atomar.

@@ -58,6 +58,11 @@ services:
       AUTO_TRAINER_REMINDERS_ENABLED: ${AUTO_TRAINER_REMINDERS_ENABLED:-false}
       # Validated when vouchers are used; never pass secrets as build arguments.
       VOUCHER_CODE_DIGEST_KEYS: ${VOUCHER_CODE_DIGEST_KEYS:-}
+      MAIL_TRANSPORT: ${MAIL_TRANSPORT:-smtp}
+      MAIL_REPLY_TO: ${MAIL_REPLY_TO:-}
+      MS_GRAPH_TENANT_ID: ${MS_GRAPH_TENANT_ID:-}
+      MS_GRAPH_CLIENT_ID: ${MS_GRAPH_CLIENT_ID:-}
+      MS_GRAPH_CLIENT_SECRET: ${MS_GRAPH_CLIENT_SECRET:-}
       SMTP_HOST: ${SMTP_HOST:-smtp.strato.de}
       SMTP_PORT: ${SMTP_PORT:-465}
       SMTP_SECURE: ${SMTP_SECURE:-true}
