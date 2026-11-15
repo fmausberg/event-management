@@ -40,11 +40,43 @@ export async function GET(request: Request) {
 
       throw new EventbriteError("config");
     }
+    stage = "state-validation";
     const state = url.searchParams.get("state");
-    if (!state || !/^[A-Za-z0-9_-]{43}$/.test(state) || url.searchParams.getAll("state").length !== 1) throw new EventbriteError("expired");
-    const binding = await sessionBinding(), db = getPrisma();
-    const flow = await db.eventbriteOAuth.findFirst({ where: { stateHash: digest(state), ...binding, expiresAt: { gt: new Date() } }, include: { company: { select: { slug: true } } } });
-    if (!flow) throw new EventbriteError("expired");
+    if (!state || !/^[A-Za-z0-9_-]{43}$/.test(state) || url.searchParams.getAll("state").length !== 1) {
+      throw new EventbriteError("expired");
+    }
+
+    stage = "session-binding";
+    const binding = await sessionBinding();
+    const db = getPrisma();
+
+    stage = "flow-lookup";
+    const flow = await db.eventbriteOAuth.findFirst({
+      where: {
+        stateHash: digest(state),
+        ...binding,
+        expiresAt: { gt: new Date() },
+      },
+      include: { company: { select: { slug: true } } },
+    });
+
+    if (!flow) {
+      const candidate = await db.eventbriteOAuth.findUnique({
+        where: { stateHash: digest(state) },
+        select: { userId: true, sessionHash: true, expiresAt: true },
+      });
+
+      console.error("[eventbrite:callback] flow not found", {
+        rowExists: Boolean(candidate),
+        sameUser: candidate?.userId === binding.userId,
+        sameSession: candidate?.sessionHash === binding.sessionHash,
+        stillValid: candidate ? candidate.expiresAt > new Date() : false,
+      });
+
+      throw new EventbriteError("expired");
+    }
+
+    stage = "company-admin-check";
     const company = await requireCompanyAdmin(flow.company.slug);
     if (company.id !== flow.companyId) throw new EventbriteError("permission");
     path = settingsPath(company.slug);
