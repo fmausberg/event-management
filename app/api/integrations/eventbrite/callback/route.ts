@@ -6,6 +6,7 @@ import { callbackPath, configuration, digest, encrypt, errorCode, EventbriteErro
 export const runtime = "nodejs";
 export async function GET(request: Request) {
   let origin: string;
+  let stage = "callback-url";
   try { origin = configuration().origin; }
   catch { return new Response("Eventbrite ist noch nicht eingerichtet.", { status: 503 }); }
   let path: string | undefined;
@@ -38,6 +39,10 @@ export async function GET(request: Request) {
       throw error;
     }
   } catch (error) {
+    console.error("[eventbrite:callback] rejected", {
+      stage,
+      reason: errorCode(error),
+    });
     if (!path) return new Response("Die Eventbrite-Einrichtung ist ungültig, abgelaufen oder für diese Anmeldung nicht erlaubt. Bitte als Company-Admin in den Einstellungen neu starten.", {
       status: 400, headers: { "Cache-Control": "no-store", "Referrer-Policy": "no-referrer", "Content-Type": "text/plain; charset=utf-8" },
     });
