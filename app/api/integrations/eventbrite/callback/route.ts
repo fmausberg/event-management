@@ -12,17 +12,30 @@ export async function GET(request: Request) {
   let path: string | undefined;
   try {
     const url = new URL(request.url);
+    const configuredUrl = new URL(origin);
 
-    // Nur Origin und Pfad loggen – niemals die Query-Parameter mit code oder state.
-    if (url.origin !== origin || url.pathname !== callbackPath) {
+    const forwardedHost = request.headers.get("x-forwarded-host");
+    const forwardedProto = request.headers.get("x-forwarded-proto");
+    const requestHost = request.headers.get("host");
+
+    const externalOrigin =
+      forwardedHost && forwardedProto
+        ? `${forwardedProto}://${forwardedHost}`
+        : url.origin;
+
+    if (
+      new URL(externalOrigin).origin !== origin ||
+      requestHost?.toLowerCase() !== configuredUrl.host.toLowerCase() ||
+      url.pathname !== callbackPath
+    ) {
       console.error("[eventbrite:callback] URL mismatch", {
         requestOrigin: url.origin,
+        externalOrigin,
         expectedOrigin: origin,
+        requestHost,
+        expectedHost: configuredUrl.host,
         requestPath: url.pathname,
         expectedPath: callbackPath,
-        forwardedProto: request.headers.get("x-forwarded-proto"),
-        forwardedHost: request.headers.get("x-forwarded-host"),
-        host: request.headers.get("host"),
       });
 
       throw new EventbriteError("config");
