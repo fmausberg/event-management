@@ -12,8 +12,21 @@ export async function GET(request: Request) {
   let path: string | undefined;
   try {
     const url = new URL(request.url);
-    // Deployment configuration is authoritative; request headers never construct redirects.
-    if (url.origin !== origin || url.pathname !== callbackPath) throw new EventbriteError("config");
+
+    // Nur Origin und Pfad loggen – niemals die Query-Parameter mit code oder state.
+    if (url.origin !== origin || url.pathname !== callbackPath) {
+      console.error("[eventbrite:callback] URL mismatch", {
+        requestOrigin: url.origin,
+        expectedOrigin: origin,
+        requestPath: url.pathname,
+        expectedPath: callbackPath,
+        forwardedProto: request.headers.get("x-forwarded-proto"),
+        forwardedHost: request.headers.get("x-forwarded-host"),
+        host: request.headers.get("host"),
+      });
+
+      throw new EventbriteError("config");
+    }
     const state = url.searchParams.get("state");
     if (!state || !/^[A-Za-z0-9_-]{43}$/.test(state) || url.searchParams.getAll("state").length !== 1) throw new EventbriteError("expired");
     const binding = await sessionBinding(), db = getPrisma();
