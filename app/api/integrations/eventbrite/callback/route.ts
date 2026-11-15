@@ -54,7 +54,7 @@ export async function GET(request: Request) {
     const flow = await db.eventbriteOAuth.findFirst({
       where: {
         stateHash: digest(state),
-        ...binding,
+        userId: binding.userId,
         expiresAt: { gt: new Date() },
       },
       include: { company: { select: { slug: true } } },
@@ -81,7 +81,7 @@ export async function GET(request: Request) {
     if (company.id !== flow.companyId) throw new EventbriteError("permission");
     path = settingsPath(company.slug);
     // Atomic consumption before contacting Eventbrite prevents concurrent replay.
-    const claimed = await db.eventbriteOAuth.updateMany({ where: { id: flow.id, stateHash: digest(state), ...binding, expiresAt: { gt: new Date() } }, data: { stateHash: null } });
+    const claimed = await db.eventbriteOAuth.updateMany({ where: { id: flow.id, stateHash: digest(state), userId: binding.userId, expiresAt: { gt: new Date() } }, data: { stateHash: null } });
     if (claimed.count !== 1) throw new EventbriteError("expired");
     try {
       if (url.searchParams.has("error")) throw new EventbriteError("denied");
@@ -90,7 +90,7 @@ export async function GET(request: Request) {
       const token = await exchange(code);
       if (!(await organizations(token)).length) throw new EventbriteError("empty");
       await requireCompanyAdmin(company.slug);
-      const saved = await db.eventbriteOAuth.updateMany({ where: { id: flow.id, ...binding, stateHash: null, expiresAt: { gt: new Date() } }, data: { encryptedAccessToken: encrypt(token, company.id) } });
+      const saved = await db.eventbriteOAuth.updateMany({ where: { id: flow.id, userId: binding.userId, stateHash: null, expiresAt: { gt: new Date() } }, data: { encryptedAccessToken: encrypt(token, company.id) } });
       if (saved.count !== 1) throw new EventbriteError("expired");
     } catch (error) {
       await db.eventbriteOAuth.deleteMany({ where: { id: flow.id } });
