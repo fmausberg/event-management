@@ -10,7 +10,7 @@ const voucherStatus = {
 
 export async function getMyBookings() {
   const userId = await cancellationActor();
-  return getPrisma().booking.findMany({ where: { userId }, orderBy: [{ bookedAt: "desc" }, { id: "asc" }], select: {
+  return getPrisma().booking.findMany({ where: { userId, OR: [{ payment: { is: { status: "PAID" } } }, { status: "CANCELLED" }] }, orderBy: [{ bookedAt: "desc" }, { id: "asc" }], select: {
     ...voucherStatus, id: true, number: true, quantity: true, status: true,
     event: { select: { id: true, name: true, status: true, beginsAt: true, endsAt: true, freeCancellationUntilMinutesBeforeStart: true,
       company: { select: { name: true, slug: true } },
