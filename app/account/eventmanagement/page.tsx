@@ -21,12 +21,13 @@ export default async function MyEventsPage() {
       {!group.items.length ? <p className="text-sm text-zinc-500">{group.empty}</p> : <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
       <table className="w-full text-left text-sm">
         <caption className="sr-only">Veranstaltungsverwaltung und Rollen – {group.title}</caption>
-        <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Veranstaltung", "Beginn (Europe/Berlin)", "Company", "Ort", "Status", "Meine Rolle", "Aktionen"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label}</th>)}</tr></thead>
+        <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Veranstaltung", "Beginn", "Veranstalter", "Ort", "Anmeldungen", "Status", "Meine Rolle", "Aktionen"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label}</th>)}</tr></thead>
         <tbody>{group.items.map((event) => <tr key={event.id} className="border-t border-zinc-200 align-top dark:border-zinc-800">
           <th scope="row" className="px-4 py-4 font-medium">{event.status === "PUBLISHED" ? <Link href={`/events/${encodeURIComponent(event.company.slug)}/${encodeURIComponent(event.id)}`} className="text-primary-700 underline dark:text-primary-300">{event.name}</Link> : event.name}</th>
           <td className="whitespace-nowrap px-4 py-4">{event.beginsAt ? date.format(event.beginsAt) : "Noch offen"}</td>
           <td className="px-4 py-4">{event.company.name}</td>
           <td className="px-4 py-4">{event.venueName ?? "Noch kein Ort"}</td>
+          <td className="px-4 py-4">{event.validTicketCount}</td>
           <td className="px-4 py-4"><span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[event.status]}`}>{eventStatuses[event.status]}</span></td>
           <td className="px-4 py-4"><div className="flex flex-wrap gap-2">{event.roles.map((role) => <span key={role} className="whitespace-nowrap rounded-full bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-800 dark:bg-primary-950 dark:text-primary-200">{role}</span>)}</div></td>
           <td className="px-4 py-4"><Link href={`/company/${encodeURIComponent(event.company.slug)}/events/${encodeURIComponent(event.id)}/tickets`} className="inline-block whitespace-nowrap rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700">Ticketverwaltung</Link></td>
