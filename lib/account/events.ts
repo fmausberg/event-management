@@ -22,14 +22,16 @@ export async function getMyEvents() {
     select: {
       id: true, name: true, beginsAt: true, endsAt: true, status: true,
       company: { select: { name: true, slug: true } },
+      bookings: { select: { _count: { select: { tickets: { where: { status: "VALID" } } } } } },
       venue: { select: { name: true, staff: { where: ownStaff, select: { id: true }, take: 1 } } },
       staff: { where: ownStaff, select: { id: true }, take: 1 },
       trainers: { where: ownTrainer, select: { id: true }, take: 1 },
     },
   });
-  return rows.map(({ staff, venue, trainers, ...event }) => ({
+  return rows.map(({ staff, venue, trainers, bookings, ...event }) => ({
     ...event,
     venueName: venue?.name ?? null,
+    validTicketCount: bookings.reduce((total, booking) => total + booking._count.tickets, 0),
     roles: [
       ...(staff.length ? ["Veranstaltungsteam"] : []),
       ...(venue?.staff.length ? ["Ortsteam"] : []),

@@ -1,7 +1,18 @@
 # Meine Buchungen
 
-`/account/bookings` zeigt alle dem angemeldeten Nutzer zugeordneten Buchungen,
-einschließlich stornierter, abgelaufener und noch unbezahlter Buchungen.
+`/account` zeigt Profil und Team-Einteilungen. Die Buchungsübersicht befindet
+sich unter `/account/bookings`.
+
+`/account/bookings` zeigt dem angemeldeten Nutzer zugeordnete Buchungen mit
+Zahlungsstatus `PAID` sowie alle Buchungen mit Buchungsstatus `CANCELLED`.
+Stornierte Buchungen bleiben bei jedem Zahlungsstatus und auch ohne
+Payment-Datensatz sichtbar. Alle anderen Buchungen ohne Zahlung mit Status
+`PAID` werden ausgeblendet.
+
+Der Filter wird serverseitig in der Prisma-Abfrage von `getMyBookings()` in
+`lib/cancellations/data.ts` angewendet. Diese Abfrage wird nur von
+`/account/bookings` verwendet. Die Statuslogik der Stornierungsaktionen sowie
+Sortierung und Gruppierung bleiben unverändert.
 
 - Kommende und laufende Events stehen zuerst, nach Beginn aufsteigend.
 - Vergangene Events folgen nach Beginn absteigend. Maßgeblich ist das Eventende;

@@ -1,4 +1,3 @@
-import { cancellationPolicy, cancellationPolicyText } from "@/lib/cancellations/policy";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 import { getPrisma } from "@/lib/db/prisma";
@@ -21,17 +20,6 @@ export default async function AccountPage() {
       select: { id: true, event: { select: { id: true, name: true, beginsAt: true, company: { select: { name: true, slug: true } } } }, assignedBy: { select: { email: true } } },
     }),
   ]);
-  const bookings = await getPrisma().booking.findMany({
-    where: { userId: session.user.id },
-    orderBy: [{ bookedAt: "desc" }, { id: "asc" }],
-    select: {
-      id: true,
-      number: true,
-      quantity: true,
-      status: true,
-      event: { select: { name: true, beginsAt: true, freeCancellationUntilMinutesBeforeStart: true } },
-    },
-  });
   const date = new Intl.DateTimeFormat("de-DE", {
     dateStyle: "medium",
     timeStyle: "short",
@@ -45,41 +33,6 @@ export default async function AccountPage() {
       <div className="mt-6">
         <form action={logout}><button className="rounded-lg bg-zinc-900 px-4 py-2 text-white dark:bg-zinc-100 dark:text-zinc-900">Abmelden</button></form>
       </div>
-      <section className="mt-10">
-        <h2 className="text-xl font-semibold">Meine Buchungen</h2>
-        <Link href="/account/bookings" className="mt-2 inline-block text-sm text-primary-700 underline dark:text-primary-300">Stornierungen und Erstattungen verwalten</Link>
-        {bookings.length === 0 ? (
-          <p className="mt-4 text-sm text-zinc-600 dark:text-zinc-400">Du hast noch keine Buchungen.</p>
-        ) : (
-          <div className="mt-4 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
-            <table className="w-full min-w-[36rem] text-left text-sm">
-              <caption className="sr-only">Deine Buchungen</caption>
-              <thead className="bg-zinc-100 dark:bg-zinc-900">
-                <tr>
-                  <th scope="col" className="px-4 py-3">Buchungsnr.</th>
-                  <th scope="col" className="px-4 py-3">Veranstaltung</th>
-                  <th scope="col" className="px-4 py-3">Beginn (Europe/Berlin)</th>
-                  <th scope="col" className="px-4 py-3">Plätze</th>
-                  <th scope="col" className="px-4 py-3">Status</th>
-                  <th scope="col" className="px-4 py-3">Stornierung</th>
-                </tr>
-              </thead>
-              <tbody>
-                {bookings.map((booking) => (
-                  <tr key={booking.id} className="border-t border-zinc-200 dark:border-zinc-800">
-                    <td className="px-4 py-3">#{booking.number}</td>
-                    <th scope="row" className="px-4 py-3 font-medium">{booking.event.name}</th>
-                    <td className="whitespace-nowrap px-4 py-3">{booking.event.beginsAt ? date.format(booking.event.beginsAt) : "Noch offen"}</td>
-                    <td className="px-4 py-3">{booking.quantity}</td>
-                    <td className="px-4 py-3">{({ CONFIRMED: "Bestätigt", CANCELLED: "Storniert", PENDING_PAYMENT: "Zahlung ausstehend", EXPIRED: "Abgelaufen" })[booking.status]}</td>
-                    <td className="px-4 py-3"><p>{cancellationPolicyText(booking.event.freeCancellationUntilMinutesBeforeStart)}</p>{(() => { const policy = cancellationPolicy(booking.event.beginsAt, booking.event.freeCancellationUntilMinutesBeforeStart ?? null); return policy.deadline ? <p>Frist: {date.format(policy.deadline)}</p> : null; })()}<Link href="/account/bookings" className="text-primary-700 underline">Status und Aktionen</Link></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
       {venueStaff.length > 0 && <section className="mt-10">
         <h2 className="text-xl font-semibold">Meine Ortsteam-Einteilungen</h2>
         <div className="mt-4 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
