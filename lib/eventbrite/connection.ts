@@ -1,6 +1,5 @@
 import "server-only";
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from "node:crypto";
-import { cookies } from "next/headers";
 import { auth } from "@/auth";
 import { z } from "zod";
 import { getPrisma } from "@/lib/db/prisma";
@@ -51,11 +50,10 @@ export function decrypt(value: string, companyId: string) {
 export const digest = (value: string) => createHash("sha256").update(value).digest("hex");
 export async function sessionBinding() {
   const session = await auth();
-  const jar = await cookies();
-  // Include chunked Auth.js JWT cookies. A different login/session cannot finish this attempt.
-  const parts = jar.getAll().filter(({ name }) => /^(?:__Secure-)?authjs\.session-token(?:\.\d+)?$/.test(name)).sort((a, b) => a.name.localeCompare(b.name));
-  if (!session?.user?.id || !parts.length) throw new EventbriteError("session");
-  return { userId: session.user.id, sessionHash: digest(parts.map(p => `${p.name}=${p.value}`).join(";")) };
+  // Raw JWT cookies (and jti) change on renewal. Only the login claim is stable.
+  // Legacy sessions deliberately require a new login instead of weakening the binding.
+  if (!session?.user?.id || !session.loginSessionId) throw new EventbriteError("session");
+  return { userId: session.user.id, sessionHash: digest(session.loginSessionId) };
 }
 async function request(url: string, init: RequestInit, oauth = false) {
   let response: Response;
@@ -93,6 +91,16 @@ export async function organizations(token: string) {
   throw new EventbriteError("provider");
 }
 export async function pending(companyId: string) {
+  const flow = await getPrisma().eventbriteOAuth.findUnique({ where: { companyId } });
+  if (!flow) return null;
   const binding = await sessionBinding();
-  return getPrisma().eventbriteOAuth.findFirst({ where: { companyId, ...binding, expiresAt: { gt: new Date() } } });
+  if (flow.userId !== binding.userId || flow.sessionHash !== binding.sessionHash) {
+    console.warn("[eventbrite:pending] rejected", { reason: "session" });
+    throw new EventbriteError("session");
+  }
+  if (flow.expiresAt <= new Date()) {
+    console.warn("[eventbrite:pending] rejected", { reason: "expired" });
+    throw new EventbriteError("expired");
+  }
+  return flow;
 }

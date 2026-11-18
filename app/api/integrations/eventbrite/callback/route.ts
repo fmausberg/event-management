@@ -29,13 +29,9 @@ export async function GET(request: Request) {
       url.pathname !== callbackPath
     ) {
       console.error("[eventbrite:callback] URL mismatch", {
-        requestOrigin: url.origin,
-        externalOrigin,
-        expectedOrigin: origin,
-        requestHost,
-        expectedHost: configuredUrl.host,
-        requestPath: url.pathname,
-        expectedPath: callbackPath,
+        externalOriginMatches: new URL(externalOrigin).origin === origin,
+        hostMatches: requestHost?.toLowerCase() === configuredUrl.host.toLowerCase(),
+        pathMatches: url.pathname === callbackPath,
       });
 
       throw new EventbriteError("config");
@@ -46,33 +42,17 @@ export async function GET(request: Request) {
       throw new EventbriteError("expired");
     }
 
-    stage = "session-binding";
-    const binding = await sessionBinding();
     const db = getPrisma();
 
     stage = "flow-lookup";
     const flow = await db.eventbriteOAuth.findFirst({
       where: {
         stateHash: digest(state),
-        userId: binding.userId,
-        expiresAt: { gt: new Date() },
       },
       include: { company: { select: { slug: true } } },
     });
 
     if (!flow) {
-      const candidate = await db.eventbriteOAuth.findUnique({
-        where: { stateHash: digest(state) },
-        select: { userId: true, sessionHash: true, expiresAt: true },
-      });
-
-      console.error("[eventbrite:callback] flow not found", {
-        rowExists: Boolean(candidate),
-        sameUser: candidate?.userId === binding.userId,
-        sameSession: candidate?.sessionHash === binding.sessionHash,
-        stillValid: candidate ? candidate.expiresAt > new Date() : false,
-      });
-
       throw new EventbriteError("expired");
     }
 
@@ -80,18 +60,31 @@ export async function GET(request: Request) {
     const company = await requireCompanyAdmin(flow.company.slug);
     if (company.id !== flow.companyId) throw new EventbriteError("permission");
     path = settingsPath(company.slug);
+    stage = "session-binding";
+    const binding = await sessionBinding();
+    if (flow.userId !== binding.userId || flow.sessionHash !== binding.sessionHash) throw new EventbriteError("session");
+    if (flow.expiresAt <= new Date()) throw new EventbriteError("expired");
+    stage = "state-consumption";
     // Atomic consumption before contacting Eventbrite prevents concurrent replay.
-    const claimed = await db.eventbriteOAuth.updateMany({ where: { id: flow.id, stateHash: digest(state), userId: binding.userId, expiresAt: { gt: new Date() } }, data: { stateHash: null } });
+    const claimed = await db.eventbriteOAuth.updateMany({ where: { id: flow.id, companyId: company.id, stateHash: digest(state), ...binding, expiresAt: { gt: new Date() } }, data: { stateHash: null } });
     if (claimed.count !== 1) throw new EventbriteError("expired");
     try {
+      stage = "authorization-response";
       if (url.searchParams.has("error")) throw new EventbriteError("denied");
       const code = url.searchParams.get("code");
       if (!code || code.length > 4096 || url.searchParams.getAll("code").length !== 1) throw new EventbriteError("token");
+      stage = "token-exchange";
       const token = await exchange(code);
-      if (!(await organizations(token)).length) throw new EventbriteError("empty");
+      stage = "organizations";
+      const available = await organizations(token);
+      if (!available.length) throw new EventbriteError("empty");
+      stage = "company-admin-recheck";
       await requireCompanyAdmin(company.slug);
-      const saved = await db.eventbriteOAuth.updateMany({ where: { id: flow.id, userId: binding.userId, stateHash: null, expiresAt: { gt: new Date() } }, data: { encryptedAccessToken: encrypt(token, company.id) } });
+      stage = "pending-save";
+      const saved = await db.eventbriteOAuth.updateMany({ where: { id: flow.id, companyId: company.id, ...binding, stateHash: null, expiresAt: { gt: new Date() } }, data: { encryptedAccessToken: encrypt(token, company.id) } });
       if (saved.count !== 1) throw new EventbriteError("expired");
+      console.info("[eventbrite:callback] pending saved", { stage: "pending-save", organizationCount: available.length });
+      path += "?eventbrite=pending";
     } catch (error) {
       await db.eventbriteOAuth.deleteMany({ where: { id: flow.id } });
       throw error;
@@ -106,7 +99,7 @@ export async function GET(request: Request) {
     });
     path += `?error=${errorCode(error)}`;
   }
-  const response = NextResponse.redirect(new URL(path, origin), 303);
+  const response = NextResponse.redirect(new URL(path!, origin), 303);
   response.headers.set("Cache-Control", "no-store");
   response.headers.set("Referrer-Policy", "no-referrer");
   return response;

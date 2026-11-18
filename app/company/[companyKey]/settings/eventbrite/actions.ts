@@ -17,7 +17,10 @@ export async function startEventbrite(slug: string) {
     const url = new URL("https://www.eventbrite.com/oauth/authorize");
     url.search = new URLSearchParams({ response_type: "code", client_id: config.clientId, redirect_uri: config.redirect, state }).toString();
     destination = url.href;
-  } catch (error) { redirect(`${settingsPath(slug)}?error=${errorCode(error)}`); }
+  } catch (error) {
+    console.warn("[eventbrite:start] rejected", { reason: errorCode(error) });
+    redirect(`${settingsPath(slug)}?error=${errorCode(error)}`);
+  }
   redirect(destination);
 }
 

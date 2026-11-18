@@ -2,7 +2,7 @@ import { notFound, redirect } from "next/navigation";
 import { UnsavedChangesForm } from "@/components/unsaved-changes";
 import { MemberAccessError, requireCompanyAdmin } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
-import { configuration, decrypt, errorCode, organizations, pending } from "@/lib/eventbrite/connection";
+import { configuration, decrypt, errorCode, organizations, pending, EventbriteError } from "@/lib/eventbrite/connection";
 import { checkEventbrite, disconnectEventbrite, selectEventbriteOrganization, startEventbrite } from "./actions";
 
 const messages: Record<string, string> = {
@@ -16,8 +16,8 @@ const messages: Record<string, string> = {
   provider: "Eventbrite konnte gerade nicht erreicht werden. Bitte später erneut versuchen.",
   conflict: "Diese Eventbrite-Organisation ist bereits mit einer anderen Company verbunden.",
 };
-export async function EventbriteSettingsSection({ companyKey, error }: {
-  companyKey: string; error?: string;
+export async function EventbriteSettingsSection({ companyKey, error, expectedPending = false }: {
+  companyKey: string; error?: string; expectedPending?: boolean;
 }) {
   let company;
   try { company = await requireCompanyAdmin(companyKey); }
@@ -32,14 +32,20 @@ export async function EventbriteSettingsSection({ companyKey, error }: {
     select: { organizationId: true, organizationName: true, status: true } });
   let configured = true;
   try { configuration(); } catch { configured = false; }
-  const flow = await pending(company.id);
+  let flow: Awaited<ReturnType<typeof pending>> = null;
   let choices: { id: string; name?: string | null }[] = [];
   let failure = error;
-  if (flow?.encryptedAccessToken) {
-    try {
+  try {
+    flow = await pending(company.id);
+    if (expectedPending && !flow?.encryptedAccessToken) throw new EventbriteError("expired");
+    if (flow?.encryptedAccessToken) {
+      if (flow.stateHash !== null) throw new EventbriteError("expired");
       choices = await organizations(decrypt(flow.encryptedAccessToken, company.id));
       if (!choices.length) failure = "empty";
-    } catch (error) { failure = errorCode(error); }
+    }
+  } catch (error) {
+    failure = errorCode(error);
+    console.warn("[eventbrite:settings] rejected", { stage: "pending-load", reason: failure });
   }
   const button = "rounded-md bg-primary-700 px-4 py-2 text-white";
   return <section id="eventbrite" className="max-w-2xl space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
