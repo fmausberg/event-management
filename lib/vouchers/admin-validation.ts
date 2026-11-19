@@ -6,7 +6,7 @@ const limit = z.string().trim().regex(/^$|^[1-9]\d{0,9}$/, "Bitte ein positives 
   .transform(v => v ? Number(v) : null).refine(v => v === null || v <= 2147483647, "Limit zu groß.");
 const date = z.string().max(40).transform((v, ctx) => {
   try { return parseBerlinDateTime(v); }
-  catch { ctx.addIssue({ code: "custom", message: "Bitte ein gültiges Datum in Europe/Berlin eingeben." }); return z.NEVER; }
+  catch { ctx.addIssue({ code: "custom", message: "Bitte ein gültiges Datum eingeben." }); return z.NEVER; }
 });
 const optionalDate = z.union([z.literal(""), date]).transform(v => v === "" ? null : v);
 const ids = z.array(z.string().min(1).max(191)).max(500).transform(v => [...new Set(v)].sort());

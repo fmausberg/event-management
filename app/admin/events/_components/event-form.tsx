@@ -25,11 +25,6 @@ export function EventForm({ action, initialValues = emptyValues }: Props) {
 
   return (
     <UnsavedChangesForm action={formAction} className="max-w-xl space-y-6">
-      <p id="event-timezone" className="text-sm text-zinc-600 dark:text-zinc-400">
-        Alle Zeiten gelten für Europe/Berlin. Doppelte Uhrzeiten bei der Herbstumstellung
-        werden bei neuen Eingaben als erstes Auftreten (Sommerzeit) gespeichert.
-        Unveränderte Zeitpunkte bleiben beim Bearbeiten erhalten.
-      </p>
       <fieldset disabled={pending} className="space-y-5 disabled:opacity-60">
         {fields.map(({ name, label, ...attributes }) => (
           <div key={name}>
@@ -41,10 +36,7 @@ export function EventForm({ action, initialValues = emptyValues }: Props) {
               defaultValue={state.values[name]}
               required
               aria-invalid={Boolean(state.errors?.[name])}
-              aria-describedby={[
-                name === "beginsAt" || name === "endsAt" ? "event-timezone" : "",
-                state.errors?.[name] ? `${name}-error` : "",
-              ].filter(Boolean).join(" ") || undefined}
+              aria-describedby={state.errors?.[name] ? `${name}-error` : undefined}
               className="w-full rounded-lg border border-zinc-300 bg-white px-3 py-2 text-zinc-950 focus:outline-2 focus:outline-zinc-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-50"
             />
             {state.errors?.[name] && <p id={`${name}-error`} className="mt-1 text-sm text-red-700 dark:text-red-400">{state.errors[name]}</p>}

@@ -19,7 +19,7 @@ export default async function AdminAuditPage({ searchParams }: { searchParams?: 
   try {
     actors = await getAdminAuditActors();
     try { filters = parseAuditFilters(query); }
-    catch { filterError = "Bitte prüfe die Filter und den Zeitraum. Von muss vor Bis liegen; die Uhrzeiten müssen in Europe/Berlin gültig sein."; }
+    catch { filterError = "Bitte prüfe die Filter und den Zeitraum. Von muss vor Bis liegen; die Uhrzeiten müssen gültig sein."; }
     if (!filterError) history = await getAdminAuditHistory(page, filters);
   }
   catch (error) {

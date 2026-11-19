@@ -40,7 +40,7 @@ export function AuditTable({ entries, showTarget = false }: { entries: AuditTabl
       </tr></thead>
       <tbody className="divide-y divide-zinc-200 dark:divide-zinc-800">
         {entries.map((entry) => <tr key={entry.id} className="align-top">
-          <td className="whitespace-nowrap px-3 py-3"><time dateTime={entry.occurredAt.toISOString()}>{dateTime.format(entry.occurredAt)}</time><span className="block text-xs text-zinc-400">Europe/Berlin</span></td>
+          <td className="whitespace-nowrap px-3 py-3"><time dateTime={entry.occurredAt.toISOString()}>{dateTime.format(entry.occurredAt)}</time></td>
           <td className="px-3 py-3 break-all">{entry.actorType === "USER" ? entry.actorEmail ?? `Nutzer nicht mehr verfügbar (${entry.actorUserId ?? "ohne ID"})` : actors[entry.actorType]}</td>
           <td className="px-3 py-3">{actions[entry.action]}</td>
           {showTarget && <td className="min-w-48 px-3 py-3">

@@ -1,4 +1,5 @@
 import "server-only";
+import { randomUUID } from "node:crypto";
 import { RECOVERY_ADMIN_ID, recoveryAdminAvailable } from "@/lib/auth/recovery-admin";
 import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
@@ -96,7 +97,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
         return true;
       },
       async jwt({ token, user }) {
-        if (user) token.sub = user.id;
+        if (user) {
+          token.sub = user.id;
+          // Stable for this login, including JWT re-encryption/rotation in the proxy.
+          token.loginSessionId = randomUUID();
+        }
         if (!token.sub) return null;
         if (token.sub === RECOVERY_ADMIN_ID) return await recoveryAdminAvailable() ? token : null;
         const existing = await getPrisma().user.findUnique({
@@ -108,6 +113,7 @@ export const { handlers, auth, signIn, signOut } = NextAuth(() => {
       },
       session({ session, token }) {
         if (session.user && token.sub) session.user.id = token.sub;
+        session.loginSessionId = typeof token.loginSessionId === "string" ? token.loginSessionId : undefined;
         return session;
       },
     },

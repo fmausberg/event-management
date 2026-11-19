@@ -14,7 +14,7 @@ export default async function TicketsPage({ params }: { params: Promise<{ compan
  }
  const date = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", second: "2-digit", timeZone: "Europe/Berlin" });
  return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
-  <header><h1 className="text-2xl font-semibold">Tickets – {result.event.name}</h1><p className="mt-2 text-sm text-zinc-500">{result.company.name} · {result.event.beginsAt ? date.format(result.event.beginsAt) : "Noch offen"} Uhr (Berlin)</p><Link className="mt-3 inline-block text-sm underline" href="/account/eventmanagement">Veranstaltungsverwaltung</Link></header>
+  <header><h1 className="text-2xl font-semibold">Tickets – {result.event.name}</h1><p className="mt-2 text-sm text-zinc-500">{result.company.name} · {result.event.beginsAt ? date.format(result.event.beginsAt) : "Noch offen"} Uhr</p><Link className="mt-3 inline-block text-sm underline" href="/account/eventmanagement">Veranstaltungsverwaltung</Link></header>
   <TicketsTable result={result} />
  </main>;
 }

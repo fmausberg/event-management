@@ -17,7 +17,7 @@ export default async function CancellationsPage({ params }: { params: Promise<{ 
   const date = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" });
   const pending = result.requests.filter((r) => r.status === "PENDING");
   return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
-    <header><h1 className="text-2xl font-semibold">Stornierungen</h1><p className="text-sm text-zinc-500">{result.company.name} · {pending.length} offene Anfragen · Zeiten in Europe/Berlin</p></header>
+    <header><h1 className="text-2xl font-semibold">Stornierungen</h1><p className="text-sm text-zinc-500">{result.company.name} · {pending.length} offene Anfragen</p></header>
     <RefreshStatusButton />
     {[{ title: "Offene Anfragen", rows: pending }, { title: "Verlauf und Erstattungen", rows: result.requests.filter((r) => r.status !== "PENDING") }].map((group) => <section key={group.title}>
       <h2 className="mb-3 text-lg font-semibold">{group.title}</h2>

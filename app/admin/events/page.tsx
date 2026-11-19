@@ -27,7 +27,7 @@ export default async function EventsPage() {
       ) : (
         <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
           <table className="w-full text-left text-sm">
-            <caption className="sr-only">Veranstaltungen und aktuelle Platzkapazitäten. Zeiten in Europe/Berlin.</caption>
+            <caption className="sr-only">Veranstaltungen und aktuelle Platzkapazitäten.</caption>
             <thead className="bg-zinc-100 dark:bg-zinc-900">
               <tr>
                 {["Nummer", "Name", "Beginn", "Ende", "Maximale Plätze", "Gebuchte Plätze", "Freie Plätze", "Aktionen"].map((label) => (

@@ -52,7 +52,7 @@ export default async function AccountPage() {
         <div className="mt-4 overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800">
           <table className="w-full min-w-[36rem] text-left text-sm">
             <caption className="sr-only">Deine Veranstaltungsteam-Einteilungen</caption>
-            <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Veranstaltungsname", "Veranstaltungsbeginn (Europe/Berlin)", "Assigner-E-Mail", "Company"].map((label) => <th scope="col" key={label} className="px-4 py-3">{label}</th>)}</tr></thead>
+            <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Veranstaltungsname", "Veranstaltungsbeginn", "Assigner-E-Mail", "Company"].map((label) => <th scope="col" key={label} className="px-4 py-3">{label}</th>)}</tr></thead>
             <tbody>{eventStaff.map((row) => <tr key={row.id} className="border-t border-zinc-200 dark:border-zinc-800">
               <th scope="row" className="px-4 py-3 font-medium"><Link href={`/events/${encodeURIComponent(row.event.company.slug)}/${encodeURIComponent(row.event.id)}`} className="text-primary-700 underline dark:text-primary-300">{row.event.name}</Link></th>
               <td className="whitespace-nowrap px-4 py-3">{row.event.beginsAt ? date.format(row.event.beginsAt) : "Noch offen"}</td>

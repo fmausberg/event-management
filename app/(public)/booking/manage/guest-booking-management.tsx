@@ -12,10 +12,10 @@ function BookingDetails({ token, initial }: { token: string; initial: GuestBooki
   return <section className="space-y-6 rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">
     <header><h1 className="text-2xl font-semibold">Buchung #{booking.number} verwalten</h1><p className="mt-2 text-lg">{booking.eventName}</p><p className="text-sm text-zinc-500">{booking.companyName}</p></header>
     <dl className="grid grid-cols-2 gap-3 text-sm">
-      <dt>Beginn (Europe/Berlin)</dt><dd>{booking.beginsAt ? date(booking.beginsAt) : "Termin noch offen"}</dd>
+      <dt>Beginn</dt><dd>{booking.beginsAt ? date(booking.beginsAt) : "Termin noch offen"}</dd>
       <dt>Anzahl Tickets</dt><dd>{booking.quantity}</dd>
       <dt>Buchungsstatus</dt><dd>{({ CONFIRMED: "Bestätigt", CANCELLED: "Storniert", PENDING_PAYMENT: "Zahlung ausstehend", EXPIRED: "Abgelaufen" })[booking.status] ?? booking.status}</dd>
-      {booking.deadline && <><dt>Kostenfreie Stornierung bis</dt><dd>{date(booking.deadline)} Uhr (Europe/Berlin)</dd></>}
+      {booking.deadline && <><dt>Kostenfreie Stornierung bis</dt><dd>{date(booking.deadline)} Uhr</dd></>}
     </dl>
     {booking.cancellation && <div className="rounded-lg bg-zinc-50 p-4 text-sm dark:bg-zinc-900"><p>{booking.cancellation.status}</p><p className="mt-1">{booking.cancellation.refund}</p></div>}
     {state.message && <p role="status" className={state.success ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}>{state.message}</p>}

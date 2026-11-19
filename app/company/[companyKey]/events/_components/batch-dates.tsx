@@ -41,7 +41,7 @@ export function BatchDates({ slug, seriesId, value, onChange, suggestedDuration,
   }
   return <section aria-labelledby="batch-dates-title" className="space-y-4 rounded-xl border border-primary-200 bg-primary-50/30 p-4 dark:border-primary-900 dark:bg-primary-950/20">
     <h3 id="batch-dates-title" className="font-semibold">Termine auswählen</h3>
-    <p className="text-xs text-zinc-500">Montag bis Sonntag · Zeitraum bis 366 Tage · maximal {MAX_BATCH_EVENTS} Veranstaltungen je Speichervorgang. Alle Zeiten in Europe/Berlin.</p>
+    <p className="text-xs text-zinc-500">Montag bis Sonntag · Zeitraum bis 366 Tage · maximal {MAX_BATCH_EVENTS} Veranstaltungen je Speichervorgang.</p>
     <div className="grid grid-cols-2 gap-3">
       <label className="min-w-0 text-sm">Von<input type="date" value={range.from} onChange={event => { setRange({ ...range, from: event.target.value }); setPage(0); }} className={input} /></label>
       <label className="min-w-0 text-sm">Bis<input type="date" value={range.to} onChange={event => { setRange({ ...range, to: event.target.value }); setPage(0); }} className={input} /></label>

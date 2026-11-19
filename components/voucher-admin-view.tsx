@@ -38,7 +38,7 @@ export function VoucherAdministrationView({ data, detail = false }: { data: Vouc
   return <main className="min-w-0 flex-1 space-y-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
     <PageBreadcrumb label={`Kampagne ${c.name}`} />
     <header><h1 className="text-2xl font-semibold">{c.name}</h1>
-      <p className="mt-2 text-sm text-zinc-500">Ein Code pro Buchung · explizite Ziele · alle Zeitangaben in Europe/Berlin</p>
+      <p className="mt-2 text-sm text-zinc-500">Ein Code pro Buchung · explizite Ziele</p>
       <Link className="mt-2 inline-block underline" href={base}>Zur Kampagnenübersicht</Link>
     </header>
     <section className={panel}>

@@ -34,7 +34,7 @@ export function parseBerlinDateTime(value: string, original?: Date): Date {
     .sort((a, b) => a.getTime() - b.getTime());
 
   if (!candidates.length) {
-    throw new Error("Diese Uhrzeit existiert wegen der Zeitumstellung in Europe/Berlin nicht.");
+    throw new Error("Diese Uhrzeit existiert wegen der Zeitumstellung nicht.");
   }
   // Preserve either occurrence of an unchanged autumn time when editing.
   // New ambiguous times use the earlier occurrence (summer time).

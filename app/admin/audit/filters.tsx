@@ -20,9 +20,9 @@ export function AuditFilterForm({ filters, actors }: { filters: AuditFilters; ac
       <MultiFilter label="Wer?" name="actor" options={actors} selected={filters.actors} />
       <MultiFilter label="Was?" name="action" options={Object.entries(auditActionLabels).map(([value, label]) => ({ value, label }))} selected={filters.actions} />
       <MultiFilter label="Zielobjekttyp" name="model" options={Object.entries(auditModelLabels).map(([value, label]) => ({ value, label }))} selected={filters.models} />
-      <label className="text-sm"><span className="mb-1 block text-zinc-500">Von (Berlin)</span><input aria-label="Zeitraum von, Europe/Berlin" className={inputClass} type="datetime-local" name="from" defaultValue={filters.from} /></label>
-      <label className="text-sm"><span className="mb-1 block text-zinc-500">Bis (Berlin)</span><input aria-label="Zeitraum bis, Europe/Berlin" className={inputClass} type="datetime-local" name="to" defaultValue={filters.to} /></label>
+      <label className="text-sm"><span className="mb-1 block text-zinc-500">Von</span><input aria-label="Zeitraum von" className={inputClass} type="datetime-local" name="from" defaultValue={filters.from} /></label>
+      <label className="text-sm"><span className="mb-1 block text-zinc-500">Bis</span><input aria-label="Zeitraum bis" className={inputClass} type="datetime-local" name="to" defaultValue={filters.to} /></label>
     </div>
-    <div className="mt-4 flex flex-wrap items-center gap-4"><button className="rounded-lg bg-primary-600 px-4 py-2 text-sm text-white hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600">Filter anwenden</button><Link href="/admin/audit" className="text-sm underline">Zurücksetzen</Link><p className="text-xs text-zinc-500">Mehrfachauswahl möglich. Leere Auswahl = alle. Zeitangaben in Europe/Berlin; die Bis-Minute ist eingeschlossen.</p></div>
+    <div className="mt-4 flex flex-wrap items-center gap-4"><button className="rounded-lg bg-primary-600 px-4 py-2 text-sm text-white hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600">Filter anwenden</button><Link href="/admin/audit" className="text-sm underline">Zurücksetzen</Link><p className="text-xs text-zinc-500">Mehrfachauswahl möglich. Leere Auswahl = alle. Die Bis-Minute ist eingeschlossen.</p></div>
   </form>;
 }

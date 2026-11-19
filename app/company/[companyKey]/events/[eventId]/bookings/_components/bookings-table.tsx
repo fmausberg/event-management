@@ -63,7 +63,7 @@ export function BookingsTable({ company, event, bookings, revenue, noteSummaries
             <table className="w-full text-left text-sm">
                 <caption className="sr-only">Buchungen für {event.name}</caption>
                 <thead className="bg-zinc-100 dark:bg-zinc-900">
-                    <tr>{["Nr.", "Name", "E-Mail", "Plätze", "Gezahlt (Abweichung zum Listenpreis)", "Status", "Gebucht (Europe/Berlin)", "Quelle", "Aktionen"].map((label) =>
+                    <tr>{["Nr.", "Name", "E-Mail", "Plätze", "Gezahlt (Abweichung zum Listenpreis)", "Status", "Gebucht", "Quelle", "Aktionen"].map((label) =>
                         <th key={label} scope="col" className="px-4 py-3">{label}</th>
                     )}
                     </tr>

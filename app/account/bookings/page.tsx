@@ -26,7 +26,7 @@ export default async function MyBookingsPage() {
   return <main className="min-w-0 flex-1 bg-zinc-50 p-4 sm:p-6 dark:bg-black">
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-6">
       <header className="flex flex-wrap items-start justify-between gap-4">
-        <div><h1 className="text-2xl font-semibold">Meine Buchungen</h1><p className="mt-1 text-xs text-zinc-500">Deine Veranstaltungen und Tickets im Überblick. Alle Uhrzeiten in Europe/Berlin.</p></div>
+        <div><h1 className="text-2xl font-semibold">Meine Buchungen</h1><p className="mt-1 text-xs text-zinc-500">Deine Veranstaltungen und Tickets im Überblick.</p></div>
         <RefreshStatusButton />
       </header>
       {!bookings.length ? <p className="rounded-xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-950">Noch keine Buchungen mit deinem Konto verknüpft.</p> : ([

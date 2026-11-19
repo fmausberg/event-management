@@ -49,6 +49,18 @@ async function login(input: Record<string, string> = {}) {
 }
 
 describe("credentials HTTP flow with real Auth.js and password hashing (database double)", () => {
+  it("keeps the login identifier across cookie renewal and changes it on a new login", async () => {
+    const originalCookie = cookieHeader(await login());
+    const first = await handlers.GET(request("session", { headers: { cookie: originalCookie } }));
+    const session = await first.json();
+    expect(session.loginSessionId).toEqual(expect.any(String));
+    const renewedCookie = cookieHeader(first);
+    expect(renewedCookie).not.toBe(originalCookie);
+    const renewed = await handlers.GET(request("session", { headers: { cookie: renewedCookie } }));
+    expect((await renewed.json()).loginSessionId).toBe(session.loginSessionId);
+    const other = await handlers.GET(request("session", { headers: { cookie: cookieHeader(await login()) } }));
+    expect((await other.json()).loginSessionId).not.toBe(session.loginSessionId);
+  });
   it("renews an active session for seven days but cannot renew an expired session", async () => {
     vi.useFakeTimers({ toFake: ["Date"] });
     try {

@@ -16,7 +16,7 @@ const date = new Intl.DateTimeFormat("de-DE", {
 
 /** Current event facts only; participant identities and ticket credentials stay behind authorization. */
 export function trainerReminderMessage(data: TrainerReminderMessage) {
-  const beginsAt = `${date.format(data.beginsAt)} Uhr (Berlin)`;
+  const beginsAt = `${date.format(data.beginsAt)} Uhr`;
   const subject = `Event-Erinnerung: ${data.eventName}`;
   const text = [
     `Hallo ${data.trainerName},`,
