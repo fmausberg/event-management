@@ -29,7 +29,7 @@ export default async function StatusOverviewPage() {
       </div>
       <div className="rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950">
         <p className="font-semibold">{healthy === core.length ? "Alle Kernchecks erfolgreich" : "Kernchecks mit Einschränkungen"}</p>
-        <p className="mt-1 text-sm text-zinc-500">{healthy} von {core.length} Kernchecks ohne Auffälligkeiten · Prüfstand: <time dateTime={checkedAt}>{new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "medium", timeZone: "Europe/Berlin" }).format(new Date(checkedAt))}</time> (Berlin)</p>
+        <p className="mt-1 text-sm text-zinc-500">{healthy} von {core.length} Kernchecks ohne Auffälligkeiten · Prüfstand: <time dateTime={checkedAt}>{new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "medium", timeZone: "Europe/Berlin" }).format(new Date(checkedAt))}</time></p>
       </div>
       <ul className="divide-y divide-zinc-200 overflow-hidden rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-950">
         {services.map(service => <li key={service.name} className="flex flex-wrap items-start justify-between gap-3 p-5">

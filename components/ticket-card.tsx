@@ -26,10 +26,10 @@ export function TicketCard({ ticket, bookingNumber, qrCode, children }: TicketCa
       <Image src={eventYogaLogo} width={1626} height={1626} alt="Event Yoga" className="h-auto w-20 shrink-0 sm:w-24" />
     </div>
     <h2 className="break-words text-xl font-semibold">{ticket.eventName}</h2>
-    <p>{ticket.beginsAt ? `${date.format(new Date(ticket.beginsAt))} Uhr (Berlin)` : "Termin noch offen"}</p>
+    <p>{ticket.beginsAt ? `${date.format(new Date(ticket.beginsAt))} Uhr` : "Termin noch offen"}</p>
     {ticket.venue && <p className="break-words">{ticket.venue}</p>}
     <p><span className={`inline-flex rounded-full px-3 py-1 text-sm font-semibold ${ticket.status === "Gültig" ? "bg-green-100 text-green-800" : ticket.status === "Storniert" || ticket.status === "Nicht gültig" ? "bg-red-100 text-red-800" : "bg-yellow-100 text-yellow-800"}`}>{ticket.status}</span></p>
-    {ticket.checkedInAt && <p className="text-sm">Bereits eingelöst am {checkedInDate.format(new Date(ticket.checkedInAt))} Uhr (Berlin)</p>}
+    {ticket.checkedInAt && <p className="text-sm">Bereits eingelöst am {checkedInDate.format(new Date(ticket.checkedInAt))} Uhr</p>}
     {qrCode && ticket.status === "Gültig" && <figure className="flex flex-col items-center gap-4 rounded-lg bg-white p-4 text-zinc-900">
       <QRCodeSVG value={qrCode.value} size={260} level="M" marginSize={4} title={`QR-Code für Ticket #${ticketNumber}`} className="h-auto max-w-full" />
       <figcaption className="text-center text-sm">Dein Ticket-QR-Code

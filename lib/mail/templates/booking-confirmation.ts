@@ -25,7 +25,7 @@ vielen Dank für deine Buchung! Deine Plätze sind bestätigt.
 
 Buchungsnummer: ${data.bookingNumber}
 Event: ${data.eventName}
-Beginn: ${date} Uhr (Europe/Berlin)
+Beginn: ${date} Uhr
 Anzahl Plätze: ${data.quantity}
 
 Bitte bewahre diese Buchungsbestätigung auf.
@@ -45,7 +45,7 @@ Dein Event-Management-Team`;
       <p>
         Buchungsnummer: ${data.bookingNumber}<br>
         Event: ${escapeHtml(data.eventName)}<br>
-        Beginn: ${escapeHtml(date)} Uhr (Europe/Berlin)<br>
+        Beginn: ${escapeHtml(date)} Uhr<br>
         Anzahl Plätze: ${data.quantity}
       </p>
 

@@ -62,7 +62,6 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ c
                             </div>
                         }
                     </dl>
-                    <p className="mb-6 text-xs text-zinc-400">Alle Eventzeiten in Europe/Berlin.</p>
                     <p className="mb-6 text-sm text-zinc-600">{cancellationPolicyText(event.freeCancellationUntilMinutesBeforeStart)}</p>
                     {!isDescriptionEmpty(event.description) && <section><h2 className="text-xl font-semibold">Über die Veranstaltung</h2><div className="mt-4 leading-relaxed text-zinc-600"><DescriptionHtml html={event.description} /></div></section>}
                 </article>

@@ -53,7 +53,7 @@ function weekLabel(monday: string) {
 }
 type SortKey = "number" | "name" | "beginsAt" | "series" | "venue" | "status" | "remainingSeats" | "price" | "bookings";
 const columns: { key: SortKey; label: string }[] = [
- { key: "number", label: "Nr." }, { key: "name", label: "Veranstaltung" }, { key: "beginsAt", label: "Beginn (Europe/Berlin)" },
+ { key: "number", label: "Nr." }, { key: "name", label: "Veranstaltung" }, { key: "beginsAt", label: "Beginn" },
  { key: "series", label: "Veranstaltungsreihe" }, { key: "venue", label: "Orte" }, { key: "status", label: "Status" },
  { key: "remainingSeats", label: "(freie) Plätze" }, { key: "price", label: "Preis" }, { key: "bookings", label: "Buchungen" },
 ];
@@ -216,12 +216,12 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
     {!inline && <div className="grid grid-cols-2 gap-4">{fields.filter(field => !["beginsAt", "endsAt"].includes(field.key)).map(({ key, label, ...attributes }) => <div key={key} className={key === "name" || key === "shortdescription" ? "col-span-2 min-w-0" : "min-w-0"}><label htmlFor={`event-${key}`}>{label}<RequiredMark /></label><input {...attributes} id={`event-${key}`} name={key} value={values[key]} onChange={(e) => change(key, e.target.value)} aria-invalid={!!state.errors?.[key]} aria-describedby={state.errors?.[key] ? `error-${key}` : undefined} className={`${input} min-w-0 max-w-full`} />{state.errors?.[key] && <p id={`error-${key}`} className="text-xs text-red-700 dark:text-red-300">{state.errors[key]?.join(" ")}</p>}</div>)}</div>}
 
     {!inline && !multiple && <div className="grid grid-cols-2 gap-4">{fields.filter(field => ["beginsAt", "endsAt"].includes(field.key)).map(({ key, label, ...attributes }) => <div key={key} className={key === "name" || key === "shortdescription" ? "col-span-2 min-w-0" : "min-w-0"}><label htmlFor={`event-${key}`}>{label}<RequiredMark /></label><input {...attributes} id={`event-${key}`} name={key} value={values[key]} onChange={(e) => change(key, e.target.value)} aria-invalid={!!state.errors?.[key]} aria-describedby={state.errors?.[key] ? `error-${key}` : undefined} className={`${input} min-w-0 max-w-full`} />{state.errors?.[key] && <p id={`error-${key}`} className="text-xs text-red-700 dark:text-red-300">{state.errors[key]?.join(" ")}</p>}</div>)}</div>}
-    {(!inline || multiple) && <div className={inline ? "sm:col-span-2 min-w-0" : undefined}>{multiple ? <><BatchDates slug={slug} seriesId={values.eventSeriesId} value={batch} onChange={setBatch} suggestedDuration={series.find(item => item.id === values.eventSeriesId)?.suggestedDuration ?? null}
+    {multiple && <div className={inline ? "sm:col-span-2 min-w-0" : undefined}><BatchDates slug={slug} seriesId={values.eventSeriesId} value={batch} onChange={setBatch} suggestedDuration={series.find(item => item.id === values.eventSeriesId)?.suggestedDuration ?? null}
       conflictingDates={submission.seriesId === values.eventSeriesId ? state.conflictingDates : undefined}
       dateErrors={submission.seriesId === values.eventSeriesId && submission.batch === JSON.stringify(batch) ? state.dateErrors : undefined} />
       {(state.errors?.beginsAt || state.errors?.endsAt) && <p role="alert" className="text-xs text-red-700">{state.errors.beginsAt?.join(" ")} {state.errors.endsAt?.join(" ")}</p>}
       <p className="text-xs text-zinc-500">Alle übrigen Formularangaben gelten für jeden ausgewählten Termin. Es entstehen eigenständige Veranstaltungen dieser Reihe.</p>
-    </> : <p className="text-xs text-zinc-500">Zeiten in deiner lokalen Zeitzone ({Intl.DateTimeFormat().resolvedOptions().timeZone}).</p>}</div>}
+    </div>}
     <div><label htmlFor="event-venue">Ort<RequiredMark /></label><select id="event-venue" name="venueId" value={values.venueId} onChange={(e) => change("venueId", e.target.value)} className={input}><option value="">Keinen Ort</option>{venues.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}</select>{state.errors?.venueId && <p className="text-xs text-red-700">{state.errors.venueId.join(" ")}</p>}</div>
     <div className={inline ? "min-w-0 min-h-32" : undefined}><TrainerPicker slug={slug} trainers={trainers} name="trainerIds" multiple value={values.trainerIds} onChange={(trainerIds) => setValues((old) => ({ ...old, trainerIds }))} onBusy={setTrainerBusy} errors={state.errors?.trainerIds} legacyName={row?.trainerName} /></div>
 
@@ -232,7 +232,7 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
     </div>
     <div className="min-w-0"><EventImage imageUrl={row?.imageUrl} seriesImageUrl={row ? undefined : series.find((item) => item.id === values.eventSeriesId)?.imageUrl} onFileChange={setCoverFile} /></div>
    </fieldset>
-   {inline && <p className="text-xs text-zinc-500">* Zum Veröffentlichen erforderlich. Entwürfe dürfen unvollständig sein. Zeiten in deiner lokalen Zeitzone ({Intl.DateTimeFormat().resolvedOptions().timeZone}). Die Auswahl einer Veranstaltungsreihe übernimmt deren Vorgaben und ersetzt die entsprechenden Formularfelder.</p>}
+   {inline && <p className="text-xs text-zinc-500">* Zum Veröffentlichen erforderlich. Entwürfe dürfen unvollständig sein. Die Auswahl einer Veranstaltungsreihe übernimmt deren Vorgaben und ersetzt die entsprechenden Formularfelder.</p>}
    {state.message && <p role="alert" className="text-sm text-red-700 dark:text-red-300">{state.message}</p>}
    <div className="flex flex-wrap gap-3">
     {!row || row.status === "DRAFT" ? <>
