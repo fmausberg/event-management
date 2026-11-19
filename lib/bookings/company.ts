@@ -17,8 +17,9 @@ export async function getCompanyBookings(slug: string) {
     select: {
       id: true, number: true, customerName: true, customerEmail: true, quantity: true, status: true, bookedAt: true,
       platform: true, origin: true, externalBookingId: true,
+      importRow: { select: { importId: true, import: { select: { name: true } } } },
       payment: { select: { status: true, amount: true, currency: true } },
-      price: { select: { originalAmountMinor: true, payableAmountMinor: true, currency: true } },
+      price: { select: { originalAmountMinor: true, payableAmountMinor: true, currency: true, calculationVersion: true } },
       user: { select: { name: true, email: true } },
       tickets: { where: usableTicketWhere, select: { id: true } },
       event: { select: { id: true, name: true, endsAt: true, status: true, beginsAt: true, ticketPrice: true, currency: true, venue: { select: { name: true } } } },
@@ -30,7 +31,7 @@ export async function getCompanyBookings(slug: string) {
     customerEmail: row.customerEmail ?? user?.email ?? null,
     bookedAt: row.bookedAt.toISOString(),
     event: { id: event.id, name: event.name, beginsAt: event.beginsAt?.toISOString() ?? null, endsAt: event.endsAt?.toISOString() ?? null, venueName: event.venue?.name ?? null },
-    paidAmount: row.payment?.status === "PAID" ? row.payment.amount : row.price?.payableAmountMinor === 0 || row.payment ? 0 : null,
+    paidAmount: row.price?.calculationVersion === 2 ? null : row.payment?.status === "PAID" ? row.payment.amount : row.price?.payableAmountMinor === 0 || row.payment ? 0 : null,
     paymentSummary: bookingPaymentSummary(row, event),
     resendUnavailableReason: canResend ? ticketMailUnavailable({ ...row, tickets, event }) : "Eine aktive Company-Mitgliedschaft ist erforderlich.",
   })) };

@@ -4,7 +4,7 @@ type RevenueBooking = {
   status: string;
   quantity: number;
   payment?: { status: string; amount: number; currency: string } | null;
-  price?: { payableAmountMinor: number; originalAmountMinor: number; currency: string; taxMinor?: number | null; taxRate?: { toString(): string } | null; taxGrossMinor?: number | null; taxCalculationVersion?: number | null; voucherAmountMinor?: number } | null;
+  price?: { payableAmountMinor: number; originalAmountMinor: number; currency: string; calculationVersion?: number; taxMinor?: number | null; taxRate?: { toString(): string } | null; taxGrossMinor?: number | null; taxCalculationVersion?: number | null; voucherAmountMinor?: number } | null;
 };
 export type EventRevenue = {
   listGross: string | null; listDifference: string | null;
@@ -24,6 +24,8 @@ export function calculateEventRevenue(bookings: RevenueBooking[], countryCode?: 
   let bookingCount = 0, excludedCount = 0;
   for (const booking of bookings) {
     if (booking.status !== "CONFIRMED") continue;
+    // External gross is not a Stripe receipt, list price, fee basis or tax statement.
+    if (booking.price?.calculationVersion === 2) { excludedCount++; continue; }
     // Include complimentary and discounted seats at their original full price.
     // Legacy bookings without a snapshot use the current event price.
     if (booking.price) {

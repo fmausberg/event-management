@@ -99,6 +99,7 @@ enum MailOutboxKind {
 }
 
 model User {
+  bookingImports BookingImport[]
   notes Note[]
   createdVoucherCampaigns VoucherCampaign[]     @relation("VoucherCampaignCreator")
   assignedVoucherCodes    VoucherCode[]         @relation("VoucherCodeRecipient")
@@ -187,6 +188,7 @@ model AuthRateLimit {
 }
 
 model Company {
+  bookingImports BookingImport[]
   taxRules CompanyTaxRule[]
   eventbriteConnection EventbriteConnection?
   eventbriteOAuth EventbriteOAuth?
@@ -351,6 +353,7 @@ model EventSeries {
 }
 
 model Event {
+  bookingImportRows BookingImportRow[]
   taxRateOverride Decimal? @db.Decimal(7, 4)
   notes Note[]
   reviews EventReview[]
@@ -409,6 +412,8 @@ enum BookingOrigin {
 }
 
 model Booking {
+  importRow BookingImportRow?
+  externalCompanyId String?
   notes Note[]
   reviews EventReview[]
   price              BookingPrice?
@@ -447,7 +452,7 @@ model Booking {
   updatedAt DateTime @updatedAt
 
   // Indizes
-  @@unique([platform, externalBookingId])
+  @@unique([externalCompanyId, platform, externalBookingId])
   @@index([eventId, status])
   @@index([userId, bookedAt])
 }
@@ -1201,4 +1206,45 @@ model StripeTaxRateCache {
   stripeTaxRateId String
   createdAt DateTime @default(now())
   @@id([stripeAccountId, countryCode, rate, displayName])
+}
+
+// Confirmed imports only. Original files are never retained.
+model BookingImport {
+  id String @id
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  platform Platform
+  name String @db.VarChar(160)
+  fileName String @db.VarChar(255)
+  sheetName String @db.VarChar(160)
+  createdById String
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  startedAt DateTime
+  completedAt DateTime
+  rowCount Int
+  importedCount Int
+  duplicateCount Int
+  excludedCount Int
+  errorCount Int
+  mapping Json
+  rawDeletedAt DateTime?
+  rows BookingImportRow[]
+  @@index([companyId, completedAt])
+}
+
+model BookingImportRow {
+  id String @id @default(cuid())
+  importId String
+  import BookingImport @relation(fields: [importId], references: [id], onDelete: Restrict)
+  sourceRow Int
+  raw Json?
+  normalized Json?
+  eventId String?
+  event Event? @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  bookingId String? @unique
+  booking Booking? @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  outcome String
+  messages String[]
+  @@unique([importId, sourceRow])
+  @@index([eventId])
 }

@@ -22,6 +22,13 @@ export const eventSeriesPrivateFields = {
 } as const;
 
 export const auditPolicies = {
+  BookingImport: {
+    delegate: "bookingImport",
+    fields: { companyId: "Company-ID", platform: "Plattform", createdById: "Ersteller-ID", startedAt: "Beginn", completedAt: "Abschluss", rowCount: "Quellzeilen", importedCount: "Importiert", duplicateCount: "Duplikate", excludedCount: "Ausgeschlossen", errorCount: "Fehler", rawDeletedAt: "Importdaten gelöscht" },
+    // No filenames, source labels, mappings, cells or normalized personal data in AuditLog.
+    privateFields: {},
+    affectedBy: [],
+  },
   EventSeries: {
     delegate: "eventSeries",
     fields: eventSeriesAuditFields,
@@ -68,6 +75,7 @@ export const auditPolicies = {
 } as const;
 
 export const auditModelLabels: Readonly<Record<string, string>> = {
+  BookingImport: "Buchungsimport",
   Login: "Login",
   EventSeries: "Veranstaltungsreihe", Event: "Veranstaltung", Venue: "Ort",
   Trainer: "Trainer", Company: "Company", CompanyMembership: "Mitgliedschaft",

@@ -28,11 +28,12 @@ export async function upsertExternalBooking(input: UpsertExternalBookingInput) {
 
   const { eventId, platform, externalBookingId, quantity, status, bookedAt } = input;
   return getPrisma().$transaction(async (tx) => {
-    const existing = await tx.booking.findUnique({ where: { platform_externalBookingId: { platform, externalBookingId } }, select: { id: true } });
+    const event = await tx.event.findUniqueOrThrow({ where: { id: eventId }, select: { companyId: true } });
+    const existing = await tx.booking.findUnique({ where: { externalCompanyId_platform_externalBookingId: { externalCompanyId: event.companyId, platform, externalBookingId } }, select: { id: true } });
     // One unique key drives both insert and update, including cancellation/reinstatement.
     const booking = await tx.booking.upsert({
-      where: { platform_externalBookingId: { platform, externalBookingId } },
-      create: { eventId, platform, externalBookingId, quantity, status, bookedAt },
+      where: { externalCompanyId_platform_externalBookingId: { externalCompanyId: event.companyId, platform, externalBookingId } },
+      create: { eventId, externalCompanyId: event.companyId, platform, origin: "PLATFORM", externalBookingId, quantity, status, bookedAt },
       update: { quantity, status, bookedAt },
       include: { ...voucherHistory, payment: true, cancellationRequests: { where: { status: { in: ["PENDING", "APPROVED"] } }, select: { id: true } } },
     });

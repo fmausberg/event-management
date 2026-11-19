@@ -14,11 +14,12 @@ const { db, state } = vi.hoisted(() => ({
   db: {
     $transaction: vi.fn(),
     event: { findUniqueOrThrow: vi.fn(), findMany: vi.fn() },
-    booking: { aggregate: vi.fn(), groupBy: vi.fn(), upsert: vi.fn() },
+    booking: { aggregate: vi.fn(), groupBy: vi.fn(), upsert: vi.fn(), findUnique: vi.fn() },
     platformEvent: { findMany: vi.fn(), update: vi.fn() },
   },
 }));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
+vi.mock("@/lib/companies/notifications", () => ({ queueBookingNotification: vi.fn() }));
 
 const input: UpsertExternalBookingInput = {
   eventId: "event-1",
@@ -36,8 +37,12 @@ beforeEach(() => {
     try { return await callback(db); }
     catch (error) { state.bookings = snapshot; throw error; }
   });
-  db.event.findUniqueOrThrow.mockResolvedValue({ maxSeats: 30 });
+  db.event.findUniqueOrThrow.mockResolvedValue({ maxSeats: 30, companyId: "company-1" });
   db.event.findMany.mockResolvedValue([]);
+  db.booking.findUnique.mockImplementation(async ({ where }: { where: { externalCompanyId_platform_externalBookingId: { externalCompanyId: string; platform: string; externalBookingId: string } } }) => {
+    const key = where.externalCompanyId_platform_externalBookingId;
+    return state.bookings.find(booking => booking.externalCompanyId === key.externalCompanyId && booking.platform === key.platform && booking.externalBookingId === key.externalBookingId) ?? null;
+  });
   db.booking.aggregate.mockImplementation(async ({ where }: { where: { eventId: string; status: { in: BookingStatus[] } } }) => ({
     _sum: {
       quantity: state.bookings.filter((booking) => booking.eventId === where.eventId && where.status.in.includes(booking.status))
@@ -45,14 +50,14 @@ beforeEach(() => {
     },
   }));
   db.booking.upsert.mockImplementation(async (args: {
-    where: { platform_externalBookingId: Pick<UpsertExternalBookingInput, "platform" | "externalBookingId"> };
+    where: { externalCompanyId_platform_externalBookingId: Pick<UpsertExternalBookingInput, "platform" | "externalBookingId"> & { externalCompanyId: string } };
     create: UpsertExternalBookingInput;
     update: Pick<UpsertExternalBookingInput, "quantity" | "status" | "bookedAt">;
   }) => {
-    const key = args.where.platform_externalBookingId;
-    const existing = state.bookings.find((booking) => booking.platform === key.platform && booking.externalBookingId === key.externalBookingId);
+    const key = args.where.externalCompanyId_platform_externalBookingId;
+    const existing = state.bookings.find((booking) => booking.externalCompanyId === key.externalCompanyId && booking.platform === key.platform && booking.externalBookingId === key.externalBookingId);
     if (existing) { Object.assign(existing, args.update); return existing; }
-    const booking = { ...args.create, origin: null, id: String(state.bookings.length + 1), number: state.bookings.length + 1, userId: null, customerName: null, customerEmail: null, reservedUntil: null, createdAt: new Date(), updatedAt: new Date() };
+    const booking = { ...args.create, origin: null, externalCompanyId: key.externalCompanyId, id: String(state.bookings.length + 1), number: state.bookings.length + 1, userId: null, customerName: null, customerEmail: null, reservedUntil: null, createdAt: new Date(), updatedAt: new Date() };
     state.bookings.push(booking);
     return booking;
   });

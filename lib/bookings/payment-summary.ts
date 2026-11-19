@@ -1,10 +1,13 @@
 type BookingPayment = {
   quantity: number;
   payment?: { status: string; amount: number; currency: string } | null;
-  price?: { originalAmountMinor: number; currency: string; payableAmountMinor?: number } | null;
+  price?: { originalAmountMinor: number; currency: string; payableAmountMinor?: number; calculationVersion?: number } | null;
 };
 
 export function bookingPaymentSummary(booking: BookingPayment, event: { ticketPrice?: { toString(): string } | null; currency?: string }) {
+  if (booking.price?.calculationVersion === 2) {
+    return `${new Intl.NumberFormat("de-DE", { style: "currency", currency: booking.price.currency }).format(booking.price.originalAmountMinor / 100)} extern erfasst (keine Stripe-Zahlung)`;
+  }
   const payment = booking.payment;
   if (!payment && booking.price?.payableAmountMinor !== 0) return "Kein Zahlungsbetrag erfasst";
   if (payment?.status === "PARTIALLY_REFUNDED") return "Teilweise erstattet – Restbetrag unbekannt";

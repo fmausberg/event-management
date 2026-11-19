@@ -36,6 +36,9 @@ der angeforderten Datensätze.
 | `/event-series/[seriesId]` | Reihendetails und zugehörige Events |
 | `/events` | Eventverwaltung |
 | `/events/[eventId]/bookings` | Buchungsverwaltung |
+| `/bookings` | Company-Buchungen mit externen Quellen und Importverknüpfungen |
+| `/bookings/import` | Excel-/CSV-Import mit Spaltenmapping und Event-Zuordnung |
+| `/bookings/imports`, `/bookings/imports/[importId]` | Importhistorie, Quellzeilen und personenbezogene Importdaten löschen |
 | `/events/[eventId]/tickets` | Ticketverwaltung |
 | `/cancellations` | Stornierungsanfragen und Erstattungen |
 

@@ -1,5 +1,12 @@
 # Buchungsverwaltung
 
+Die Company-Übersicht `/company/[companyKey]/bookings` bietet den Excel-/CSV-Import
+externer Verkäufe mit Vorschau und dauerhafter Importhistorie. Importierte
+Buchungen besitzen unveränderliche Preis-Snapshots, werden nicht durch
+wiederholte Dateiimporte überschrieben und erzeugen keine internen Tickets
+oder Stripe-Zahlungen. Ablauf, Berechtigungen, Grenzen, Erstattungsentscheidung
+und Aufbewahrung: [Externe Buchungsimporte](booking-imports.md).
+
 `/company/<company-slug>/events/<event-id>/bookings` ist die interne Verwaltung
 aller Buchungen eines Events. Aktive Company-User, aktive Company-Admins und
 globale Admins dürfen lesen, erstellen, bearbeiten und nach Bestätigung löschen.
@@ -22,8 +29,11 @@ Verwaltungsaktionen; die öffentliche Buchungsseite verwendet eine eigene transa
 Externe Importe sind keine plattformübergreifende Reservierungsgarantie. Bei einem Transaktionskonflikt
 wird zum Wiederholen aufgefordert.
 
-Änderungen externer Buchungen gelten lokal; ein späterer Import kann sie
-überschreiben oder gelöschte externe Buchungen erneut anlegen. Manuelles Erstellen/Bearbeiten startet weder Ticket-Mailversand noch Zahlungsaktionen.
+Änderungen älterer externer Buchungen ohne finanzielle Historie gelten lokal;
+ein späterer Integrations-Upsert kann sie überschreiben oder gelöschte
+externe Buchungen erneut anlegen. Der Excel-/CSV-Dateiimport überschreibt
+dagegen keine Buchungen und schützt seine Preis-Snapshots dauerhaft.
+Manuelles Erstellen/Bearbeiten startet weder Ticket-Mailversand noch Zahlungsaktionen.
 
 ## Tickets erneut senden
 
