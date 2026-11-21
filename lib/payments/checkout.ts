@@ -6,7 +6,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import { getStripe } from "./stripe";
 import { releaseVoucherInTransaction, voucherTransaction } from "@/lib/vouchers/service";
 
-export async function ensureCheckout(payment: Payment) {
+export async function ensureCheckout(payment: Payment, options: { existingOnly?: boolean } = {}) {
   payment = await getPrisma().payment.findUniqueOrThrow({ where: { id: payment.id } });
   const stripe = getStripe();
   if (payment.checkoutSessionId) {
@@ -14,6 +14,7 @@ export async function ensureCheckout(payment: Payment) {
     assertCheckoutTax(session, payment);
     return session;
   }
+  if (options.existingOnly) throw new Error("Missing existing checkout session");
   // Do not reuse a pruned Stripe idempotency key after 24 hours.
   if (Date.now() - payment.createdAt.getTime() > 23 * 60 * 60_000) throw new Error("Checkout requires manual reconciliation");
   payment = await prepareTaxCheckout(payment);

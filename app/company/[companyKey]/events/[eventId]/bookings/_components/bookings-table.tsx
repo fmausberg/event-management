@@ -6,6 +6,7 @@ import Link from "next/link";
 import { EventRevenueSummary } from "./event-revenue";
 import type { EventRevenue } from "@/lib/bookings/revenue";
 import { ResendTicketEmail } from "@/components/resend-ticket-email";
+import { CheckBookingPayment } from "@/components/check-booking-payment";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { saveBooking, deleteBooking } from "../actions";
 import type { BookingRow, BookingState } from "@/lib/bookings/validation";
@@ -80,6 +81,7 @@ export function BookingsTable({ company, event, bookings, revenue, noteSummaries
                         <td className="px-4 py-4">
                             <div className="flex flex-wrap gap-3">
                                 {noteSummaries.counts[row.id] !== undefined && <ObjectNotes mode="dialog" target={{ type: "booking", id: row.id }} label={`Buchung #${row.number} - ${row.customerName || event.name}`} userId={noteSummaries.userId} initialCount={noteSummaries.counts[row.id]} />}
+                                <CheckBookingPayment companySlug={company.slug} bookingId={row.id} pendingPayment={row.payment?.status === "PENDING"} />
                                 <ResendTicketEmail companySlug={company.slug} eventId={event.id} bookingId={row.id} unavailableReason={row.resendUnavailableReason} />
                                 {!row.price && !row.payment && <>
                                 <button disabled={!!editor} type="button" onClick={() => { setEditor({ row }); setMessage(""); }} className="text-primary-700 underline disabled:opacity-40 dark:text-primary-300">Bearbeiten</button>

@@ -38,3 +38,31 @@ Der Versand verwendet ausschließlich booking.customerEmail; ein Profil-Fallback
 in der Tabelle gilt nicht als gespeicherte Buchungsadresse. Die UI meldet
 „Versand beauftragt“. Regeln, Audit und Migration: [Ticket-Outbox](ticket-outbox.md).
 In der Company-Ticketübersicht gibt es keine zusätzliche Versandaktion.
+
+## Offene Stripe-Zahlungen prüfen
+
+In der Company- und Event-Buchungsübersicht erscheint bei einer Zahlung mit
+Status `PENDING` der Button „Zahlung prüfen“. Während der Anfrage ist er gesperrt.
+Die Übersicht aktualisiert sich anschließend; offene Zahlungen erhalten eine
+neutrale Rückmeldung. Fehler enthalten keine technischen Details.
+
+Die Server Action prüft Anmeldung und Company-Zugriff über
+`requireCompanyAccess`: aktive `COMPANY_USER` und `COMPANY_ADMIN` der Company
+sowie Plattform-Admins (`ADMIN`) sind berechtigt. Die Buchung wird innerhalb
+der autorisierten Company geladen. Zahlungsstatus, Session-ID und Stripe-Konto
+stammen ausschließlich aus der Datenbank.
+
+`ensureCheckout(..., { existingOnly: true })` liest ausschließlich eine vorhandene
+Session im gespeicherten Stripe-Konto. Es wird keine Session angelegt und keine
+Zahlung oder Erstattung gestartet. Fehlende Sessions erfordern Support.
+Die Stripe-Metadaten müssen zur autorisierten Zahlung und Buchung gehören;
+`applyCheckoutSession` prüft zusätzlich Session-ID, Betrag, Währung, Modus und
+Steuerdaten. Nur `complete` zusammen mit `paid` bestätigt die Buchung und stellt
+Tickets samt dauerhafter Mail-Outbox aus. Der bestehende Mailversand wird angestoßen;
+Versandfehler bleiben über die Outbox wiederholbar.
+
+Nur ein von Stripe bestätigtes `expired` lässt die Reservierung ablaufen.
+Offene oder fehlgeschlagene, aber nicht abgelaufene Sessions bleiben gemäß der
+bestehenden Fulfillment-Logik ausstehend; die Uhrzeit allein verändert nichts.
+Serialisierbare Transaktionen mit Konfliktwiederholung und Statusprüfung verhindern
+doppelte Ticketausstellung bei parallelen Webhooks oder manuellen Prüfungen.
