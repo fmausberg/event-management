@@ -12,6 +12,7 @@ import type { getCompanyBookings } from "@/lib/bookings/company";
 import { ObjectNotes, type NoteSummaries } from "@/components/object-notes";
 
 import { ResendTicketEmail } from "@/components/resend-ticket-email";
+import { CheckBookingPayment } from "@/components/check-booking-payment";
 
 import { BookingForm, RemoveBooking } from "../events/[eventId]/bookings/_components/bookings-table";
 
@@ -121,6 +122,7 @@ function BookingSection({ title, rows, company, noteSummaries, selectedBookingId
 
             {noteSummaries.counts[row.id] !== undefined && <ObjectNotes mode="dialog" target={{ type: "booking", id: row.id }} label={`Buchung #${row.number} - ${row.customerName || row.event.name}`} userId={noteSummaries.userId} initialCount={noteSummaries.counts[row.id]} />}
 
+            <CheckBookingPayment companySlug={company.slug} bookingId={row.id} pendingPayment={row.payment?.status === "PENDING"} />
             <ResendTicketEmail companySlug={company.slug} eventId={row.event.id} bookingId={row.id} unavailableReason={row.resendUnavailableReason} />
 
             {!row.price && !row.payment && <>
