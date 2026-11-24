@@ -7,11 +7,12 @@ Treiberadapter und einer Audit-Fassade. Es gibt kein `$use`, keine privaten
 Prisma-APIs und keinen Auth.js-Aufruf aus der Datenbankschicht.
 
 Die explizite Modell-Allowlist umfasst `EventSeries`, `Event`, `Venue`,
-`Trainer`, `Company` und `CompanyMembership`. Andere Modelle erhalten keine
+`Trainer`, `Company`, `CompanyMembership`, `Note` und `EventTrainer`. Andere Modelle erhalten keine
 eigenen Audit-Einträge. Zusätzlich werden erfolgreiche Anmeldungen als
 plattformweite `Login`-Ereignisse erfasst. Die Registry liegt in `lib/audit/policy.ts`.
 Ein Event protokolliert zusätzlich seine sortierten Trainer-IDs aus
-`EventTrainer`; die Zuordnungstabelle erhält keine eigene Historie.
+`EventTrainer`. Die Zuordnungstabelle protokolliert zusätzlich ihre Antworten
+als eigene, mit der Event-Historie verknüpfte Audit-Einträge.
 
 Direktes Create/Update/Delete, die Many- und Returning-Varianten sowie Upsert
 werden unterstützt. Pro tatsächlich geändertem Datensatz entsteht ein Eintrag;
@@ -57,7 +58,9 @@ Die verbindlichen Feldlisten und Beschriftungen stehen in der Policy:
 | Venue | Nummer, Name, Company-ID, Stadt, Land |
 | Trainer | Nummer, Vor-/Nachname, Company-/User-ID |
 | Company | Nummer, Name, Slug, Zahlungs-/Auszahlungsfreigabe |
-| CompanyMembership | Nummer, Company-/User-ID, Rolle, Status |
+| CompanyMembership | Nummer, Company-/User-ID, Rolle, Status, Benachrichtigungsoptionen |
+| Note | Nummer, abgeleitete Company-ID, Autor-ID, Sichtbarkeit, Zieltyp/-ID/-Nummer, Erstellungszeitpunkt |
+| EventTrainer | Nummer, abgeleitete Company-ID, Event-/Trainer-ID, Antwortstatus, Antwortzeitpunkt, Zuordnungszeitpunkt |
 
 Nur Änderungsmarker, keine gespeicherten Werte: Bildadressen/-referenzen,
 veraltete Trainernamen, Trainer-E-Mail, Mitgliedschafts-Einladungsadresse,
@@ -104,7 +107,8 @@ Modelle erfassen tatsächliche Effekte von nested Create/Update/Delete, Upsert,
 ConnectOrCreate sowie Connect/Disconnect/Set und Datenbankkaskaden.
 Trainerlöschungen können beispielsweise EventSeries.suggestedTrainerId auf NULL
 setzen; User-Löschungen können Trainer.userId auf NULL setzen. EventTrainer-
-Änderungen erscheinen als Event-Updates des Feldes trainerIds. Bestehende
+Änderungen erscheinen weiterhin als Event-Updates des Feldes trainerIds;
+zusätzlich gibt es eigene Zuordnungs- und Antwortereignisse. Bestehende
 RESTRICT-Regeln bleiben bestehen und können Löschungen verhindern.
 
 Nicht unterstützt und kontrolliert abgewiesen: Primärschlüsseländerungen an
@@ -121,12 +125,12 @@ Methoden werden abgewiesen. Ein SELECT-Präfix genügt nicht als Sicherheitsprü
 weil Funktionen Daten verändern könnten. Direkte manuelle SQL-Änderungen
 außerhalb des Anwendungszugangs werden nicht auditiert.
 
-**Leistungsgrenze:** Jeder auditpflichtige Write sperrt alle sechs freigegebenen
+**Leistungsgrenze:** Jeder auditpflichtige Write sperrt alle acht freigegebenen
 Tabellen in derselben Reihenfolge mit SHARE ROW EXCLUSIVE und liest vor und nach
 der Mutation alle Datensätze mit einer expliziten Feldprojektion. Nur tatsächliche
 Feldänderungen werden gespeichert. Das unterstützt beliebige Bulk-WHEREs,
-verschachtelte Writes und Kaskaden konsistent, verursacht aber zwölf
-Tabellenscans (plus Projektion der Event-Trainerzuordnungen und Mitgliedsnamen)
+verschachtelte Writes und Kaskaden konsistent, verursacht aber sechzehn
+Basistabellenscans (plus Projektion der Relationen und Zielidentitäten)
 und serialisiert Schreibzugriffe über die Modelle/Companies hinweg. Die Sperren
 bleiben bis zum Commit der bestehenden Transaktion bestehen; normale Leser
 bleiben möglich. Lange Callbacks und bestehende Sperren können Wartezeiten oder
@@ -176,8 +180,9 @@ Die aktuelle Akteur-E-Mail wird über actorUserId nachgeladen und nur angezeigt,
 nicht in AuditLog kopiert. Bei gelöschten Akteuren bleibt die ID als Ersatz.
 Die Reihenhistorie unter
 `/company/[companyKey]/event-series/[seriesId]` behält requireCompanyAccess,
-Company-Filter und Datensatzzugehörigkeitsprüfung. Sie zeigt nur EventSeries
-dieser Company. Andere Detailseiten erhalten in dieser Änderung keine Historie.
+Company-Filter und Datensatzzugehörigkeitsprüfung. Sie zeigt EventSeries-Änderungen und zugehörige sichtbare Notizereignisse
+dieser Company. Die Event-Historie zeigt zusätzlich Trainerzuordnungen,
+Trainerantworten und sichtbare Notizereignisse des Events.
 Gelöschte Objekte bleiben in der Admin-Historie sichtbar.
 
 ## Schutz, Migration und offene Punkte
@@ -212,3 +217,39 @@ Freigabe: PostgreSQL-Integrationsprüfung von Rollback (auch abgefangener
 Auditfehler), Bulk/Upsert, nested Writes, Kaskaden, parallelen Zugriffen,
 Akteurkontext, Admin-/Company-Abgrenzung und Datenschutz. Keine rückwirkende
 Rekonstruktion bisher nicht protokollierter Änderungen.
+
+## Notizen und Trainerantworten (Policy-Version 6)
+
+Die zentrale Fassade erfasst Note und EventTrainer ab dieser Erweiterung bei
+allen unterstützten Schreibvarianten, einschließlich verschachtelter Writes,
+Bulk-Erstellung und Löschkaskaden. Fachliche Mutation und Audit-Eintrag verwenden
+dieselbe Transaktion. Dies umfasst Issue-Notizen sowie die Notizen zur vorab
+erklärten Trainerzustimmung, ohne separate Audit-Aufrufe in den Fachabläufen.
+Es gibt keine rückwirkende Rekonstruktion früherer Antworten oder Notizen.
+
+`lib/audit/related-snapshots.ts` verwendet explizite Projektionen, um die Company
+und das Ziel aus den bestehenden Relationen abzuleiten. Alle sieben Notizziele
+(Event, Reihe, Ort, Trainer, Buchung, Ticket, Stornierungsanfrage) werden erfasst.
+Die gespeicherte Zielidentität bleibt auch nach Löschung der Notiz verfügbar.
+Zielzuordnungen und Notizautor sind unveränderlich; Trainerwechsel verwenden
+weiterhin das Entfernen und Neuanlegen von Zuordnungen. Verschiebungen zwischen
+Companies werden wie bisher zurückgerollt.
+
+Notiztexte werden nur vorübergehend auf Änderungen verglichen. Sie gelangen weder
+als Klartext noch als Hash in Audit-JSON. Eine Textbearbeitung speichert lediglich
+`body` als Änderungsmarker in redactedFields. PRIVATE-Notizereignisse erscheinen
+in der Company-Historie nur für ihren Autor. Die Admin-Auditansicht umfasst ihre
+Metadaten, aber ebenfalls keinen Notiztext. Updates speichern neben geänderten
+Feldern auch Ziel-/Sichtbarkeitskontext, damit Historienfilter ohne Zugriff auf
+den noch vorhandenen Notizdatensatz funktionieren. Bestehende Einträge werden
+nicht verändert.
+
+EventTrainer-Einträge enthalten den Antwortstatus und Antwortzeitpunkt sowie
+Event- und Trainer-ID. Die Event-Historie zeigt die Traineridentität und Aktionen
+wie „Trainer zugesagt“, „Trainerproblem gemeldet“ und
+„Trainerantwort ausstehend“. Eine erneute Zusage nach einem Issue und jedes
+neue Problem bleiben getrennte Ereignisse. Notizen werden als hinzugefügt,
+bearbeitet oder gelöscht bezeichnet. Die Admin-Filter enthalten beide neuen
+Modelltypen. Notizaktionen aktualisieren die Company-Historien nach dem Commit.
+Die Erweiterung verwendet das vorhandene AuditLog-Schema und benötigt keine
+zusätzliche Migration.

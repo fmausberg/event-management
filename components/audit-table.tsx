@@ -31,6 +31,21 @@ function jsonDetails(entry: AuditTableEntry) {
   return JSON.stringify({ before: filter(entry.before), after: filter(entry.after), ...(notRecorded.length ? { valuesNotRecorded: notRecorded } : {}) }, null, 2);
 }
 
+function actionLabel(entry: AuditTableEntry) {
+  if (entry.model === "Note") return { CREATE: "Notiz hinzugefügt", UPDATE: "Notiz bearbeitet", DELETE: "Notiz gelöscht" }[entry.action];
+  if (entry.model === "EventTrainer") {
+    if (entry.action === "DELETE") return "Trainerzuordnung entfernt";
+    const snapshot: Prisma.JsonObject = entry.after && typeof entry.after === "object" && !Array.isArray(entry.after) ? entry.after : {};
+    if (entry.changedFields.includes("responseStatus") || entry.changedFields.includes("respondedAt")) {
+      if (snapshot.responseStatus === "ACCEPTED") return "Trainer zugesagt";
+      if (snapshot.responseStatus === "ISSUE") return "Trainerproblem gemeldet";
+      if (snapshot.responseStatus === "PENDING") return "Trainerantwort ausstehend";
+    }
+    return entry.action === "CREATE" ? "Trainer zugeordnet" : "Trainerzuordnung geändert";
+  }
+  return actions[entry.action];
+}
+
 export function AuditTable({ entries, showTarget = false }: { entries: AuditTableEntry[]; showTarget?: boolean }) {
   return <div className="mt-4 overflow-x-auto">
     <table className="w-full text-left text-sm">
@@ -42,7 +57,7 @@ export function AuditTable({ entries, showTarget = false }: { entries: AuditTabl
         {entries.map((entry) => <tr key={entry.id} className="align-top">
           <td className="whitespace-nowrap px-3 py-3"><time dateTime={entry.occurredAt.toISOString()}>{dateTime.format(entry.occurredAt)}</time></td>
           <td className="px-3 py-3 break-all">{entry.actorType === "USER" ? entry.actorEmail ?? `Nutzer nicht mehr verfügbar (${entry.actorUserId ?? "ohne ID"})` : actors[entry.actorType]}</td>
-          <td className="px-3 py-3">{actions[entry.action]}</td>
+          <td className="px-3 py-3">{actionLabel(entry)}{!showTarget && (entry.model === "Note" || entry.model === "EventTrainer") && <span className="mt-1 block text-xs text-zinc-500">{entry.model === "Note" ? `Notiz${entry.recordNumber == null ? "" : ` #${entry.recordNumber}`}` : entry.recordName ?? "Trainer"}</span>}</td>
           {showTarget && <td className="min-w-48 px-3 py-3">
             <span className="block text-xs text-zinc-500">{auditModelLabels[entry.model] ?? entry.model}</span>
             <span className="break-words">{entry.recordNumber != null ? `#${entry.recordNumber} · ` : ""}{entry.recordName || (entry.model === "CompanyMembership" ? "Mitgliedschaft" : entry.recordId)}</span>
