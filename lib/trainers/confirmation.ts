@@ -14,7 +14,7 @@ import { encryptPaymentMail } from "@/lib/payments/mail";
 
 import { trainerBatchConfirmationMessage, trainerConfirmationMessage, trainerIssueMessage } from "@/lib/mail/templates/trainer-confirmation";
 
-import { resolveEventTax } from "@/lib/taxes/service";
+import { ensureVenueApproval, synchronizeVenueConfirmation } from "@/lib/venues/confirmation";
 
 
 
@@ -38,29 +38,27 @@ function facts(event: Prisma.EventGetPayload<{ include: typeof eventInclude }>) 
 
 /** Call after all event/assignment writes, within the same serializable transaction. */
 
-export async function synchronizeTrainerConfirmation(tx: Prisma.TransactionClient, eventId: string) {
+export async function synchronizeTrainerConfirmation(tx: Prisma.TransactionClient, eventId: string, options: { notifyTrainers?: boolean; notifyVenue?: boolean } = {}) {
 
+  await ensureVenueApproval(tx, eventId);
   const event = await tx.event.findUniqueOrThrow({ where: { id: eventId }, include: eventInclude });
 
-  if (event.status !== "PUBLISHED" && event.status !== "PENDING_TRAINER_CONFIRMATION") return;
+  if (!["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(event.status)) return;
 
   const outstanding = event.trainers.some(assignment => assignment.responseStatus !== "ACCEPTED");
 
-  const status = outstanding ? "PENDING_TRAINER_CONFIRMATION" : "PUBLISHED";
-
-  // Revalidate the current tax configuration at final publication.
-
-  if (!outstanding) await resolveEventTax(tx, eventId);
-
-  if (event.status !== status) await tx.event.update({ where: { id: eventId }, data: { status } });
-
-  if (!outstanding) return;
+  if (!outstanding) {
+    await synchronizeVenueConfirmation(tx, eventId, options.notifyVenue ?? options.notifyTrainers ?? true);
+    return;
+  }
+  if (event.status !== "PENDING_TRAINER_CONFIRMATION") await tx.event.update({ where: { id: eventId }, data: { status: "PENDING_TRAINER_CONFIRMATION" } });
+  if (options.notifyTrainers === false) return;
 
   for (const assignment of event.trainers) {
 
     if (assignment.trainer.companyId !== event.companyId) throw new TrainerConfirmationError("Der Trainer gehört nicht zur Company des Events.");
 
-    if (assignment.responseStatus !== "PENDING") continue;
+    if (assignment.responseStatus !== "PENDING" || assignment.respondedAt !== null) continue;
     const requestKey = `trainer-confirmation:${assignment.id}`;
     const message = {
       to: assignment.trainer.email,
@@ -71,10 +69,45 @@ export async function synchronizeTrainerConfirmation(tx: Prisma.TransactionClien
   }
 }
 
+const companyTrainerChangesSchema = z.array(z.object({
+  assignmentId: z.string().min(1).max(191), trainerId: z.string().min(1).max(191),
+  status: z.enum(["PENDING", "ACCEPTED"]), expectedStatus: z.enum(["PENDING", "ACCEPTED", "ISSUE"]),
+  expectedRespondedAt: z.iso.datetime().nullable(),
+}).strict()).max(50).refine(changes => new Set(changes.map(change => change.assignmentId)).size === changes.length);
+export type CompanyTrainerChanges = z.infer<typeof companyTrainerChangesSchema>;
+
+export function readCompanyTrainerChanges(value: unknown): CompanyTrainerChanges {
+  if (value === null) return [];
+  try {
+    if (typeof value !== "string" || value.length > 30000) throw new Error();
+    return companyTrainerChangesSchema.parse(JSON.parse(value));
+  } catch { throw new TrainerConfirmationError("Die Trainer-Rückmeldungen sind ungültig. Bitte lade die Seite neu."); }
+}
+
+/** Administrative changes are audited by the facade, but never request trainer mail. */
+export async function applyCompanyTrainerChanges(tx: Prisma.TransactionClient, companyId: string, eventId: string, userId: string, changes: CompanyTrainerChanges) {
+  const user = await tx.user.findUnique({ where: { id: userId }, select: { role: true, emailVerified: true } });
+  if (!user?.emailVerified) throw new TrainerConfirmationError("Bitte melde dich erneut an.");
+  if (user.role !== "ADMIN" && !await tx.companyMembership.findFirst({ where: { companyId, userId, status: "ACTIVE", role: { in: ["COMPANY_USER", "COMPANY_ADMIN"] } }, select: { id: true } })) throw new TrainerConfirmationError("Du darfst diese Trainerzuordnungen nicht bearbeiten.");
+  const event = await tx.event.findFirst({ where: { id: eventId, companyId }, select: { status: true, endsAt: true } });
+  if (!event || !["DRAFT", "PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(event.status)) throw new TrainerConfirmationError("Bei abgesagten oder abgeschlossenen Events kann die Trainerfreigabe nicht geändert werden.");
+  if (event.status !== "DRAFT" && event.endsAt && event.endsAt <= new Date()) throw new TrainerConfirmationError("Die Trainerfreigabe kann für ein beendetes Event nicht geändert werden.");
+  for (const change of changes) {
+    if (change.status === change.expectedStatus) continue;
+    const result = await tx.eventTrainer.updateMany({ where: {
+      id: change.assignmentId, eventId, trainerId: change.trainerId, trainer: { companyId },
+      responseStatus: change.expectedStatus, respondedAt: change.expectedRespondedAt ? new Date(change.expectedRespondedAt) : null,
+    }, data: { responseStatus: change.status, respondedAt: new Date() } });
+    if (result.count !== 1) throw new TrainerConfirmationError("Eine Trainerantwort wurde inzwischen geändert oder die Zuordnung entfernt. Bitte lade die Seite neu.");
+    // A timestamp on PENDING identifies a manual reset. Mail workers and later
+    // synchronizations exclude it, including requests already waiting in the outbox.
+  }
+}
+
 /** One durable request per trainer; individual keys reserve every covered assignment. */
 export async function queueBatchTrainerConfirmations(tx: Prisma.TransactionClient, companyId: string, eventIds: string[]) {
   const assignments = await tx.eventTrainer.findMany({
-    where: { eventId: { in: eventIds }, responseStatus: "PENDING", trainer: { companyId }, event: { companyId, status: "PENDING_TRAINER_CONFIRMATION" } },
+    where: { eventId: { in: eventIds }, responseStatus: "PENDING", respondedAt: null, trainer: { companyId }, event: { companyId, status: "PENDING_TRAINER_CONFIRMATION" } },
     include: { trainer: true, event: { include: eventInclude } },
     orderBy: [{ event: { beginsAt: "asc" } }, { id: "asc" }],
   });
@@ -103,7 +136,7 @@ export async function queueBatchTrainerConfirmations(tx: Prisma.TransactionClien
 /** Rebuild grouped mail from still-current assignments before every delivery attempt. */
 export async function currentBatchTrainerConfirmation(tx: Prisma.TransactionClient, companyId: string, assignmentIds: string[], to: string, now: Date) {
   const assignments = await tx.eventTrainer.findMany({
-    where: { id: { in: assignmentIds }, responseStatus: "PENDING", trainer: { companyId, email: { equals: to, mode: "insensitive" } },
+    where: { id: { in: assignmentIds }, responseStatus: "PENDING", respondedAt: null, trainer: { companyId, email: { equals: to, mode: "insensitive" } },
       event: { companyId, status: "PENDING_TRAINER_CONFIRMATION", endsAt: { gt: now } } },
     include: { trainer: true, event: { include: eventInclude } },
     orderBy: [{ event: { beginsAt: "asc" } }, { id: "asc" }],
@@ -135,13 +168,13 @@ export async function respondToTrainerAssignment(userId: string, assignmentId: s
     if (response === "ACCEPTED") {
       if (!["PENDING", "ISSUE"].includes(assignment.responseStatus) || assignment.event.status !== "PENDING_TRAINER_CONFIRMATION") throw new TrainerConfirmationError("Für diese Zuordnung ist keine Zusage mehr möglich. Bitte lade die Seite neu.");
       if (!assignment.event.endsAt || assignment.event.endsAt <= new Date()) throw new TrainerConfirmationError("Diese Veranstaltung ist bereits beendet.");
-    } else if (!["PENDING_TRAINER_CONFIRMATION", "PUBLISHED", "CANCELLED", "COMPLETED"].includes(assignment.event.status)) {
+    } else if (!["PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION", "PUBLISHED", "CANCELLED", "COMPLETED"].includes(assignment.event.status)) {
       throw new TrainerConfirmationError("Für diese Veranstaltung kann derzeit kein Problem gemeldet werden.");
     }
     const updated = await tx.eventTrainer.updateMany({ where: { id: assignmentId, responseStatus: assignment.responseStatus, trainer: { userId, companyId: assignment.event.companyId } }, data: { responseStatus: response, respondedAt: new Date() } });
     if (updated.count !== 1) throw new TrainerConfirmationError("Die Rückmeldung wurde inzwischen geändert. Bitte lade die Seite neu.");
     // Serialize responses and Company edits without reopening cancelled/completed events.
-    const eventStatus = ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION"].includes(assignment.event.status)
+    const eventStatus = ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(assignment.event.status)
       ? "PENDING_TRAINER_CONFIRMATION" : assignment.event.status;
     await tx.event.update({ where: { id: assignment.eventId }, data: { status: eventStatus } });
 

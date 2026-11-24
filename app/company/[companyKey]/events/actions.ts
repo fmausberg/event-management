@@ -1,8 +1,11 @@
 "use server";
+import { eligibleVenueApprovalMember } from "@/lib/venues/approval-members";
+import { randomUUID } from "node:crypto";
+import { queueVenueConfirmations, ensureVenueApproval, initializeVenueApprovals, applyCompanyVenueChange, readCompanyVenueChange, VenueConfirmationError, type CompanyVenueChange } from "@/lib/venues/confirmation";
 
-import { queueBatchTrainerConfirmations, synchronizeTrainerConfirmation } from "@/lib/trainers/confirmation";
+import { applyCompanyTrainerChanges, readCompanyTrainerChanges, queueBatchTrainerConfirmations, synchronizeTrainerConfirmation, TrainerConfirmationError, type CompanyTrainerChanges } from "@/lib/trainers/confirmation";
 
-import { deliverPendingTrainerConfirmations } from "@/lib/tickets/outbox";
+import { deliverPendingTrainerConfirmations, deliverPendingVenueConfirmations } from "@/lib/tickets/outbox";
 
 import { resolveEventTax, TaxError, taxOverrideFromForm } from "@/lib/taxes/service";
 
@@ -58,7 +61,7 @@ function failure(error: unknown): EventState {
 
  if (error instanceof MemberAccessError) return { message: error.message };
 
- if (error instanceof EventImageError) return { message: error.message };
+ if (error instanceof EventImageError || error instanceof TrainerConfirmationError || error instanceof VenueConfirmationError) return { message: error.message };
 
  // Serialize explicitly: the development logger otherwise records object arguments as {}.
  // Never include raw Prisma messages, SQL parameters or form values.
@@ -108,6 +111,11 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
  const consentValues = form.getAll("trainerConsentObtained");
  if (consentValues.length > 1 || consentValues.some(value => value !== "yes")) return { message: "Ungültige Trainerzustimmung." };
  const trainerConsentObtained = consentValues.length === 1;
+ const venueConsentValues = form.getAll("venueConsentObtained");
+ if (venueConsentValues.length > 1 || venueConsentValues.some(value => value !== "yes")) return { message: "Ungültige Ortsfreigabe." };
+ const venueConsentObtained = venueConsentValues.length === 1;
+ if (venueConsentObtained && id !== null) return { message: "Vorab eingeholte Ortsfreigaben sind nur bei der Eventerstellung möglich." };
+
  if (trainerConsentObtained && id !== null) return { message: "Vorab bestätigte Trainerzustimmung ist nur bei der Eventerstellung möglich." };
 
 
@@ -127,11 +135,24 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
  let canConfigureTaxes = false;
 
+ let trainerResponseChanges: CompanyTrainerChanges = [];
+ let venueResponseChange: CompanyVenueChange | null = null;
+ let manualApprovalChange = false;
+
  try {
 
   const { company, canManageMembers } = await requireCompanyAccess(slug);
 
   canConfigureTaxes = canManageMembers;
+
+  trainerResponseChanges = readCompanyTrainerChanges(form.get("trainerResponseChanges"));
+  if (trainerResponseChanges.length && id === null) throw new TrainerConfirmationError("Trainerantworten können nur für bestehende Zuordnungen geändert werden.");
+  venueResponseChange = readCompanyVenueChange(form.get("venueResponseChange"));
+  if (venueResponseChange && id === null) throw new VenueConfirmationError("Ortsfreigaben können nur für bestehende Events geändert werden.");
+  manualApprovalChange = trainerResponseChanges.length > 0 || venueResponseChange !== null;
+  const responseActorId = manualApprovalChange ? (await auth())?.user?.id : undefined;
+  if (manualApprovalChange && !responseActorId) throw new MemberAccessError("UNAUTHENTICATED");
+
 
   if (id !== null && !validId(id)) return { message: "Ungültige Veranstaltung." };
 
@@ -147,7 +168,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
   if (id !== null && (!existing || (intent !== "save" && existing.status !== "DRAFT"))) return { message: "Die Veranstaltung ist nicht verfügbar. Bitte lade die Seite neu." };
 
-  const schema = intent === "publish" || ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION"].includes(existing?.status ?? "") ? publishEventSchema : eventSchema;
+  const schema = intent === "publish" || ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(existing?.status ?? "") ? publishEventSchema : eventSchema;
 
   let occurrences: BatchOccurrence[] = [];
 
@@ -206,6 +227,8 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
   void ignoredStatus;
 
   const trainers = await db.trainer.findMany({ where: { id: { in: trainerIds }, companyId: company.id }, select: { id: true } });
+
+  if (trainerResponseChanges.some(change => !trainerIds.includes(change.trainerId))) throw new TrainerConfirmationError("Entfernte Trainer können nicht gleichzeitig eine neue Freigabe erhalten.");
 
   if (trainers.length !== trainerIds.length) return { message: "Bitte wähle Trainer dieser Company.", errors: { trainerIds: ["Mindestens ein Trainer ist nicht verfügbar."] } };
 
@@ -269,7 +292,8 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
      if (!currentSeries) return { message: "Die ausgewählte Veranstaltungsreihe ist nicht mehr verfügbar." };
 
-     if (venueId && !await tx.venue.findFirst({ where: { id: venueId, companyId: company.id }, select: { id: true } })) return { message: "Bitte wähle einen Ort dieser Company." };
+     const batchVenue = venueId ? await tx.venue.findFirst({ where: { id: venueId, companyId: company.id }, select: { id: true, _count: { select: { staff: { where: eligibleVenueApprovalMember } } } } }) : null;
+     if (venueId && !batchVenue) return { message: "Bitte wähle einen Ort dieser Company." };
 
      const currentTrainers = await tx.trainer.findMany({ where: { id: { in: trainerIds }, companyId: company.id }, select: { id: true } });
 
@@ -281,13 +305,17 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
      // Bulk inserts keep a long schedule within one audited transaction.
      const { trainers: trainerAssignments, ...batchCreationData } = creationData;
+     const batchStatus = batchCreationData.status === "PUBLISHED" && !venueConsentObtained && batchVenue?._count.staff
+       ? "PENDING_VENUE_CONFIRMATION" as const : batchCreationData.status;
      const created = await tx.event.createManyAndReturn({ data: occurrences.map(occurrence => ({
-       ...batchCreationData, beginsAt: new Date(occurrence.beginsAt), endsAt: occurrence.endsAt ? new Date(occurrence.endsAt) : null,
+       ...batchCreationData, status: batchStatus, beginsAt: new Date(occurrence.beginsAt), endsAt: occurrence.endsAt ? new Date(occurrence.endsAt) : null,
      })), select: { id: true } });
      if (trainerIds.length) await tx.eventTrainer.createMany({ data: created.flatMap(event => trainerAssignments.create.map(assignment => ({ ...assignment, eventId: event.id }))) });
      if (trainerConsentObtained && trainerIds.length) await tx.note.createMany({ data: created.map(event => ({ eventId: event.id, authorId: actorId, body: consentNote, visibility: "COMPANY" as const })) });
+     await initializeVenueApprovals(tx, created.map(event => event.id), venueConsentObtained, actorId, randomUUID());
      if (intent === "publish") {
        for (const event of created) await resolveEventTax(tx, event.id);
+       if (!venueConsentObtained) await queueVenueConfirmations(tx, created.map(event => event.id));
        if (!trainerConsentObtained) await queueBatchTrainerConfirmations(tx, company.id, created.map(event => event.id));
      }
 
@@ -306,6 +334,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
      const created = await tx.event.create({ data: creationData, select: { id: true, status: true } });
 
      if (trainerConsentObtained && trainerIds.length) await tx.note.create({ data: { eventId: created.id, authorId: actorId, body: consentNote, visibility: "COMPANY" } });
+     await initializeVenueApprovals(tx, [created.id], venueConsentObtained, actorId);
      if (intent === "publish") { await resolveEventTax(tx, created.id); await synchronizeTrainerConfirmation(tx, created.id); }
 
      return created;
@@ -320,10 +349,11 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
    const result = await db.$transaction(async (tx) => {
 
-    const current = await tx.event.findFirst({ where: { id, companyId: company.id }, select: { status: true, imagePublicId: true } });
+    const current = await tx.event.findFirst({ where: { id, companyId: company.id }, select: { status: true, imagePublicId: true, venueId: true } });
 
     if (!current || current.status !== existing?.status || (intent !== "save" && current.status !== "DRAFT")) return { count: 0 };
 
+    if (current.venueId !== venueId) await ensureVenueApproval(tx, id);
     const updated = await tx.event.updateMany({ where: { id, companyId: company.id, status: current.status }, data: { ...data, status: intent === "publish" ? "PUBLISHED" : current.status } });
 
     if (!updated.count) return updated;
@@ -332,9 +362,11 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
     if (trainerIds.length) await tx.eventTrainer.createMany({ data: trainerIds.map((trainerId) => ({ eventId: id, trainerId })), skipDuplicates: true });
 
-    if (intent === "publish" || current.status === "PUBLISHED") await resolveEventTax(tx, id);
+    if (trainerResponseChanges.length) await applyCompanyTrainerChanges(tx, company.id, id, responseActorId!, trainerResponseChanges);
+    if (venueResponseChange) await applyCompanyVenueChange(tx, company.id, id, responseActorId!, venueResponseChange);
+    if (!manualApprovalChange && (intent === "publish" || current.status === "PUBLISHED")) await resolveEventTax(tx, id);
 
-    await synchronizeTrainerConfirmation(tx, id);
+    await synchronizeTrainerConfirmation(tx, id, { notifyTrainers: !manualApprovalChange, notifyVenue: !manualApprovalChange });
 
     return updated;
 
@@ -356,13 +388,13 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
  finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
 
- await deliverPendingTrainerConfirmations();
+ if (!manualApprovalChange) { await deliverPendingTrainerConfirmations(); await deliverPendingVenueConfirmations(); }
 
  refresh(slug);
 
  if (multiple) return { success: true, message: `${createdCount} Veranstaltungen wurden ${intent === "publish" ? "zur Veröffentlichung gespeichert" : "als Entwurf erstellt"}.` };
 
- return { success: true, id: createdId, message: intent === "publish" ? "Veranstaltung wurde zur Veröffentlichung gespeichert. Bei offenen Trainerantworten bleibt sie unveröffentlicht." : id === null ? "Entwurf wurde erstellt." : "Veranstaltung wurde gespeichert." };
+ return { success: true, id: createdId, message: intent === "publish" ? "Veranstaltung wurde zur Veröffentlichung gespeichert. Bei offenen Trainer- oder Ortsfreigaben bleibt sie unveröffentlicht." : id === null ? "Entwurf wurde erstellt." : "Veranstaltung wurde gespeichert." };
 
 
 
@@ -378,12 +410,17 @@ async function cancelEvent(slug: string, id: string | null): Promise<EventState>
 
   if (!validId(id)) return { message: "Ungültige Veranstaltung." };
 
-  const result = await getPrisma().event.updateMany({ where: { id, companyId: company.id, status: { in: ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION"] }, endsAt: { gt: new Date() } }, data: { status: "CANCELLED" } });
+  const result = await getPrisma().$transaction(async tx => {
+    const result = await tx.event.updateMany({ where: { id, companyId: company.id, status: { in: ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"] }, endsAt: { gt: new Date() } }, data: { status: "CANCELLED" } });
+    if (result.count) await queueVenueConfirmations(tx, [id]);
+    return result;
+  }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
   if (!result.count) return { message: "Nur veröffentlichte oder auf Trainerbestätigung wartende, noch nicht beendete Veranstaltungen können abgesagt werden. Bitte lade die Seite neu." };
 
  } catch (error) { return failure(error); }
 
+ await deliverPendingVenueConfirmations();
  refresh(slug);
 
  return { success: true, message: "Veranstaltung wurde abgesagt." };
@@ -402,8 +439,13 @@ export async function deleteEvent(slug: string, id: string, _previous: EventStat
 
   const result = await getPrisma().$transaction(async (tx) => {
 
+   const approval = await tx.eventVenueApproval.findUnique({ where: { eventId: id }, select: { batchId: true } });
    const deleted = await tx.event.deleteMany({ where: { id, companyId: company.id, bookings: { none: {} }, platformEvents: { none: {} } } });
 
+   if (deleted.count && approval?.batchId) {
+     const peer = await tx.eventVenueApproval.findFirst({ where: { batchId: approval.batchId }, select: { eventId: true } });
+     if (peer) await queueVenueConfirmations(tx, [peer.eventId]);
+   }
    return deleted;
 
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -412,6 +454,7 @@ export async function deleteEvent(slug: string, id: string, _previous: EventStat
 
  } catch (error) { return failure(error); }
 
+ await deliverPendingVenueConfirmations();
  refresh(slug);
 
  return { success: true, message: "Veranstaltung wurde gelöscht." };

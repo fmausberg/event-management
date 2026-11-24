@@ -1,4 +1,5 @@
-import { TrainerResponse } from "./trainer-response";
+import { eventStatusLabels as eventStatuses, eventStatusColors as statusColors } from "@/lib/events/status-presentation";
+import { EventApprovalActions } from "./trainer-response";
 
 import Link from "next/link";
 
@@ -10,9 +11,7 @@ import { groupAssignedEvents } from "@/lib/account/events-presentation";
 
 export const metadata = { title: "Veranstaltungsverwaltung" };
 
-const eventStatuses = { PENDING_TRAINER_CONFIRMATION: "Trainerbestätigung ausstehend", DRAFT: "Entwurf", PUBLISHED: "Veröffentlicht", CANCELLED: "Abgesagt", COMPLETED: "Abgeschlossen" };
 
-const statusColors = { PENDING_TRAINER_CONFIRMATION: "bg-yellow-100 text-yellow-800", DRAFT: "bg-yellow-100 text-yellow-800", PUBLISHED: "bg-green-100 text-green-800", CANCELLED: "bg-red-100 text-red-800", COMPLETED: "bg-zinc-200 text-zinc-700" };
 
 
 
@@ -22,7 +21,7 @@ export default async function MyEventsPage() {
 
   const groups = groupAssignedEvents(events);
 
-  const date = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" });
+  const date = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 
   return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
 
@@ -30,7 +29,7 @@ export default async function MyEventsPage() {
 
     <Link href="/account/bookings" className="self-start text-primary-700 underline dark:text-primary-300">Deine eigenen Buchungen und Tickets findest du unter „Meine Buchungen“.</Link>
 
-    {!events.length ? <p className="rounded-xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">Hier erscheinen Veranstaltungen, denen du als Veranstaltungsteam, Ortsteam oder Trainer zugeordnet bist, sobald sie veröffentlicht sind oder deine Trainerbestätigung angefragt wurde. Abgesagte und abgeschlossene Veranstaltungen bleiben sichtbar.</p> : [
+    {!events.length ? <p className="rounded-xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">Hier erscheinen Veranstaltungen, denen du als Veranstaltungsteam, Ortsteam oder Trainer zugeordnet bist, sobald sie veröffentlicht sind oder deine Trainer- bzw. Ortsfreigabe angefragt wurde. Abgesagte und abgeschlossene Veranstaltungen bleiben sichtbar.</p> : [
 
       { title: "Kommende Veranstaltungen", items: groups.upcoming, open: true, empty: "Keine kommenden Veranstaltungen zugeordnet." },
 
@@ -64,7 +63,15 @@ export default async function MyEventsPage() {
 
           <td className="px-4 py-4"><div className="flex flex-wrap gap-2">{event.roles.map((role) => <span key={role} className="whitespace-nowrap rounded-full bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-800 dark:bg-primary-950 dark:text-primary-200">{role}</span>)}</div></td>
 
-          <td className="px-4 py-4">{event.trainerAssignments.map(assignment => <TrainerResponse key={assignment.id} assignmentId={assignment.id} status={assignment.responseStatus} canRespond={event.status === "PENDING_TRAINER_CONFIRMATION"} />)}{event.status === "PUBLISHED" && event.confirmedBookingCount > 0 && <Link href={`/company/${encodeURIComponent(event.company.slug)}/events/${encodeURIComponent(event.id)}/tickets`} className="inline-block whitespace-nowrap rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700">Ticketverwaltung</Link>}</td>
+          <td className="px-4 py-4"><div className="flex flex-wrap items-start gap-2">
+            {(event.trainerAssignments.length > 0 || event.venueResponse) && <EventApprovalActions
+              eventId={event.id}
+              canAccept={event.status === "PENDING_TRAINER_CONFIRMATION" && event.trainerAssignments.some(assignment => assignment.responseStatus !== "ACCEPTED") || !!event.venueResponse && event.venueResponse.status !== "ACCEPTED" && (event.status === "PENDING_VENUE_CONFIRMATION" || event.trainerAssignments.length > 0 && event.status === "PENDING_TRAINER_CONFIRMATION")}
+              hasIssue={event.trainerAssignments.some(assignment => assignment.responseStatus === "ISSUE") || event.venueResponse?.status === "ISSUE"}
+              venueVersion={event.venueResponse?.updatedAt.toISOString()}
+            />}
+            {event.status === "PUBLISHED" && event.confirmedBookingCount > 0 && <Link href={`/company/${encodeURIComponent(event.company.slug)}/events/${encodeURIComponent(event.id)}/tickets`} className="inline-block whitespace-nowrap rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700">Ticketverwaltung</Link>}
+          </div></td>
 
         </tr>)}</tbody>
 

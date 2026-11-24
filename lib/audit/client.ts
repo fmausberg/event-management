@@ -76,7 +76,7 @@ function inspectUpdate(model: string, value: unknown) {
   }
   // Note authors/targets and assignment identities are immutable; replace assignments instead.
   const immutable = model === "Note" ? ["authorId", "author", "eventId", "event", "eventSeriesId", "eventSeries", "venueId", "venue", "bookingId", "booking", "ticketId", "ticket", "trainerId", "trainer", "cancellationRequestId", "cancellationRequest"]
-    : model === "EventTrainer" ? ["eventId", "event", "trainerId", "trainer"] : [];
+    : model === "EventTrainer" ? ["eventId", "event", "trainerId", "trainer"] : model === "EventVenueApproval" ? ["eventId", "event", "venueId", "venue"] : [];
   if (immutable.some(field => field in object(value))) throw new Error("Audit: Autor und Zielzuordnung dürfen nicht nachträglich geändert werden.");
   inspectData(model, value);
 }
@@ -118,7 +118,7 @@ async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snap
     const old = previous.get(id);
     const row = next.get(id);
     if (old && row && old.companyId !== row.companyId) throw new Error("Audit: mandantenübergreifende Verschiebungen sind nicht unterstützt.");
-    const immutable = model === "Note" ? ["targetModel", "targetId", "authorId"] : model === "EventTrainer" ? ["eventId", "trainerId"] : [];
+    const immutable = model === "Note" ? ["targetModel", "targetId", "authorId"] : model === "EventTrainer" ? ["eventId", "trainerId"] : model === "EventVenueApproval" ? ["eventId", "venueId"] : [];
     if (old && row && immutable.some(field => old[field] !== row[field])) throw new Error("Audit: Autor und Zielzuordnung dürfen nicht nachträglich geändert werden.");
     const changedFields: string[] = [];
     const redactedFields: string[] = [];
@@ -142,7 +142,7 @@ async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snap
     // Keep target/visibility context on UPDATE as well: unchanged FKs must remain
     // queryable after the source row has been edited or deleted.
     const contextFields = model === "Note" ? ["number", "companyId", "authorId", "visibility", "targetModel", "targetId", "targetNumber"]
-      : model === "EventTrainer" ? ["number", "companyId", "eventId", "trainerId", "responseStatus"] : [];
+      : model === "EventTrainer" ? ["number", "companyId", "eventId", "trainerId", "responseStatus"] : model === "EventVenueApproval" ? ["companyId", "eventId", "venueId", "status", "manual", "respondedById"] : [];
     for (const field of contextFields) {
       if (old) oldValues[field] = jsonValue(old[field]);
       if (row) newValues[field] = jsonValue(row[field]);
@@ -154,7 +154,7 @@ async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snap
       recordNumber: typeof target.number === "number" ? target.number : null,
       recordName: typeof recordName === "string" && recordName ? recordName : null,
       action: !old ? "CREATE" : !row ? "DELETE" : "UPDATE", operation,
-      ...context, changedFields, redactedFields, policyVersion: 6,
+      ...context, changedFields, redactedFields, policyVersion: 7,
       before: old ? oldValues : Prisma.DbNull,
       after: row ? newValues : Prisma.DbNull,
     } });

@@ -253,3 +253,23 @@ bearbeitet oder gelöscht bezeichnet. Die Admin-Filter enthalten beide neuen
 Modelltypen. Notizaktionen aktualisieren die Company-Historien nach dem Commit.
 Die Erweiterung verwendet das vorhandene AuditLog-Schema und benötigt keine
 zusätzliche Migration.
+
+## Ortsfreigaben (Policy-Version 7)
+
+EventVenueApproval wird als neuntes Modell zentral auditiert. Gespeichert werden
+abgeleitete Company-ID, Event-/Ort-ID, Freigabestatus, Antwortzeitpunkt,
+antwortender User, manueller Marker und Erstellungszeitpunkt. Die Ortsidentität
+wird als Zielname eingefroren; ein Ortswechsel entfernt den alten Freigabedatensatz
+und legt einen neuen an. Audit-Einträge und Issue-Notizen bleiben erhalten.
+
+Die Event-Historie bezieht diese Einträge ebenso wie Trainerantworten ein und
+zeigt Ortsfreigabe erteilt/ausstehend, Ortsteam-Problem gemeldet oder Freigabe
+zurückgesetzt. Manuelle Company-Freigaben, Vorabfreigaben und automatische
+Freigaben ohne Ortsteam laufen über dieselbe transaktionale Fassade. Der
+Reconcile-Job verwendet den bestehenden SYSTEM-Akteur. Antworten im Account und
+Company-Änderungen verwenden den jeweils authentifizierten USER-Akteur.
+
+Die bestehende Snapshot-Strategie sperrt damit neun Modelle und liest deren
+explizite Projektionen vor/nach Writes; die bisherigen Leistungsgrenzen gelten
+entsprechend weiter. Das neue Prisma-Modell und `notifyVenueIssues` müssen vor
+Start des neuen Codes migriert und der Prisma-Client regeneriert werden.

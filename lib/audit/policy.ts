@@ -45,6 +45,11 @@ export const eventSeriesPrivateFields = {
 
 
 export const auditPolicies = {
+  EventVenueApproval: {
+    delegate: "eventVenueApproval",
+    fields: { companyId: "Company-ID", eventId: "Event-ID", venueId: "Ort-ID", status: "Ortsfreigabe", respondedAt: "Antwortzeitpunkt", respondedById: "Antwortendes Mitglied", manual: "Manuelle Freigabe", createdAt: "Angelegt am" },
+    privateFields: {}, affectedBy: [],
+  },
 
   Note: {
     delegate: "note",
@@ -140,7 +145,7 @@ export const auditPolicies = {
 
     delegate: "companyMembership",
 
-    fields: { number: "Nummer", companyId: "Company-ID", userId: "Nutzer-ID", role: "Rolle", status: "Status", notifyTrainerIssues: "Benachrichtigungen: Trainer-Issues", notifyBookings: "Benachrichtigungen: Buchungen", notifyCancellationRequests: "Benachrichtigungen: Stornierungsanfragen" },
+    fields: { number: "Nummer", companyId: "Company-ID", userId: "Nutzer-ID", role: "Rolle", status: "Status", notifyVenueIssues: "Benachrichtigungen: Ortsteam-Probleme", notifyTrainerIssues: "Benachrichtigungen: Trainer-Issues", notifyBookings: "Benachrichtigungen: Buchungen", notifyCancellationRequests: "Benachrichtigungen: Stornierungsanfragen" },
 
     privateFields: { email: "Einladungsadresse" },
 
@@ -154,7 +159,7 @@ export const auditPolicies = {
 
 export const auditModelLabels: Readonly<Record<string, string>> = {
 
-  Note: "Notiz", EventTrainer: "Trainerzuordnung", Login: "Login",
+  EventVenueApproval: "Ortsfreigabe", Note: "Notiz", EventTrainer: "Trainerzuordnung", Login: "Login",
 
   EventSeries: "Veranstaltungsreihe", Event: "Veranstaltung", Venue: "Ort",
 

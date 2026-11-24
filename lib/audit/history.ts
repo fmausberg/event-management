@@ -107,7 +107,7 @@ export async function getEventHistory(companySlug: string, eventId: string, page
   const userId = (await auth())?.user?.id;
   return loadHistory({ companyId: company.id, OR: [
     { model: "Event", recordId: event.id },
-    { model: "EventTrainer", OR: [
+    { model: { in: ["EventTrainer", "EventVenueApproval"] }, OR: [
       { after: { path: ["eventId"], equals: event.id } },
       { before: { path: ["eventId"], equals: event.id } },
     ] },

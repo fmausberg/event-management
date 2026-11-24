@@ -1,4 +1,5 @@
 "use client";
+import { eventStatusLabels as statuses, eventStatusColors as statusColors } from "@/lib/events/status-presentation";
 
 import { UnsavedChangesForm } from "@/components/unsaved-changes";
 
@@ -44,9 +45,7 @@ const input = "mt-1 w-full rounded-lg border border-zinc-300 bg-transparent px-3
 
 const primary = "rounded-lg bg-primary-600 px-4 py-2 text-sm text-white hover:bg-primary-700 disabled:opacity-50";
 
-const statuses = { PENDING_TRAINER_CONFIRMATION: "Trainerbestätigung ausstehend", DRAFT: "Entwurf", PUBLISHED: "Veröffentlicht", CANCELLED: "Abgesagt", COMPLETED: "Abgeschlossen" };
 
-const statusColors = { PENDING_TRAINER_CONFIRMATION: "bg-yellow-100 text-yellow-800", DRAFT: "bg-yellow-100 text-yellow-800", PUBLISHED: "bg-green-100 text-green-800", CANCELLED: "bg-red-100 text-red-800", COMPLETED: "bg-zinc-200 text-zinc-700" };
 
 const eventDateTime = new Intl.DateTimeFormat("de-DE", { weekday: "short", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 
@@ -104,13 +103,13 @@ function weekLabel(monday: string) {
 
 }
 
-type SortKey = "number" | "name" | "beginsAt" | "series" | "venue" | "status" | "remainingSeats" | "price" | "bookings";
+type SortKey = "number" | "name" | "beginsAt" | "venue" | "status" | "remainingSeats" | "price" | "bookings";
 
 const columns: { key: SortKey; label: string }[] = [
 
  { key: "number", label: "Nr." }, { key: "name", label: "Veranstaltung" }, { key: "beginsAt", label: "Beginn" },
 
- { key: "series", label: "Veranstaltungsreihe" }, { key: "venue", label: "Orte" }, { key: "status", label: "Status" },
+ { key: "venue", label: "Orte" }, { key: "status", label: "Status" },
 
  { key: "remainingSeats", label: "(freie) Plätze" }, { key: "price", label: "Preis" }, { key: "bookings", label: "Buchungen" },
 
@@ -177,6 +176,10 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
  const [multiple, setMultiple] = useState(false);
 
  const [trainerConsentObtained, setTrainerConsentObtained] = useState(false);
+ const [venueConsentObtained, setVenueConsentObtained] = useState(false);
+ const [venueResponseChange, setVenueResponseChange] = useState<"PENDING" | "ACCEPTED" | null>(null);
+
+ const [trainerResponseChanges, setTrainerResponseChanges] = useState<Record<string, "PENDING" | "ACCEPTED">>({});
 
  const [batch, setBatch] = useState<BatchSelection>({ dates: [], startTime: "", endTime: "", endDayOffset: "0", timeMode: defaultSeries?.suggestedDuration ? "duration" : "clock", duration: defaultSeries?.suggestedDuration?.toString() ?? "" });
 
@@ -189,6 +192,7 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
   if (nextMultiple && !values.eventSeriesId) return;
 
   setTrainerConsentObtained(false);
+  setVenueConsentObtained(false);
 
   if (nextMultiple && !batchInitialized.current) {
 
@@ -369,6 +373,7 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
  function change(key: Exclude<keyof EventValues, "trainerIds">, value: string) {
 
   if (key === "endsAt") manualEnd.current = !!value;
+  if (key === "venueId") { setVenueConsentObtained(false); setVenueResponseChange(null); }
 
   setValues((old) => {
 
@@ -410,7 +415,7 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
 
     <div className={inline ? "grid min-w-0 gap-4 sm:grid-cols-2" : "min-w-0 space-y-4"}>
 
-    <div className={inline ? "sm:col-span-2" : undefined}><label htmlFor="event-series">Veranstaltungsreihe</label><select id="event-series" name="eventSeriesId" value={values.eventSeriesId} onChange={(e) => { setTrainerConsentObtained(false); const selected = series.find((s) => s.id === e.target.value); if (!selected) setMultiple(false); if (selected && batch.timeMode === "duration") setBatch(old => ({ ...old, duration: selected.suggestedDuration?.toString() ?? "" })); setValues((old) => {
+    <div className={inline ? "sm:col-span-2" : undefined}><label htmlFor="event-series">Veranstaltungsreihe</label><select id="event-series" name="eventSeriesId" value={values.eventSeriesId} onChange={(e) => { setTrainerConsentObtained(false); setVenueConsentObtained(false); setVenueResponseChange(null); const selected = series.find((s) => s.id === e.target.value); if (!selected) setMultiple(false); if (selected && batch.timeMode === "duration") setBatch(old => ({ ...old, duration: selected.suggestedDuration?.toString() ?? "" })); setValues((old) => {
 
      const next = selected ? applySeries(old, selected) : { ...old, eventSeriesId: "" };
 
@@ -461,11 +466,38 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
       <p id="trainer-consent-help" className="text-xs text-zinc-500">Alle ausgewählten Trainer haben bereits zugestimmt, zum Beispiel telefonisch. {multiple ? "Dies gilt für alle ausgewählten Termine. " : ""}Es wird keine Bestätigungsanfrage versendet. Beim Veröffentlichen ist keine erneute Trainerfreigabe erforderlich. Entwürfe bleiben unveröffentlicht.</p>
     </div>}
 
+    {!row && values.venueId && <div className={inline ? "sm:col-span-2 space-y-2" : "space-y-2"}>
+      <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="venueConsentObtained" value="yes" checked={venueConsentObtained} onChange={event => setVenueConsentObtained(event.target.checked)} aria-describedby="venue-consent-help" className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-primary-600" /><span>Ortsfreigabe bereits eingeholt</span></label>
+      <p id="venue-consent-help" className="text-xs text-zinc-500">Das Ortsteam hat bereits zugestimmt. {multiple ? "Dies gilt für alle ausgewählten Termine. " : ""}Es erhält keine Bestätigungsanfrage. Ohne verifiziertes Ortsteam wird die Ortsfreigabe automatisch erteilt.</p>
+    </div>}
+
     <div className={inline ? "min-w-0 min-h-40" : undefined}><CancellationPolicyField name="freeCancellationUntilMinutesBeforeStart" value={values.freeCancellationUntilMinutesBeforeStart ?? ""} onChange={(value) => change("freeCancellationUntilMinutesBeforeStart", value)} error={state.errors?.freeCancellationUntilMinutesBeforeStart} /></div>
 
 
 
-    {row?.trainerResponses?.length ? <div className="space-y-2"><p className="font-medium">Trainer-Rückmeldungen</p>{row.trainerResponses.map(response => <p key={response.trainerId} className="text-sm">{trainers.find(t => t.id === response.trainerId)?.firstName} {trainers.find(t => t.id === response.trainerId)?.lastName}: {{ PENDING: "Antwort ausstehend", ACCEPTED: "Zugesagt", ISSUE: "Issue gemeldet" }[response.responseStatus]}</p>)}</div> : null}
+    {row?.trainerResponses?.length ? <div className={inline ? "sm:col-span-2 space-y-2" : "space-y-2"}>
+      <p className="font-medium">Trainer-Rückmeldungen</p>
+      <input type="hidden" name="trainerResponseChanges" value={JSON.stringify(row.trainerResponses.filter(response => values.trainerIds.includes(response.trainerId) && trainerResponseChanges[response.id] && trainerResponseChanges[response.id] !== response.responseStatus).map(response => ({ assignmentId: response.id, trainerId: response.trainerId, status: trainerResponseChanges[response.id], expectedStatus: response.responseStatus, expectedRespondedAt: response.respondedAt })))} />
+      {row.trainerResponses.filter(response => values.trainerIds.includes(response.trainerId)).map(response => <div key={response.id} className="text-sm">
+        <label htmlFor={`trainer-response-${response.id}`}>{trainers.find(t => t.id === response.trainerId)?.firstName} {trainers.find(t => t.id === response.trainerId)?.lastName}</label>
+        {["DRAFT", "PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(row.status) ? <select id={`trainer-response-${response.id}`} value={trainerResponseChanges[response.id] ?? response.responseStatus} onChange={event => { const status = event.target.value; if (status === "PENDING" || status === "ACCEPTED") setTrainerResponseChanges(old => ({ ...old, [response.id]: status })); }} className={input}>
+          <option value="PENDING">Pending – Antwort ausstehend</option>
+          <option value="ACCEPTED">Approved – Zugesagt</option>
+          {response.responseStatus === "ISSUE" && <option value="ISSUE" disabled>Problem gemeldet</option>}
+        </select> : <p>{{ PENDING: "Antwort ausstehend", ACCEPTED: "Zugesagt", ISSUE: "Problem gemeldet" }[response.responseStatus]}</p>}
+      </div>)}
+      <p className="text-xs text-zinc-500">Manuelle Freigaben werden mit dem Event gespeichert und protokolliert. Es wird keine E-Mail versendet. Pending nimmt ein veröffentlichtes Event aus der Veröffentlichung. Nach allen Trainerzusagen folgt die Ortsfreigabe. Veröffentlicht wird erst nach beiden Freigaben; Entwürfe bleiben Entwürfe.</p>
+    </div> : null}
+
+    {row?.venueResponse && <div className={inline ? "sm:col-span-2 space-y-2" : "space-y-2"}>
+      <label htmlFor={`venue-approval-${row.id}`} className="font-medium">Ortsfreigabe</label>
+      <input type="hidden" name="venueResponseChange" value={venueResponseChange && venueResponseChange !== row.venueResponse.status && (values.venueId || null) === row.venueResponse.venueId ? JSON.stringify({ id: row.venueResponse.id, venueId: row.venueResponse.venueId, status: venueResponseChange, expectedStatus: row.venueResponse.status, expectedUpdatedAt: row.venueResponse.updatedAt }) : ""} />
+      {(values.venueId || null) !== row.venueResponse.venueId ? <p className="text-sm text-zinc-500">Ein Ortswechsel setzt die Ortsfreigabe zurück. Ohne verifiziertes Ortsteam wird sie automatisch erteilt.</p> : row.venueResponse.hasTeam && ["DRAFT", "PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(row.status) ? <select id={`venue-approval-${row.id}`} className={input} value={venueResponseChange ?? row.venueResponse.status} onChange={event => { const status = event.target.value; if (status === "PENDING" || status === "ACCEPTED") setVenueResponseChange(status); }}>
+        <option value="PENDING">Pending – Ortsfreigabe ausstehend</option><option value="ACCEPTED">Approved – Ortsfreigabe erteilt</option>
+        {row.venueResponse.status === "ISSUE" && <option value="ISSUE" disabled>Problem gemeldet</option>}
+      </select> : <p className="text-sm">{{ PENDING: "Ortsfreigabe ausstehend", ACCEPTED: "Ortsfreigabe erteilt", ISSUE: "Problem gemeldet" }[row.venueResponse.status]}{!row.venueResponse.hasTeam ? " (kein verifiziertes Ortsteam)" : ""}</p>}
+      <p className="text-xs text-zinc-500">Manuelle Änderungen werden mit dem Event gespeichert und auditiert, ohne E-Mail-Versand. Veröffentlicht wird erst nach Trainer- und Ortsfreigabe.</p>
+    </div>}
 
     <div className="flex items-center gap-2"><span>Status</span><StatusTag status={row?.status ?? "DRAFT"} /></div>
 
@@ -491,7 +523,7 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
 
     </> : <button name="intent" value="save" disabled={pending || trainerBusy} className={primary}>Speichern</button>}
 
-    {row && ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION"].includes(row.status) && <>
+    {row && ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(row.status) && <>
 
      <button ref={cancelButton} type="button" disabled={pending || trainerBusy} onClick={() => setCancelConfirmation(true)} className="rounded-lg bg-red-600 px-4 py-2 text-sm text-white disabled:opacity-50">Absagen</button>
 
@@ -533,7 +565,7 @@ function DeleteEvent({ slug, row, onDeleted }: { slug: string; row: EventRow; on
 
 export function EventsTable({ company, events, series, venues, trainers, canManage, seriesDetails, seriesHistory, seriesNotes, seriesTaxes, defaultSeriesId }: Props) {
 
- const visibleColumns = columns.filter(column => !seriesDetails || column.key !== "series");
+
 
  const [editor, setEditor] = useState<{ row?: EventRow } | null>(null);
 
@@ -565,7 +597,7 @@ export function EventsTable({ company, events, series, venues, trainers, canMana
 
   if (key === "beginsAt") return row.beginsAt ? new Date(row.beginsAt).getTime() : null;
 
-  if (key === "series") return series.find(item => item.id === row.eventSeriesId)?.name ?? null;
+
 
   if (key === "venue") return venues.find(item => item.id === row.venueId)?.name ?? null;
 
@@ -635,7 +667,7 @@ export function EventsTable({ company, events, series, venues, trainers, canMana
 
   <div className="overflow-x-auto border-t border-zinc-200 dark:border-zinc-800">
 
-   <table className="w-full text-left text-sm"><caption className="sr-only">{title} von {company.name}</caption><thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{visibleColumns.map(column => <th key={column.key} scope="col" aria-sort={sort?.key === column.key ? sort.direction === "asc" ? "ascending" : "descending" : "none"} className={`px-2 py-2 ${column.key === "remainingSeats" ? "text-center" : column.key === "price" || column.key === "bookings" ? "text-right" : ""}`}><button type="button" onClick={() => changeSort(column.key)} className={`flex w-full items-center gap-1 rounded px-2 py-1 font-semibold ${column.key === "remainingSeats" ? "justify-center text-center" : column.key === "price" || column.key === "bookings" ? "justify-end text-right" : "text-left"} hover:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-primary-600 dark:hover:bg-zinc-800`}>{past && column.key === "remainingSeats" ? "Eingecheckt / gekauft / gesamt" : column.label}<span aria-hidden="true" className="w-3">{sort?.key === column.key ? sort.direction === "asc" ? "↑" : "↓" : "↕"}</span></button></th>)}<th scope="col" className="px-4 py-3">Aktionen</th></tr></thead><tbody>{displayRows.map(item => item.kind === "empty-week" ? <tr key={`empty-${item.monday}`} className="border-t-2 border-zinc-300 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/60"><td colSpan={visibleColumns.length + 1} className="px-4 py-1.5 text-center text-xs text-zinc-500 dark:text-zinc-400">{weekLabel(item.monday)} · keine Veranstaltungen</td></tr> : (() => { const { row, index } = item; return <tr key={row.id} className={`${index > 0 && groupValue(row) !== groupValue(visible[index - 1]) ? "border-t-2 border-zinc-400 dark:border-zinc-600" : "border-t border-zinc-200 dark:border-zinc-800"} align-top`}><td className="px-4 py-4">{row.number}</td><th scope="row" className="px-4 py-4 font-medium"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}`} className="text-primary-700 underline focus-visible:outline-2 focus-visible:outline-primary-600 dark:text-primary-300">{row.name || "Unbenannter Entwurf"}</Link></th><td className="whitespace-nowrap px-4 py-4">{row.beginsAt ? eventDateTime.format(new Date(row.beginsAt)) : "Noch offen"}</td>{!seriesDetails && <td className="px-4 py-4">{(() => { const eventSeries = series.find((s) => s.id === row.eventSeriesId); return eventSeries ? <Link href={`/company/${encodeURIComponent(company.slug)}/event-series/${encodeURIComponent(eventSeries.id)}`} className="text-primary-700 underline focus-visible:outline-primary-600 dark:text-primary-300">{eventSeries.name}</Link> : "—"; })()}</td>}<td className="px-4 py-4">{venues.find((v) => v.id === row.venueId)?.name ?? "—"}</td><td className="px-4 py-4"><StatusTag status={row.status} /></td><td className="px-4 py-4 text-center tabular-nums"><span className="whitespace-nowrap">{isPast(row) ? `${row.checkedInSeats} / ${row.purchasedSeats} / ${row.maxSeats ?? "?"}` : `${row.remainingSeats ?? "?"} / ${row.maxSeats ?? "?"}`}</span></td><td className="whitespace-nowrap px-4 py-4 text-right tabular-nums">{row.ticketPrice === null || row.ticketPrice === "" ? "Noch offen" : Number(row.ticketPrice) === 0 ? "kostenlos" : `${row.ticketPrice.replace(".", ",")} ${row.currency}`}</td><td className="px-4 py-4 text-right tabular-nums">{row._count.bookings}</td><td className="px-4 py-4"><div className="flex items-start gap-2">{canManage && !editor && <DeleteEvent slug={company.slug} row={row} onDeleted={setMessage} />}</div></td></tr>; })())}</tbody></table>
+   <table className="w-full text-left text-sm"><caption className="sr-only">{title} von {company.name}</caption><thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{columns.map(column => <th key={column.key} scope="col" aria-sort={sort?.key === column.key ? sort.direction === "asc" ? "ascending" : "descending" : "none"} className={`px-2 py-2 ${column.key === "remainingSeats" ? "text-center" : column.key === "price" || column.key === "bookings" ? "text-right" : ""}`}><button type="button" onClick={() => changeSort(column.key)} className={`flex w-full items-center gap-1 rounded px-2 py-1 font-semibold ${column.key === "remainingSeats" ? "justify-center text-center" : column.key === "price" || column.key === "bookings" ? "justify-end text-right" : "text-left"} hover:bg-zinc-200 focus-visible:outline-2 focus-visible:outline-primary-600 dark:hover:bg-zinc-800`}>{past && column.key === "remainingSeats" ? "Eingecheckt / gekauft / gesamt" : column.label}<span aria-hidden="true" className="w-3">{sort?.key === column.key ? sort.direction === "asc" ? "↑" : "↓" : "↕"}</span></button></th>)}<th scope="col" className="px-4 py-3">Aktionen</th></tr></thead><tbody>{displayRows.map(item => item.kind === "empty-week" ? <tr key={`empty-${item.monday}`} className="border-t-2 border-zinc-300 bg-zinc-50/80 dark:border-zinc-700 dark:bg-zinc-900/60"><td colSpan={columns.length + 1} className="px-4 py-1.5 text-center text-xs text-zinc-500 dark:text-zinc-400">{weekLabel(item.monday)} · keine Veranstaltungen</td></tr> : (() => { const { row, index } = item; return <tr key={row.id} className={`${index > 0 && groupValue(row) !== groupValue(visible[index - 1]) ? "border-t-2 border-zinc-400 dark:border-zinc-600" : "border-t border-zinc-200 dark:border-zinc-800"} align-top`}><td className="px-4 py-4">{row.number}</td><th scope="row" className="px-4 py-4 font-medium"><Link href={`/company/${encodeURIComponent(company.slug)}/events/${encodeURIComponent(row.id)}`} className="text-primary-700 underline focus-visible:outline-2 focus-visible:outline-primary-600 dark:text-primary-300">{row.name || "Unbenannter Entwurf"}</Link></th><td className="whitespace-nowrap px-4 py-4">{row.beginsAt ? eventDateTime.format(new Date(row.beginsAt)) : "Noch offen"}</td><td className="px-4 py-4">{venues.find((v) => v.id === row.venueId)?.name ?? "—"}</td><td className="px-4 py-4"><StatusTag status={row.status} /></td><td className="px-4 py-4 text-center tabular-nums"><span className="whitespace-nowrap">{isPast(row) ? `${row.checkedInSeats} / ${row.purchasedSeats} / ${row.maxSeats ?? "?"}` : `${row.remainingSeats ?? "?"} / ${row.maxSeats ?? "?"}`}</span></td><td className="whitespace-nowrap px-4 py-4 text-right tabular-nums">{row.ticketPrice === null || row.ticketPrice === "" ? "Noch offen" : Number(row.ticketPrice) === 0 ? "kostenlos" : `${row.ticketPrice.replace(".", ",")} ${row.currency}`}</td><td className="px-4 py-4 text-right tabular-nums">{row._count.bookings}</td><td className="px-4 py-4"><div className="flex items-start gap-2">{canManage && !editor && <DeleteEvent slug={company.slug} row={row} onDeleted={setMessage} />}</div></td></tr>; })())}</tbody></table>
 
    {!visible.length && <p className="p-8 text-center text-sm text-zinc-500">{query ? "Keine passenden Veranstaltungen gefunden." : "Keine Veranstaltungen in diesem Bereich."}</p>}
 

@@ -31,12 +31,13 @@ export async function getMyEvents() {
     where: { OR: [
 
       { status: "PENDING_TRAINER_CONFIRMATION", trainers: { some: ownTrainer } },
+      { status: "PENDING_VENUE_CONFIRMATION", OR: [{ trainers: { some: ownTrainer } }, { venue: { staff: { some: ownStaff } }, trainers: { none: { responseStatus: { not: "ACCEPTED" } } } }] },
 
       { status: { in: ["PUBLISHED", "CANCELLED", "COMPLETED"] }, OR: [
 
       { staff: { some: ownStaff } },
 
-      { venue: { staff: { some: ownStaff } } },
+      { venue: { staff: { some: ownStaff } }, trainers: { none: { responseStatus: { not: "ACCEPTED" } } } },
 
       { trainers: { some: ownTrainer } },
 
@@ -48,13 +49,13 @@ export async function getMyEvents() {
 
     select: {
 
-      id: true, name: true, beginsAt: true, endsAt: true, status: true,
+      id: true, name: true, beginsAt: true, endsAt: true, status: true, updatedAt: true, venueId: true, venueApproval: { select: { id: true, venueId: true, status: true, updatedAt: true } },
 
       company: { select: { name: true, slug: true } },
 
       bookings: { where: { status: "CONFIRMED" }, select: { _count: { select: { tickets: { where: { status: "VALID" } } } } } },
 
-      venue: { select: { name: true, staff: { where: ownStaff, select: { id: true }, take: 1 } } },
+      venue: { select: { id: true, name: true, staff: { where: ownStaff, select: { id: true }, take: 1 } } },
 
       staff: { where: ownStaff, select: { id: true }, take: 1 },
 
@@ -71,6 +72,8 @@ export async function getMyEvents() {
     trainerAssignments: trainers,
 
     venueName: venue?.name ?? null,
+    venueResponse: venue?.staff.length ? event.venueApproval?.venueId === event.venueId ? event.venueApproval
+      : !event.venueApproval && ["PUBLISHED", "CANCELLED", "COMPLETED"].includes(event.status) ? { id: `legacy:${event.id}`, venueId: event.venueId, status: "ACCEPTED" as const, updatedAt: event.updatedAt } : null : null,
 
     confirmedBookingCount: bookings.length,
 

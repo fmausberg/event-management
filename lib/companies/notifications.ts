@@ -10,11 +10,11 @@ import { encryptPaymentMail } from "@/lib/payments/mail";
 
 
 
-export type NotificationType = "notifyBookings" | "notifyCancellationRequests" | "notifyTrainerIssues";
+export type NotificationType = "notifyBookings" | "notifyCancellationRequests" | "notifyTrainerIssues" | "notifyVenueIssues";
 
 export type CompanyMessage = MailMessage & {
 
-  companyNotification?: { companyId: string; type: NotificationType };
+  companyNotification?: { companyId: string; type: NotificationType; additionalTypes?: NotificationType[] };
 
   customerNotification?: boolean;
 
@@ -44,10 +44,13 @@ export async function mayDeliverCompanyMessage(tx: Prisma.TransactionClient, mes
 
   if (!context) return false;
 
-  if (context.type !== "notifyBookings" && context.type !== "notifyCancellationRequests" && context.type !== "notifyTrainerIssues") return false;
-
-  return (await companyRecipients(tx, context.companyId, context.type)).includes(message.to.trim().toLowerCase());
-
+  const types = [...new Set([context.type, ...(context.additionalTypes ?? [])])];
+  const allowed: readonly string[] = ["notifyBookings", "notifyCancellationRequests", "notifyTrainerIssues", "notifyVenueIssues"];
+  if (types.some(type => !allowed.includes(type))) return false;
+  for (const type of types) {
+    if ((await companyRecipients(tx, context.companyId, type)).includes(message.to.trim().toLowerCase())) return true;
+  }
+  return false;
 }
 
 

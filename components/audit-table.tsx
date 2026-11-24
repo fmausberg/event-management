@@ -33,6 +33,11 @@ function jsonDetails(entry: AuditTableEntry) {
 
 function actionLabel(entry: AuditTableEntry) {
   if (entry.model === "Note") return { CREATE: "Notiz hinzugefügt", UPDATE: "Notiz bearbeitet", DELETE: "Notiz gelöscht" }[entry.action];
+  if (entry.model === "EventVenueApproval") {
+    if (entry.action === "DELETE") return "Ortsfreigabe zurückgesetzt";
+    const snapshot: Prisma.JsonObject = entry.after && typeof entry.after === "object" && !Array.isArray(entry.after) ? entry.after : {};
+    return snapshot.status === "ACCEPTED" ? "Ortsfreigabe erteilt" : snapshot.status === "ISSUE" ? "Ortsteam-Problem gemeldet" : "Ortsfreigabe ausstehend";
+  }
   if (entry.model === "EventTrainer") {
     if (entry.action === "DELETE") return "Trainerzuordnung entfernt";
     const snapshot: Prisma.JsonObject = entry.after && typeof entry.after === "object" && !Array.isArray(entry.after) ? entry.after : {};
@@ -57,7 +62,7 @@ export function AuditTable({ entries, showTarget = false }: { entries: AuditTabl
         {entries.map((entry) => <tr key={entry.id} className="align-top">
           <td className="whitespace-nowrap px-3 py-3"><time dateTime={entry.occurredAt.toISOString()}>{dateTime.format(entry.occurredAt)}</time></td>
           <td className="px-3 py-3 break-all">{entry.actorType === "USER" ? entry.actorEmail ?? `Nutzer nicht mehr verfügbar (${entry.actorUserId ?? "ohne ID"})` : actors[entry.actorType]}</td>
-          <td className="px-3 py-3">{actionLabel(entry)}{!showTarget && (entry.model === "Note" || entry.model === "EventTrainer") && <span className="mt-1 block text-xs text-zinc-500">{entry.model === "Note" ? `Notiz${entry.recordNumber == null ? "" : ` #${entry.recordNumber}`}` : entry.recordName ?? "Trainer"}</span>}</td>
+          <td className="px-3 py-3">{actionLabel(entry)}{!showTarget && (entry.model === "Note" || entry.model === "EventTrainer" || entry.model === "EventVenueApproval") && <span className="mt-1 block text-xs text-zinc-500">{entry.model === "Note" ? `Notiz${entry.recordNumber == null ? "" : ` #${entry.recordNumber}`}` : entry.recordName ?? "Trainer"}</span>}</td>
           {showTarget && <td className="min-w-48 px-3 py-3">
             <span className="block text-xs text-zinc-500">{auditModelLabels[entry.model] ?? entry.model}</span>
             <span className="break-words">{entry.recordNumber != null ? `#${entry.recordNumber} · ` : ""}{entry.recordName || (entry.model === "CompanyMembership" ? "Mitgliedschaft" : entry.recordId)}</span>

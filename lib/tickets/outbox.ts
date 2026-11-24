@@ -1,3 +1,4 @@
+import { currentVenueConfirmation } from "@/lib/venues/confirmation";
 import { currentBatchTrainerConfirmation } from "@/lib/trainers/confirmation";
 import "server-only";
 
@@ -23,7 +24,7 @@ type DeliveryWhere = {
 
 };
 
-function deliveryStore(tx: Prisma.TransactionClient, kind: "ticket" | "review" | "company" | "trainerConfirmation") {
+function deliveryStore(tx: Prisma.TransactionClient, kind: "ticket" | "review" | "company" | "trainerConfirmation" | "venueConfirmation") {
 
   return {
 
@@ -31,13 +32,13 @@ function deliveryStore(tx: Prisma.TransactionClient, kind: "ticket" | "review" |
 
       ? tx.ticketMail.updateMany(args)
 
-      : tx.mailOutbox.updateMany({ ...args, where: { ...args.where, kind: kind === "company" ? "COMPANY_NOTIFICATION" : kind === "trainerConfirmation" ? "TRAINER_CONFIRMATION" : "EVENT_REVIEW", cancelledAt: null } }),
+      : tx.mailOutbox.updateMany({ ...args, where: { ...args.where, kind: kind === "company" ? "COMPANY_NOTIFICATION" : kind === "trainerConfirmation" ? "TRAINER_CONFIRMATION" : kind === "venueConfirmation" ? "VENUE_CONFIRMATION" : "EVENT_REVIEW", cancelledAt: null } }),
 
     findFirst: (args: { where: DeliveryWhere }) => kind === "ticket"
 
       ? tx.ticketMail.findFirst(args)
 
-      : tx.mailOutbox.findFirst({ where: { ...args.where, kind: kind === "company" ? "COMPANY_NOTIFICATION" : kind === "trainerConfirmation" ? "TRAINER_CONFIRMATION" : "EVENT_REVIEW", cancelledAt: null } }),
+      : tx.mailOutbox.findFirst({ where: { ...args.where, kind: kind === "company" ? "COMPANY_NOTIFICATION" : kind === "trainerConfirmation" ? "TRAINER_CONFIRMATION" : kind === "venueConfirmation" ? "VENUE_CONFIRMATION" : "EVENT_REVIEW", cancelledAt: null } }),
 
   };
 
@@ -89,7 +90,7 @@ export async function deliverTicketMail(id: string) {
 
 /** Shared encrypted-payload delivery, retry and fencing for tickets, reviews and Company notifications. */
 
-export async function deliverEncryptedMail(id: string, kind: "ticket" | "review" | "company" | "trainerConfirmation") {
+export async function deliverEncryptedMail(id: string, kind: "ticket" | "review" | "company" | "trainerConfirmation" | "venueConfirmation") {
 
   const db = getPrisma();
 
@@ -135,7 +136,7 @@ export async function deliverEncryptedMail(id: string, kind: "ticket" | "review"
 
     }
 
-    const message: CompanyMessage & { trainerConfirmation?: { assignmentId?: string; assignmentIds?: string[]; companyId: string } } = decryptPaymentMail(mail.encryptedMessage);
+    const message: CompanyMessage & { venueConfirmation?: { approvalIds: string[]; companyId: string }; trainerConfirmation?: { assignmentId?: string; assignmentIds?: string[]; companyId: string } } = decryptPaymentMail(mail.encryptedMessage);
 
     if (kind === "trainerConfirmation") {
 
@@ -144,7 +145,7 @@ export async function deliverEncryptedMail(id: string, kind: "ticket" | "review"
       const batchMessage = context?.assignmentIds
         ? await currentBatchTrainerConfirmation(db, context.companyId, context.assignmentIds, message.to, now) : null;
       const assignment = context?.assignmentId ? await db.eventTrainer.findFirst({ where: {
-        id: context.assignmentId, responseStatus: "PENDING", trainer: { companyId: context.companyId, email: { equals: message.to, mode: "insensitive" } },
+        id: context.assignmentId, responseStatus: "PENDING", respondedAt: null, trainer: { companyId: context.companyId, email: { equals: message.to, mode: "insensitive" } },
         event: { companyId: context.companyId, status: "PENDING_TRAINER_CONFIRMATION", endsAt: { gt: now } },
       }, select: { id: true } }) : null;
       if (!batchMessage && !assignment) {
@@ -152,6 +153,16 @@ export async function deliverEncryptedMail(id: string, kind: "ticket" | "review"
         return false;
       }
       if (batchMessage) Object.assign(message, batchMessage);
+    }
+
+    if (kind === "venueConfirmation") {
+      const context = message.venueConfirmation;
+      const current = context ? await currentVenueConfirmation(db, context.approvalIds, context.companyId, message.to, now) : null;
+      if (!current) {
+        await db.mailOutbox.updateMany({ where: { id, lockToken, sentAt: null }, data: { cancelledAt: now, encryptedMessage: null, lockToken: null, lockedUntil: null } });
+        return false;
+      }
+      Object.assign(message, current);
     }
 
     if (kind === "company" && !await mayDeliverCompanyMessage(db, message)) {
@@ -162,7 +173,7 @@ export async function deliverEncryptedMail(id: string, kind: "ticket" | "review"
 
     }
 
-    const { companyNotification: _context, customerNotification: _customer, trainerConfirmation: _trainerContext, ...payload } = message;
+    const { companyNotification: _context, customerNotification: _customer, trainerConfirmation: _trainerContext, venueConfirmation: _venueContext, ...payload } = message;
 
     await sendMail(payload);
 
@@ -282,3 +293,16 @@ export async function deliverPendingTrainerConfirmations() {
 
 }
 
+
+export async function deliverPendingVenueConfirmations() {
+  try {
+    const now = new Date();
+    const mails = await getPrisma().mailOutbox.findMany({ where: {
+      kind: "VENUE_CONFIRMATION", sentAt: null, cancelledAt: null, availableAt: { lte: now },
+      OR: [{ lockedUntil: null }, { lockedUntil: { lt: now } }],
+    }, select: { id: true }, take: 50, orderBy: [{ availableAt: "asc" }, { createdAt: "asc" }] });
+    let failures = 0;
+    for (const mail of mails) { try { await deliverEncryptedMail(mail.id, "venueConfirmation"); } catch { failures++; } }
+    return { checked: mails.length, failures };
+  } catch { console.error("[venue-confirmation:outbox] Delivery deferred to reconciliation"); return { checked: 0, failures: 1 }; }
+}

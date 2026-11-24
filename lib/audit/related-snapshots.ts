@@ -43,6 +43,13 @@ export async function relatedAuditSnapshots(tx: Prisma.TransactionClient, delega
       };
     });
   }
+  if (delegate === "eventVenueApproval") {
+    const approvals = await tx.eventVenueApproval.findMany({ select: {
+      id: true, eventId: true, venueId: true, status: true, respondedAt: true, respondedById: true, manual: true, createdAt: true,
+      event: { select: { companyId: true } }, venue: { select: { name: true } },
+    } });
+    return approvals.map(({ event, venue, ...approval }) => ({ ...approval, companyId: event.companyId, name: venue?.name ?? "Ohne Ort" }));
+  }
   if (delegate === "eventTrainer") {
     const assignments = await tx.eventTrainer.findMany({ select: {
       id: true, number: true, eventId: true, trainerId: true, responseStatus: true, respondedAt: true, createdAt: true,
