@@ -1,1204 +1,1215 @@
-generator client {
-  provider = "prisma-client-js"
-}
-
-datasource db {
-  provider = "postgresql"
-}
-
-enum AuditAction {
-  CREATE
-  UPDATE
-  DELETE
-}
-
-enum AuditActorType {
-  USER
-  SYSTEM
-  ANONYMOUS
-  UNKNOWN
-}
-
-// Append-only through the application facade. No cascading foreign keys.
-model AuditLog {
-  id            String         @id @default(cuid())
-  occurredAt    DateTime       @default(now()) @db.Timestamptz(6)
-  model         String
-  recordId      String
-  recordNumber  Int?
-  recordName    String?
-  companyId     String?
-  action        AuditAction
-  operation     String
-  actorType     AuditActorType
-  actorUserId   String?
-  source        String
-  correlationId String
-  changedFields String[]
-  redactedFields String[]
-  before        Json?          @db.JsonB
-  after         Json?          @db.JsonB
-  policyVersion Int            @default(1)
-
-  @@index([companyId, model, recordId, occurredAt, id])
-  @@index([actorUserId, occurredAt, id])
-  @@index([correlationId])
-  @@index([occurredAt, id])
-}
-
-enum Platform {
-  EVENTBRITE
-  RAUSGEGANGEN
-  EVERSPORTS
-  URBAN_SPORTS_CLUB
-  WELLPASS
-  MYCLUBS
-  EVENTIM
-}
-
-enum BookingStatus {
-  PENDING_PAYMENT
-  EXPIRED
-  CONFIRMED
-  CANCELLED
-}
-
-enum SyncStatus {
-  ACTIVE
-  DISABLED
-  ERROR
-}
-
-enum UserRole {
-  ADMIN
-  USER
-}
-
-enum CompanyRole {
-  COMPANY_ADMIN
-  COMPANY_USER
-}
-
-enum MembershipStatus {
-  ACTIVE
-  INVITED
-  SUSPENDED
-}
-
-enum EventStatus {
-  DRAFT
-  PUBLISHED
-  CANCELLED
-  COMPLETED
-}
-
-enum MailOutboxKind {
-  COMPANY_NOTIFICATION
-  TRAINER_REMINDER
-  EVENT_REVIEW
-}
-
-model User {
-  notes Note[]
-  createdVoucherCampaigns VoucherCampaign[]     @relation("VoucherCampaignCreator")
-  assignedVoucherCodes    VoucherCode[]         @relation("VoucherCodeRecipient")
-  voucherRedemptions      VoucherRedemption[]
-  voucherBalanceUses      VoucherBalanceUse[]
-  voucherBalanceEntries   VoucherBalanceEntry[] @relation("VoucherBalanceEntryActor")
-  requestedTicketMails TicketMail[]
-  cancellationDecisions CancellationRequest[] @relation("CancellationDecider")
-  checkedInTickets Ticket[] @relation("TicketCheckedInBy")
-  // ID & number
-  id               String   @id @default(cuid())
-  number           Int      @unique @default(autoincrement())
-
-  // Attribute
-  email String   @unique
-  name  String?
-  role  UserRole @default(USER)
-
-  // Auth: null passwordHash supports existing users and OAuth-only accounts.
-  passwordHash  String?
-  emailVerified DateTime?
-  image         String?
-
-  // 1:n Relationen
-  memberships             CompanyMembership[]
-  createdEvents           Event[]             @relation("EventCreator")
-  createdSeries           EventSeries[]       @relation("EventSeriesCreator")
-  bookings                Booking[]           @relation("UserBookings")
-  venueAssignments        VenueStaff[]
-  eventAssignments        EventStaff[]
-  accounts                Account[]
-  sessions                Session[]
-  createdVenueAssignments VenueStaff[]        @relation("VenueStaffAssignedBy")
-  createdEventAssignments EventStaff[]        @relation("EventStaffAssignedBy")
-  trainerProfiles         Trainer[]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-model Account {
-  id                String  @id @default(cuid())
-  userId            String
-  type              String
-  provider          String
-  providerAccountId String
-  refresh_token     String? @db.Text
-  access_token      String? @db.Text
-  expires_at        Int?
-  token_type        String?
-  scope             String?
-  id_token          String? @db.Text
-  session_state     String?
-  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@unique([provider, providerAccountId])
-  @@index([userId])
-}
-
-model Session {
-  id           String   @id @default(cuid())
-  sessionToken String   @unique
-  userId       String
-  expires      DateTime
-  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@index([userId])
-}
-
-model VerificationToken {
-  identifier String
-  token      String   @unique
-  expires    DateTime
-
-  @@unique([identifier, token])
-}
-
-// Shared across instances; keys contain a digest, never a plain email address.
-model AuthRateLimit {
-  key       String   @id
-  attempts  Int
-  expiresAt DateTime
-
-  @@index([expiresAt])
-}
-
-model Company {
-  taxRules CompanyTaxRule[]
-  eventbriteConnection EventbriteConnection?
-  eventbriteOAuth EventbriteOAuth?
-  ownedVoucherCampaigns  VoucherCampaign[]        @relation("VoucherCampaignOwner")
-  voucherCampaignTargets VoucherCampaignCompany[]
-  issuedVoucherBalances  VoucherBalance[]         @relation("VoucherBalanceIssuer")
-  bookingPrices          BookingPrice[]
-  // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
-
-  // Attribute
-  name                 String
-  slug                 String  @unique
-  stripeAccountId      String? @unique
-  stripeChargesEnabled Boolean @default(false)
-  stripePayoutsEnabled Boolean @default(false)
-
-  // 1:n Relationen
-  venues      Venue[]
-  memberships CompanyMembership[]
-  eventSeries EventSeries[]
-  events      Event[]
-  trainers    Trainer[]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-enum EventbriteConnectionStatus {
-  CONNECTED
-  ERROR
-}
-
-model EventbriteConnection {
-  companyId String @id
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  organizationId String @unique
-  organizationName String?
-  encryptedAccessToken String @db.Text
-  status EventbriteConnectionStatus @default(CONNECTED)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-}
-
-// Short-lived, server-only OAuth attempt; never replaces the active connection.
-model EventbriteOAuth {
-  id String @id @default(cuid())
-  companyId String @unique
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  userId String
-  sessionHash String
-  stateHash String? @unique
-  encryptedAccessToken String? @db.Text
-  expiresAt DateTime
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@index([expiresAt])
-}
-
-model CompanyMembership {
-  notifyBookings Boolean @default(true)
-  notifyCancellationRequests Boolean @default(true)
-  // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
-
-  // Attribute
-  role   CompanyRole      @default(COMPANY_USER)
-  status MembershipStatus @default(ACTIVE)
-  // Normalized address for members added before an account exists.
-  email  String?
-
-  // n:1 Relationen
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  userId    String?
-  user      User?   @relation(fields: [userId], references: [id], onDelete: Restrict)
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Indizes
-  @@unique([companyId, userId])
-  @@unique([companyId, email])
-  @@index([userId, status])
-}
-
-model Venue {
-  notes Note[]
-  voucherCampaignTargets VoucherCampaignVenue[]
-  // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
-
-  // Attribute
-  name         String
-  addressLine1 String?
-  addressLine2 String?
-  postalCode   String?
-  city         String?
-  countryCode  String? @db.Char(2)
-
-  // n:1 Relation
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-
-  // 1:n Relationen
-  events             Event[]
-  suggestedForSeries EventSeries[] @relation("SeriesSuggestedVenue")
-  staff              VenueStaff[]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Indizes
-  @@index([companyId, name])
-}
-
-model EventSeries {
-  taxRateOverride Decimal? @db.Decimal(7, 4)
-  notes Note[]
-  voucherCampaignTargets VoucherCampaignEventSeries[]
-  // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
-
-  // Attribute
-  name                 String
-  shortdescription     String?
-  description          String?
-  imageUrl             String?
-  suggestedFreeCancellationUntilMinutesBeforeStart Int?
-  suggestedDuration    Int?
-  suggestedMaxSeats    Int?
-  suggestedTicketPrice Decimal? @db.Decimal(10, 2)
-  suggestedCurrency    String   @default("EUR") @db.Char(3)
-  suggestedTrainerName String? //deprecated
-
-  // n:1 Relationen
-  companyId          String
-  company            Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  createdById        String
-  createdBy          User     @relation("EventSeriesCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  suggestedVenueId   String?
-  suggestedVenue     Venue?   @relation("SeriesSuggestedVenue", fields: [suggestedVenueId], references: [id], onDelete: Restrict)
-  suggestedTrainerId String?
-  suggestedTrainer   Trainer? @relation("SeriesSuggestedTrainer", fields: [suggestedTrainerId], references: [id], onDelete: SetNull)
-
-  // 1:n Relationen
-  events Event[]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Indizes
-  @@index([companyId, name])
-}
-
-model Event {
-  taxRateOverride Decimal? @db.Decimal(7, 4)
-  notes Note[]
-  reviews EventReview[]
-  voucherCampaignTargets VoucherCampaignEvent[]
-  bookingPrices          BookingPrice[]
-  // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
-
-  // Attribute
-  name             String
-  shortdescription String?
-  description      String?
-  beginsAt         DateTime?    @map("Begin")
-  endsAt           DateTime?    @map("End")
-  freeCancellationUntilMinutesBeforeStart Int?
-  maxSeats         Int?
-  status           EventStatus @default(DRAFT)
-  ticketPrice      Decimal?     @db.Decimal(10, 2)
-  currency         String      @default("EUR") @db.Char(3)
-  trainerName      String?
-  imageUrl         String?
-  imagePublicId    String?
-  trainerReminderSentAt DateTime?
-
-  // n:1 Relationen
-  eventSeriesId String?
-  eventSeries   EventSeries? @relation(fields: [eventSeriesId], references: [id], onDelete: Restrict)
-  companyId     String
-  company       Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  createdById   String?
-  createdBy     User?        @relation("EventCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  venueId       String?
-  venue         Venue?       @relation(fields: [venueId], references: [id], onDelete: Restrict)
-
-  // 1:n Relationen
-  platformEvents PlatformEvent[]
-  bookings       Booking[]
-  staff          EventStaff[]
-  trainers       EventTrainer[]
-  trainerReminders TrainerReminder[]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Indizes
-  @@index([eventSeriesId, beginsAt])
-  @@index([companyId, beginsAt])
-  @@index([status, beginsAt])
-}
-
-enum BookingOrigin {
-  PLATFORM
-  MANUAL
-}
-
-model Booking {
-  notes Note[]
-  reviews EventReview[]
-  price              BookingPrice?
-  voucherRedemption  VoucherRedemption?
-  voucherBalanceUses VoucherBalanceUse[]
-  ticketMails TicketMail[]
-  // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
-
-  // Attribute
-  // null bedeutet interne Buchung; gesetzt bedeutet Buchung über eine Plattform.
-  platform          Platform?
-  origin            BookingOrigin?
-  externalBookingId String?
-  quantity          Int
-  status            BookingStatus @default(CONFIRMED)
-  bookedAt          DateTime      @default(now())
-  customerName      String?
-  customerEmail     String?
-  reservedUntil     DateTime?
-  payment           Payment?
-
-  // n:1 Relationen
-  eventId String
-  event   Event   @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  userId  String?
-  user    User?   @relation("UserBookings", fields: [userId], references: [id], onDelete: Restrict)
-
-  // 1:n Relation
-  cancellationRequests CancellationRequest[]
-  tickets Ticket[]
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Indizes
-  @@unique([platform, externalBookingId])
-  @@index([eventId, status])
-  @@index([userId, bookedAt])
-}
-
-enum PaymentStatus {
-  PENDING
-  PAID
-  EXPIRED
-  PARTIALLY_REFUNDED
-  REFUNDED
-}
-
-model Payment {
-  id                String        @id @default(cuid())
-  bookingId         String        @unique
-  booking           Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  stripeAccountId   String
-  checkoutSessionId String?       @unique
-  paymentIntentId   String?       @unique
-  publicToken       String        @unique
-  amount            Int
-  currency          String        @db.Char(3)
-  status            PaymentStatus @default(PENDING)
-  checkoutRequest   Json
-  createdAt         DateTime      @default(now())
-  updatedAt         DateTime      @updatedAt
-  mail              TicketMail?
-
-  @@index([status, createdAt])
-}
-
-model StripeWebhookEvent {
-  id          String   @id
-  processedAt DateTime @default(now())
-}
-
-// Ticket bearer links are encrypted while awaiting SMTP delivery, then erased.
-model TicketMail {
-  id               String    @id @default(cuid())
-  requestKey       String    @unique
-  bookingId        String
-  booking          Booking   @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  requestedById    String?
-  requestedBy      User?     @relation(fields: [requestedById], references: [id], onDelete: SetNull)
-  paymentId        String?   @unique
-  payment          Payment?  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
-  encryptedMessage String?
-  sentAt           DateTime?
-  lockedUntil      DateTime?
-  lockToken        String?
-  attempts         Int       @default(0)
-  availableAt      DateTime  @default(now())
-  lastError        String?
-  createdAt        DateTime  @default(now())
-  @@index([sentAt, availableAt, createdAt])
-  @@index([bookingId, createdAt])
-}
-
-model PlatformEvent {
-  // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
-
-  // Attribute
-  platform        Platform
-  externalEventId String
-  syncStatus      SyncStatus @default(ACTIVE)
-  lastSyncedAt    DateTime?
-  lastError       String?
-
-  // n:1 Relation
-  eventId String
-  event   Event  @relation(fields: [eventId], references: [id], onDelete: Restrict)
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Indizes
-  @@unique([platform, externalEventId])
-  @@index([eventId, syncStatus])
-}
-
-enum TicketStatus {
-  VALID
-  CANCELLED
-}
-
-model Ticket {
-  notes Note[]
-  reviews EventReview[]
-  // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
-
-  // Attribute
-  publicTokenHash String       @unique
-  encryptedPublicToken String
-  status          TicketStatus @default(VALID)
-  checkedInAt     DateTime?
-  checkedInById   String?
-  checkedInBy     User?        @relation("TicketCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
-
-  // n:1 Relation
-  bookingId String
-  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  // Indizes
-  @@index([bookingId, status])
-}
-
-model VenueStaff {
-  // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
-
-  //attribute
-  email String?
-
-  // n:1 Relation
-  venueId      String
-  venue        Venue   @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  userId       String?
-  user         User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assignedById String
-  assignedBy   User    @relation("VenueStaffAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([venueId, userId])
-  @@unique([venueId, email])
-  @@index([userId])
-}
-
-model EventStaff {
-  // ID & number
-  id     String  @id @default(cuid())
-  number Int     @unique @default(autoincrement())
-  email  String?
-
-  // n:1 Relation
-  eventId      String
-  event        Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  userId       String?
-  user         User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  assignedById String
-  assignedBy   User    @relation("EventStaffAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
-
-  // Timestamps
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  @@unique([eventId, userId])
-  @@unique([eventId, email])
-  @@index([userId])
-}
-
-model Trainer {
-  notes Note[]
-  // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
-
-  //attribute
-  firstName String
-  lastName  String
-  email     String
-
-  // n:1 Relation
-  companyId String
-  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  userId    String?
-  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
-
-  // 1:n Relation
-  events             EventTrainer[]
-  suggestedForSeries EventSeries[]  @relation("SeriesSuggestedTrainer")
-  reminderMails      MailOutbox[]
-
-  // Timestamps
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  //Indizes
-  @@unique([companyId, email])
-  @@index([userId])
-}
-
-model EventTrainer {
-  // ID & number
-  id     String @id @default(cuid())
-  number Int    @unique @default(autoincrement())
-
-  // n:1 Relation
-  eventId   String
-  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  trainerId String
-  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Restrict)
-
-  // Timestamps
-  createdAt DateTime @default(now())
-
-  // Indizes
-  @@unique([eventId, trainerId])
-  @@index([trainerId])
-}
-
-model TrainerReminder {
-  id         String @id @default(cuid())
-  requestKey String @unique
-  manualRequestedAt DateTime?
-  eventId    String
-  event      Event  @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  mails      MailOutbox[]
-  createdAt  DateTime @default(now())
-
-  @@index([createdAt])
-  @@index([eventId, createdAt])
-}
-
-model MailOutbox {
-  reviewId          String? @unique
-  review            EventReview? @relation(fields: [reviewId], references: [id], onDelete: Restrict)
-  encryptedMessage  String?
-  id                String         @id @default(cuid())
-  requestKey        String         @unique
-  kind              MailOutboxKind
-  trainerReminderId String?
-  trainerReminder   TrainerReminder? @relation(fields: [trainerReminderId], references: [id], onDelete: Restrict)
-  trainerId         String?
-  trainer           Trainer?        @relation(fields: [trainerId], references: [id], onDelete: SetNull)
-  sentAt            DateTime?
-  cancelledAt       DateTime?
-  lockedUntil       DateTime?
-  lockToken         String?
-  attempts          Int            @default(0)
-  availableAt       DateTime       @default(now())
-  lastError         String?
-  createdAt         DateTime       @default(now())
-
-  @@unique([kind, trainerReminderId, trainerId])
-  @@index([sentAt, cancelledAt, availableAt, createdAt])
-  @@index([trainerReminderId, createdAt])
-  @@index([trainerId])
-}
-
-enum EventReviewStatus {
-  PROVISIONAL
-  COMPLETED
-}
-
-// One invitation per event and normalized booking email, including group bookings.
-model EventReview {
-  resendTokens EventReviewResendToken[]
-  id String @id @default(cuid())
-  eventId String
-  event Event @relation(fields: [eventId], references: [id], onDelete: Restrict)
-  bookingId String
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  ticketId String
-  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Restrict)
-  recipientEmail String
-  tokenHash String @unique
-  expiresAt DateTime
-  sentAt DateTime?
-  submittedAt DateTime?
-  status EventReviewStatus @default(PROVISIONAL)
-  overallRating Int?
-  trainerRating Int?
-  locationRating Int?
-  organizationRating Int?
-  overallComment String? @db.VarChar(2000)
-  trainerComment String? @db.VarChar(2000)
-  locationComment String? @db.VarChar(2000)
-  organizationComment String? @db.VarChar(2000)
-  mail MailOutbox?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@unique([eventId, recipientEmail])
-  @@index([eventId, status])
-  @@index([bookingId])
-  @@index([ticketId])
-  @@index([expiresAt])
-}
-
-// Additional bearer hashes let manual reminders preserve previously emailed links.
-model EventReviewResendToken {
-  tokenHash String @id
-  requestId String @unique
-  reviewId String
-  review EventReview @relation(fields: [reviewId], references: [id], onDelete: Restrict)
-  createdAt DateTime @default(now())
-  @@index([reviewId])
-}
-
-
-enum CancellationRequestStatus {
-  PENDING
-  APPROVED
-  REJECTED
-  WITHDRAWN
-}
-
-enum CancellationRefundStatus {
-  NONE
-  PENDING
-  SUCCEEDED
-  FAILED
-  REVIEW
-}
-
-model CancellationRequest {
-  notes Note[]
-  voucherBalanceEntries VoucherBalanceEntry[]
-  id String @id @default(cuid())
-  bookingId String
-  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  status CancellationRequestStatus @default(PENDING)
-  requestedAt DateTime @default(now())
-  decidedAt DateTime?
-  decidedById String?
-  decidedBy User? @relation("CancellationDecider", fields: [decidedById], references: [id], onDelete: SetNull)
-  customerReason String?
-  internalNote String?
-  automatic Boolean @default(false)
-  refundStatus CancellationRefundStatus @default(NONE)
-  stripeRefundId String? @unique
-  refundAttempt Int @default(0)
-  refundStartedAt DateTime?
-  refundCheckedAt DateTime?
-  refundLockedUntil DateTime?
-  refundError String?
-  mails CancellationMail[]
-  @@index([bookingId, requestedAt])
-  @@index([status, requestedAt])
-  @@index([refundStatus, refundCheckedAt])
-}
-
-model CancellationMail {
-  id String @id
-  requestId String
-  request CancellationRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
-  encryptedMessage String?
-  sentAt DateTime?
-  lockedUntil DateTime?
-  createdAt DateTime @default(now())
-  @@index([sentAt, createdAt])
-}
-
-// Voucher data only. Runtime authorization, targeting and settlement are not implemented.
-// SQL-only CHECK constraints and append-only triggers live in the voucher migration.
-enum VoucherKind {
-  PERCENTAGE
-  FIXED_AMOUNT
-  STORED_VALUE
-}
-
-enum VoucherCampaignStatus {
-  DRAFT
-  ACTIVE
-  PAUSED
-  ARCHIVED
-}
-
-enum VoucherCodeMode {
-  PUBLIC
-  INDIVIDUAL
-}
-
-enum VoucherCodeStatus {
-  ACTIVE
-  DISABLED
-  ARCHIVED
-}
-
-enum VoucherRedemptionStatus {
-  RESERVED
-  COMMITTED
-  RELEASED
-  REVERSED
-}
-
-enum VoucherBalanceStatus {
-  ACTIVE
-  SUSPENDED
-  ARCHIVED
-}
-
-enum VoucherBalanceUseStatus {
-  RESERVED
-  COMMITTED
-  RELEASED
-  PARTIALLY_REVERSED
-  REVERSED
-}
-
-enum VoucherBalanceEntryType {
-  ISSUE
-  RESERVE
-  RELEASE
-  SPEND
-  RESTORE
-  ADJUST
-}
-
-model VoucherCampaign {
-  id                           String                       @id @default(cuid())
-  number                       Int                          @unique @default(autoincrement())
-  name                         String
-  kind                         VoucherKind
-  status                       VoucherCampaignStatus        @default(DRAFT)
-  percentageBps                Int?
-  // Fixed discount or initial issued value, depending on kind. Never a shared balance.
-  amountMinor                  Int?
-  currency                     String                       @default("EUR") @db.Char(3)
-  startsAt                     DateTime
-  endsAt                       DateTime?
-  maxRedemptions               Int?
-  maxRedemptionsPerCustomer    Int?
-  maxEligibleTicketsPerBooking Int?
-  ruleVersion                  Int                          @default(1)
-  // Explicit policy choices remain optional until the future activation validator.
-  policy                       Json?
-  source                       String?
-  ownerCompanyId               String
-  ownerCompany                 Company                      @relation("VoucherCampaignOwner", fields: [ownerCompanyId], references: [id], onDelete: Restrict)
-  createdById                  String
-  createdBy                    User                         @relation("VoucherCampaignCreator", fields: [createdById], references: [id], onDelete: Restrict)
-  companyTargets               VoucherCampaignCompany[]
-  eventSeriesTargets           VoucherCampaignEventSeries[]
-  eventTargets                 VoucherCampaignEvent[]
-  venueTargets                 VoucherCampaignVenue[]
-  codes                        VoucherCode[]
-  redemptions                  VoucherRedemption[]
-  balanceUses                  VoucherBalanceUse[]
-  createdAt                    DateTime                     @default(now())
-  updatedAt                    DateTime                     @updatedAt
-
-  @@index([ownerCompanyId, status])
-  @@index([createdById])
-}
-
-model VoucherCampaignCompany {
-  campaignId String
-  campaign   VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
-  companyId  String
-  company    Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
-
-  @@id([campaignId, companyId])
-  @@index([companyId])
-}
-
-model VoucherCampaignEventSeries {
-  campaignId    String
-  campaign      VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
-  eventSeriesId String
-  eventSeries   EventSeries     @relation(fields: [eventSeriesId], references: [id], onDelete: Restrict)
-
-  @@id([campaignId, eventSeriesId])
-  @@index([eventSeriesId])
-}
-
-model VoucherCampaignEvent {
-  campaignId String
-  campaign   VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
-  eventId    String
-  event      Event           @relation(fields: [eventId], references: [id], onDelete: Restrict)
-
-  @@id([campaignId, eventId])
-  @@index([eventId])
-}
-
-model VoucherCampaignVenue {
-  campaignId String
-  campaign   VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
-  venueId    String
-  venue      Venue           @relation(fields: [venueId], references: [id], onDelete: Restrict)
-
-  @@id([campaignId, venueId])
-  @@index([venueId])
-}
-
-model VoucherCode {
-  id             String              @id @default(cuid())
-  campaignId     String
-  campaign       VoucherCampaign     @relation(fields: [campaignId], references: [id], onDelete: Restrict)
-  // Versioned keyed digest of a normalized code; never store the complete bearer code.
-  codeDigest     String              @unique @db.VarChar(128)
-  digestVersion  Int
-  codeSuffix     String?             @db.VarChar(4)
-  mode           VoucherCodeMode
-  status         VoucherCodeStatus   @default(ACTIVE)
-  maxRedemptions Int?
-  startsAt       DateTime?
-  endsAt         DateTime?
-  assignedUserId String?
-  assignedUser   User?               @relation("VoucherCodeRecipient", fields: [assignedUserId], references: [id], onDelete: Restrict)
-  source         String?
-  batchId        String?
-  balance        VoucherBalance?
-  redemptions    VoucherRedemption[]
-  balanceUses    VoucherBalanceUse[]
-  createdAt      DateTime            @default(now())
-  updatedAt      DateTime            @updatedAt
-
-  // Composite reference prevents attributing a code to another campaign.
-  @@unique([id, campaignId])
-  @@index([campaignId, status])
-  @@index([assignedUserId])
-  @@index([campaignId, batchId])
-}
-
-// Exactly one discount-code application per Booking, separate from stored value.
-model VoucherRedemption {
-  id                  String                  @id @default(cuid())
-  bookingId           String                  @unique
-  booking             Booking                 @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  campaignId          String
-  campaign            VoucherCampaign         @relation(fields: [campaignId], references: [id], onDelete: Restrict)
-  codeId              String
-  code                VoucherCode             @relation(fields: [codeId, campaignId], references: [id, campaignId], onDelete: Restrict)
-  userId              String?
-  user                User?                   @relation(fields: [userId], references: [id], onDelete: Restrict)
-  requestKey          String                  @unique
-  status              VoucherRedemptionStatus @default(RESERVED)
-  reservedUntil       DateTime?
-  committedAt         DateTime?
-  releasedAt          DateTime?
-  reversedAt          DateTime?
-  // Independent from reversal status: E12 may retain consumption after cancellation.
-  limitReturnedAt     DateTime?
-  eligibleQuantity    Int
-  eligibleAmountMinor Int
-  discountAmountMinor Int
-  currency            String                  @db.Char(3)
-  ruleVersion         Int
-  ruleSnapshot        Json
-  targetSnapshot      Json
-  sourceSnapshot      Json
-  createdAt           DateTime                @default(now())
-  updatedAt           DateTime                @updatedAt
-
-  @@index([campaignId, status, limitReturnedAt])
-  @@index([codeId, status, limitReturnedAt])
-  @@index([campaignId, userId, status])
-  @@index([userId])
-  @@index([status, reservedUntil])
-}
-
-model VoucherBalance {
-  id                 String                @id @default(cuid())
-  codeId             String                @unique
-  code               VoucherCode           @relation(fields: [codeId], references: [id], onDelete: Restrict)
-  issuerCompanyId    String
-  issuerCompany      Company               @relation("VoucherBalanceIssuer", fields: [issuerCompanyId], references: [id], onDelete: Restrict)
-  currency           String                @db.Char(3)
-  initialAmountMinor Int
-  // Journal projection; creation alone issues no value. ISSUE updates this atomically.
-  balanceMinor       Int                   @default(0)
-  reservedMinor      Int                   @default(0)
-  status             VoucherBalanceStatus  @default(ACTIVE)
-  expiresAt          DateTime?
-  issuanceSource     String
-  issuanceReference  String?
-  uses               VoucherBalanceUse[]
-  entries            VoucherBalanceEntry[]
-  createdAt          DateTime              @default(now())
-  updatedAt          DateTime              @updatedAt
-
-  @@unique([id, codeId])
-  @@index([issuerCompanyId, status])
-}
-
-// One stored-value use can produce several journal entries and partial restorations.
-model VoucherBalanceUse {
-  id             String                  @id @default(cuid())
-  bookingId      String
-  booking        Booking                 @relation(fields: [bookingId], references: [id], onDelete: Restrict)
-  campaignId     String
-  campaign       VoucherCampaign         @relation(fields: [campaignId], references: [id], onDelete: Restrict)
-  codeId         String
-  code           VoucherCode             @relation(fields: [codeId, campaignId], references: [id, campaignId], onDelete: Restrict)
-  balanceId      String
-  balance        VoucherBalance          @relation(fields: [balanceId, codeId], references: [id, codeId], onDelete: Restrict)
-  userId         String?
-  user           User?                   @relation(fields: [userId], references: [id], onDelete: Restrict)
-  requestKey     String                  @unique
-  status         VoucherBalanceUseStatus @default(RESERVED)
-  amountMinor    Int
-  restoredMinor  Int                     @default(0)
-  currency       String                  @db.Char(3)
-  reservedUntil  DateTime?
-  committedAt    DateTime?
-  releasedAt     DateTime?
-  reversedAt     DateTime?
-  ruleVersion    Int
-  ruleSnapshot   Json
-  targetSnapshot Json
-  sourceSnapshot Json
-  entries        VoucherBalanceEntry[]
-  createdAt      DateTime                @default(now())
-  updatedAt      DateTime                @updatedAt
-
-  @@unique([bookingId, balanceId])
-  @@unique([id, balanceId])
-  @@index([balanceId, status])
-  @@index([codeId, campaignId])
-  @@index([campaignId, userId, status])
-  @@index([userId])
-  @@index([status, reservedUntil])
-}
-
-// SQL migration forbids UPDATE/DELETE/TRUNCATE. Corrections are new entries.
-model VoucherBalanceEntry {
-  id                    String                  @id @default(cuid())
-  balanceId             String
-  balance               VoucherBalance          @relation(fields: [balanceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  useId                 String?
-  use                   VoucherBalanceUse?      @relation(fields: [useId, balanceId], references: [id, balanceId], onDelete: Restrict, onUpdate: Restrict)
-  type                  VoucherBalanceEntryType
-  operationKey          String                  @unique
-  amountMinor           Int
-  balanceDeltaMinor     Int
-  reservedDeltaMinor    Int
-  currency              String                  @db.Char(3)
-  // RESTORE references the original SPEND; ADJUST can reference a corrected entry.
-  reversalOfId          String?
-  reversalOf            VoucherBalanceEntry?    @relation("VoucherEntryReversal", fields: [reversalOfId, balanceId], references: [id, balanceId], onDelete: Restrict, onUpdate: Restrict)
-  reversals             VoucherBalanceEntry[]   @relation("VoucherEntryReversal")
-  cancellationRequestId String?
-  cancellationRequest   CancellationRequest?    @relation(fields: [cancellationRequestId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  // External refund identity is contextual, not globally unique (partial restorations).
-  externalRefundId      String?
-  createdById           String?
-  createdBy             User?                   @relation("VoucherBalanceEntryActor", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  reason                String
-  createdAt             DateTime                @default(now())
-
-  @@unique([id, balanceId])
-  @@index([balanceId, createdAt, id])
-  @@index([useId, balanceId])
-  @@index([reversalOfId, balanceId])
-  @@index([cancellationRequestId])
-  @@index([externalRefundId])
-  @@index([createdById])
-}
-
-// Optional for existing Bookings. No backfill; SQL migration makes snapshots append-only.
-enum TaxRuleSource {
-  EVENT_OVERRIDE
-  SERIES_OVERRIDE
-  COMPANY_COUNTRY_RULE
-}
-
-model CompanyTaxRule {
-  id String @id @default(cuid())
-  companyId String
-  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
-  countryCode String @db.Char(2)
-  rate Decimal @db.Decimal(7, 4)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  @@unique([companyId, countryCode])
-}
-
-model BookingPrice {
-  taxCountryCode String? @db.Char(2)
-  taxRate Decimal? @db.Decimal(7, 4)
-  taxGrossMinor Int?
-  taxMinor Int?
-  taxNetMinor Int?
-  taxSource TaxRuleSource?
-  taxCalculationVersion Int?
-  bookingId           String   @id
-  booking             Booking  @relation(fields: [bookingId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  eventId             String
-  event               Event    @relation(fields: [eventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  companyId           String
-  company             Company  @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
-  currency            String   @db.Char(3)
-  unitPriceMinor      Int
-  quantity            Int
-  originalAmountMinor Int
-  discountAmountMinor Int
-  voucherAmountMinor  Int
-  payableAmountMinor  Int
-  calculationVersion  Int
-  // Optional until E7 is decided; contains stable position identities and allocations.
-  allocationSnapshot  Json?
-  createdAt           DateTime @default(now())
-
-  @@index([eventId])
-  @@index([companyId])
-}
-
-
-enum NoteVisibility {
-  COMPANY
-  PRIVATE
-}
-
-// MVP: exactly one target, enforced by the note service. No independent tenant.
-model Note {
-  id         String         @id @default(cuid())
-  number     Int            @unique @default(autoincrement())
-  body       String         @db.Text
-  visibility NoteVisibility @default(COMPANY)
-  authorId   String
-  author     User           @relation(fields: [authorId], references: [id], onDelete: Restrict)
-  createdAt  DateTime       @default(now())
-  updatedAt  DateTime       @updatedAt
-
-  eventId               String?
-  event                 Event?               @relation(fields: [eventId], references: [id], onDelete: Cascade)
-  eventSeriesId         String?
-  eventSeries           EventSeries?         @relation(fields: [eventSeriesId], references: [id], onDelete: Cascade)
-  venueId               String?
-  venue                 Venue?               @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  bookingId             String?
-  booking               Booking?             @relation(fields: [bookingId], references: [id], onDelete: Cascade)
-  ticketId              String?
-  ticket                Ticket?              @relation(fields: [ticketId], references: [id], onDelete: Cascade)
-  trainerId             String?
-  trainer               Trainer?             @relation(fields: [trainerId], references: [id], onDelete: Cascade)
-  cancellationRequestId String?
-  cancellationRequest   CancellationRequest? @relation(fields: [cancellationRequestId], references: [id], onDelete: Cascade)
-
-  @@index([authorId])
-  @@index([eventId, createdAt, id])
-  @@index([eventSeriesId, createdAt, id])
-  @@index([venueId, createdAt, id])
-  @@index([bookingId, createdAt, id])
-  @@index([ticketId, createdAt, id])
-  @@index([trainerId, createdAt, id])
-  @@index([cancellationRequestId, createdAt, id])
-}
-
-// Connected-account-local immutable manual tax identity.
-model StripeTaxRateCache {
-  stripeAccountId String
-  countryCode String @db.Char(2)
-  rate Decimal @db.Decimal(7,4)
-  displayName String
-  stripeTaxRateId String
-  createdAt DateTime @default(now())
-  @@id([stripeAccountId, countryCode, rate, displayName])
-}
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum AuditAction {
+  CREATE
+  UPDATE
+  DELETE
+}
+
+enum AuditActorType {
+  USER
+  SYSTEM
+  ANONYMOUS
+  UNKNOWN
+}
+
+// Append-only through the application facade. No cascading foreign keys.
+model AuditLog {
+  id            String         @id @default(cuid())
+  occurredAt    DateTime       @default(now()) @db.Timestamptz(6)
+  model         String
+  recordId      String
+  recordNumber  Int?
+  recordName    String?
+  companyId     String?
+  action        AuditAction
+  operation     String
+  actorType     AuditActorType
+  actorUserId   String?
+  source        String
+  correlationId String
+  changedFields String[]
+  redactedFields String[]
+  before        Json?          @db.JsonB
+  after         Json?          @db.JsonB
+  policyVersion Int            @default(1)
+
+  @@index([companyId, model, recordId, occurredAt, id])
+  @@index([actorUserId, occurredAt, id])
+  @@index([correlationId])
+  @@index([occurredAt, id])
+}
+
+enum Platform {
+  EVENTBRITE
+  RAUSGEGANGEN
+  EVERSPORTS
+  URBAN_SPORTS_CLUB
+  WELLPASS
+  MYCLUBS
+  EVENTIM
+}
+
+enum BookingStatus {
+  PENDING_PAYMENT
+  EXPIRED
+  CONFIRMED
+  CANCELLED
+}
+
+enum SyncStatus {
+  ACTIVE
+  DISABLED
+  ERROR
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum CompanyRole {
+  COMPANY_ADMIN
+  COMPANY_USER
+}
+
+enum MembershipStatus {
+  ACTIVE
+  INVITED
+  SUSPENDED
+}
+
+enum EventStatus {
+  PENDING_TRAINER_CONFIRMATION
+  DRAFT
+  PUBLISHED
+  CANCELLED
+  COMPLETED
+}
+
+enum MailOutboxKind {
+  COMPANY_NOTIFICATION
+  TRAINER_REMINDER
+  EVENT_REVIEW
+  TRAINER_CONFIRMATION
+}
+
+model User {
+  notes Note[]
+  createdVoucherCampaigns VoucherCampaign[]     @relation("VoucherCampaignCreator")
+  assignedVoucherCodes    VoucherCode[]         @relation("VoucherCodeRecipient")
+  voucherRedemptions      VoucherRedemption[]
+  voucherBalanceUses      VoucherBalanceUse[]
+  voucherBalanceEntries   VoucherBalanceEntry[] @relation("VoucherBalanceEntryActor")
+  requestedTicketMails TicketMail[]
+  cancellationDecisions CancellationRequest[] @relation("CancellationDecider")
+  checkedInTickets Ticket[] @relation("TicketCheckedInBy")
+  // ID & number
+  id               String   @id @default(cuid())
+  number           Int      @unique @default(autoincrement())
+
+  // Attribute
+  email String   @unique
+  name  String?
+  role  UserRole @default(USER)
+
+  // Auth: null passwordHash supports existing users and OAuth-only accounts.
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+
+  // 1:n Relationen
+  memberships             CompanyMembership[]
+  createdEvents           Event[]             @relation("EventCreator")
+  createdSeries           EventSeries[]       @relation("EventSeriesCreator")
+  bookings                Booking[]           @relation("UserBookings")
+  venueAssignments        VenueStaff[]
+  eventAssignments        EventStaff[]
+  accounts                Account[]
+  sessions                Session[]
+  createdVenueAssignments VenueStaff[]        @relation("VenueStaffAssignedBy")
+  createdEventAssignments EventStaff[]        @relation("EventStaffAssignedBy")
+  trainerProfiles         Trainer[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Shared across instances; keys contain a digest, never a plain email address.
+model AuthRateLimit {
+  key       String   @id
+  attempts  Int
+  expiresAt DateTime
+
+  @@index([expiresAt])
+}
+
+model Company {
+  taxRules CompanyTaxRule[]
+  eventbriteConnection EventbriteConnection?
+  eventbriteOAuth EventbriteOAuth?
+  ownedVoucherCampaigns  VoucherCampaign[]        @relation("VoucherCampaignOwner")
+  voucherCampaignTargets VoucherCampaignCompany[]
+  issuedVoucherBalances  VoucherBalance[]         @relation("VoucherBalanceIssuer")
+  bookingPrices          BookingPrice[]
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  name                 String
+  slug                 String  @unique
+  stripeAccountId      String? @unique
+  stripeChargesEnabled Boolean @default(false)
+  stripePayoutsEnabled Boolean @default(false)
+
+  // 1:n Relationen
+  venues      Venue[]
+  memberships CompanyMembership[]
+  eventSeries EventSeries[]
+  events      Event[]
+  trainers    Trainer[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+enum EventbriteConnectionStatus {
+  CONNECTED
+  ERROR
+}
+
+model EventbriteConnection {
+  companyId String @id
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  organizationId String @unique
+  organizationName String?
+  encryptedAccessToken String @db.Text
+  status EventbriteConnectionStatus @default(CONNECTED)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+// Short-lived, server-only OAuth attempt; never replaces the active connection.
+model EventbriteOAuth {
+  id String @id @default(cuid())
+  companyId String @unique
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  userId String
+  sessionHash String
+  stateHash String? @unique
+  encryptedAccessToken String? @db.Text
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@index([expiresAt])
+}
+
+model CompanyMembership {
+  notifyTrainerIssues Boolean @default(true)
+  notifyBookings Boolean @default(true)
+  notifyCancellationRequests Boolean @default(true)
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  role   CompanyRole      @default(COMPANY_USER)
+  status MembershipStatus @default(ACTIVE)
+  // Normalized address for members added before an account exists.
+  email  String?
+
+  // n:1 Relationen
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@unique([companyId, userId])
+  @@unique([companyId, email])
+  @@index([userId, status])
+}
+
+model Venue {
+  notes Note[]
+  voucherCampaignTargets VoucherCampaignVenue[]
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  name         String
+  addressLine1 String?
+  addressLine2 String?
+  postalCode   String?
+  city         String?
+  countryCode  String? @db.Char(2)
+
+  // n:1 Relation
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  // 1:n Relationen
+  events             Event[]
+  suggestedForSeries EventSeries[] @relation("SeriesSuggestedVenue")
+  staff              VenueStaff[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@index([companyId, name])
+}
+
+model EventSeries {
+  taxRateOverride Decimal? @db.Decimal(7, 4)
+  notes Note[]
+  voucherCampaignTargets VoucherCampaignEventSeries[]
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  name                 String
+  shortdescription     String?
+  description          String?
+  imageUrl             String?
+  suggestedFreeCancellationUntilMinutesBeforeStart Int?
+  suggestedDuration    Int?
+  suggestedMaxSeats    Int?
+  suggestedTicketPrice Decimal? @db.Decimal(10, 2)
+  suggestedCurrency    String   @default("EUR") @db.Char(3)
+  suggestedTrainerName String? //deprecated
+
+  // n:1 Relationen
+  companyId          String
+  company            Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdById        String
+  createdBy          User     @relation("EventSeriesCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  suggestedVenueId   String?
+  suggestedVenue     Venue?   @relation("SeriesSuggestedVenue", fields: [suggestedVenueId], references: [id], onDelete: Restrict)
+  suggestedTrainerId String?
+  suggestedTrainer   Trainer? @relation("SeriesSuggestedTrainer", fields: [suggestedTrainerId], references: [id], onDelete: SetNull)
+
+  // 1:n Relationen
+  events Event[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@index([companyId, name])
+}
+
+model Event {
+  taxRateOverride Decimal? @db.Decimal(7, 4)
+  notes Note[]
+  reviews EventReview[]
+  voucherCampaignTargets VoucherCampaignEvent[]
+  bookingPrices          BookingPrice[]
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  name             String
+  shortdescription String?
+  description      String?
+  beginsAt         DateTime?    @map("Begin")
+  endsAt           DateTime?    @map("End")
+  freeCancellationUntilMinutesBeforeStart Int?
+  maxSeats         Int?
+  status           EventStatus @default(DRAFT)
+  ticketPrice      Decimal?     @db.Decimal(10, 2)
+  currency         String      @default("EUR") @db.Char(3)
+  trainerName      String?
+  imageUrl         String?
+  imagePublicId    String?
+  trainerReminderSentAt DateTime?
+
+  // n:1 Relationen
+  eventSeriesId String?
+  eventSeries   EventSeries? @relation(fields: [eventSeriesId], references: [id], onDelete: Restrict)
+  companyId     String
+  company       Company      @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  createdById   String?
+  createdBy     User?        @relation("EventCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  venueId       String?
+  venue         Venue?       @relation(fields: [venueId], references: [id], onDelete: Restrict)
+
+  // 1:n Relationen
+  platformEvents PlatformEvent[]
+  bookings       Booking[]
+  staff          EventStaff[]
+  trainers       EventTrainer[]
+  trainerReminders TrainerReminder[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@index([eventSeriesId, beginsAt])
+  @@index([companyId, beginsAt])
+  @@index([status, beginsAt])
+}
+
+enum BookingOrigin {
+  PLATFORM
+  MANUAL
+}
+
+model Booking {
+  notes Note[]
+  reviews EventReview[]
+  price              BookingPrice?
+  voucherRedemption  VoucherRedemption?
+  voucherBalanceUses VoucherBalanceUse[]
+  ticketMails TicketMail[]
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  // null bedeutet interne Buchung; gesetzt bedeutet Buchung über eine Plattform.
+  platform          Platform?
+  origin            BookingOrigin?
+  externalBookingId String?
+  quantity          Int
+  status            BookingStatus @default(CONFIRMED)
+  bookedAt          DateTime      @default(now())
+  customerName      String?
+  customerEmail     String?
+  reservedUntil     DateTime?
+  payment           Payment?
+
+  // n:1 Relationen
+  eventId String
+  event   Event   @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  userId  String?
+  user    User?   @relation("UserBookings", fields: [userId], references: [id], onDelete: Restrict)
+
+  // 1:n Relation
+  cancellationRequests CancellationRequest[]
+  tickets Ticket[]
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@unique([platform, externalBookingId])
+  @@index([eventId, status])
+  @@index([userId, bookedAt])
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  EXPIRED
+  PARTIALLY_REFUNDED
+  REFUNDED
+}
+
+model Payment {
+  id                String        @id @default(cuid())
+  bookingId         String        @unique
+  booking           Booking       @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  stripeAccountId   String
+  checkoutSessionId String?       @unique
+  paymentIntentId   String?       @unique
+  publicToken       String        @unique
+  amount            Int
+  currency          String        @db.Char(3)
+  status            PaymentStatus @default(PENDING)
+  checkoutRequest   Json
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  mail              TicketMail?
+
+  @@index([status, createdAt])
+}
+
+model StripeWebhookEvent {
+  id          String   @id
+  processedAt DateTime @default(now())
+}
+
+// Ticket bearer links are encrypted while awaiting SMTP delivery, then erased.
+model TicketMail {
+  id               String    @id @default(cuid())
+  requestKey       String    @unique
+  bookingId        String
+  booking          Booking   @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  requestedById    String?
+  requestedBy      User?     @relation(fields: [requestedById], references: [id], onDelete: SetNull)
+  paymentId        String?   @unique
+  payment          Payment?  @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+  encryptedMessage String?
+  sentAt           DateTime?
+  lockedUntil      DateTime?
+  lockToken        String?
+  attempts         Int       @default(0)
+  availableAt      DateTime  @default(now())
+  lastError        String?
+  createdAt        DateTime  @default(now())
+  @@index([sentAt, availableAt, createdAt])
+  @@index([bookingId, createdAt])
+}
+
+model PlatformEvent {
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  platform        Platform
+  externalEventId String
+  syncStatus      SyncStatus @default(ACTIVE)
+  lastSyncedAt    DateTime?
+  lastError       String?
+
+  // n:1 Relation
+  eventId String
+  event   Event  @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@unique([platform, externalEventId])
+  @@index([eventId, syncStatus])
+}
+
+enum TicketStatus {
+  VALID
+  CANCELLED
+}
+
+model Ticket {
+  notes Note[]
+  reviews EventReview[]
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // Attribute
+  publicTokenHash String       @unique
+  encryptedPublicToken String
+  status          TicketStatus @default(VALID)
+  checkedInAt     DateTime?
+  checkedInById   String?
+  checkedInBy     User?        @relation("TicketCheckedInBy", fields: [checkedInById], references: [id], onDelete: SetNull)
+
+  // n:1 Relation
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Indizes
+  @@index([bookingId, status])
+}
+
+model VenueStaff {
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  //attribute
+  email String?
+
+  // n:1 Relation
+  venueId      String
+  venue        Venue   @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedById String
+  assignedBy   User    @relation("VenueStaffAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([venueId, userId])
+  @@unique([venueId, email])
+  @@index([userId])
+}
+
+model EventStaff {
+  // ID & number
+  id     String  @id @default(cuid())
+  number Int     @unique @default(autoincrement())
+  email  String?
+
+  // n:1 Relation
+  eventId      String
+  event        Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  userId       String?
+  user         User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  assignedById String
+  assignedBy   User    @relation("EventStaffAssignedBy", fields: [assignedById], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([eventId, userId])
+  @@unique([eventId, email])
+  @@index([userId])
+}
+
+model Trainer {
+  notes Note[]
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  //attribute
+  firstName String
+  lastName  String
+  email     String
+
+  // n:1 Relation
+  companyId String
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  userId    String?
+  user      User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  // 1:n Relation
+  events             EventTrainer[]
+  suggestedForSeries EventSeries[]  @relation("SeriesSuggestedTrainer")
+  reminderMails      MailOutbox[]
+
+  // Timestamps
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  //Indizes
+  @@unique([companyId, email])
+  @@index([userId])
+}
+
+enum TrainerResponseStatus {
+  PENDING
+  ACCEPTED
+  ISSUE
+}
+
+model EventTrainer {
+  responseStatus TrainerResponseStatus @default(PENDING)
+  respondedAt DateTime?
+  // ID & number
+  id     String @id @default(cuid())
+  number Int    @unique @default(autoincrement())
+
+  // n:1 Relation
+  eventId   String
+  event     Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  trainerId String
+  trainer   Trainer @relation(fields: [trainerId], references: [id], onDelete: Restrict)
+
+  // Timestamps
+  createdAt DateTime @default(now())
+
+  // Indizes
+  @@unique([eventId, trainerId])
+  @@index([trainerId])
+}
+
+model TrainerReminder {
+  id         String @id @default(cuid())
+  requestKey String @unique
+  manualRequestedAt DateTime?
+  eventId    String
+  event      Event  @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  mails      MailOutbox[]
+  createdAt  DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([eventId, createdAt])
+}
+
+model MailOutbox {
+  reviewId          String? @unique
+  review            EventReview? @relation(fields: [reviewId], references: [id], onDelete: Restrict)
+  encryptedMessage  String?
+  id                String         @id @default(cuid())
+  requestKey        String         @unique
+  kind              MailOutboxKind
+  trainerReminderId String?
+  trainerReminder   TrainerReminder? @relation(fields: [trainerReminderId], references: [id], onDelete: Restrict)
+  trainerId         String?
+  trainer           Trainer?        @relation(fields: [trainerId], references: [id], onDelete: SetNull)
+  sentAt            DateTime?
+  cancelledAt       DateTime?
+  lockedUntil       DateTime?
+  lockToken         String?
+  attempts          Int            @default(0)
+  availableAt       DateTime       @default(now())
+  lastError         String?
+  createdAt         DateTime       @default(now())
+
+  @@unique([kind, trainerReminderId, trainerId])
+  @@index([sentAt, cancelledAt, availableAt, createdAt])
+  @@index([trainerReminderId, createdAt])
+  @@index([trainerId])
+}
+
+enum EventReviewStatus {
+  PROVISIONAL
+  COMPLETED
+}
+
+// One invitation per event and normalized booking email, including group bookings.
+model EventReview {
+  resendTokens EventReviewResendToken[]
+  id String @id @default(cuid())
+  eventId String
+  event Event @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  bookingId String
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  ticketId String
+  ticket Ticket @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  recipientEmail String
+  tokenHash String @unique
+  expiresAt DateTime
+  sentAt DateTime?
+  submittedAt DateTime?
+  status EventReviewStatus @default(PROVISIONAL)
+  overallRating Int?
+  trainerRating Int?
+  locationRating Int?
+  organizationRating Int?
+  overallComment String? @db.VarChar(2000)
+  trainerComment String? @db.VarChar(2000)
+  locationComment String? @db.VarChar(2000)
+  organizationComment String? @db.VarChar(2000)
+  mail MailOutbox?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([eventId, recipientEmail])
+  @@index([eventId, status])
+  @@index([bookingId])
+  @@index([ticketId])
+  @@index([expiresAt])
+}
+
+// Additional bearer hashes let manual reminders preserve previously emailed links.
+model EventReviewResendToken {
+  tokenHash String @id
+  requestId String @unique
+  reviewId String
+  review EventReview @relation(fields: [reviewId], references: [id], onDelete: Restrict)
+  createdAt DateTime @default(now())
+  @@index([reviewId])
+}
+
+
+enum CancellationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  WITHDRAWN
+}
+
+enum CancellationRefundStatus {
+  NONE
+  PENDING
+  SUCCEEDED
+  FAILED
+  REVIEW
+}
+
+model CancellationRequest {
+  notes Note[]
+  voucherBalanceEntries VoucherBalanceEntry[]
+  id String @id @default(cuid())
+  bookingId String
+  booking Booking @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  status CancellationRequestStatus @default(PENDING)
+  requestedAt DateTime @default(now())
+  decidedAt DateTime?
+  decidedById String?
+  decidedBy User? @relation("CancellationDecider", fields: [decidedById], references: [id], onDelete: SetNull)
+  customerReason String?
+  internalNote String?
+  automatic Boolean @default(false)
+  refundStatus CancellationRefundStatus @default(NONE)
+  stripeRefundId String? @unique
+  refundAttempt Int @default(0)
+  refundStartedAt DateTime?
+  refundCheckedAt DateTime?
+  refundLockedUntil DateTime?
+  refundError String?
+  mails CancellationMail[]
+  @@index([bookingId, requestedAt])
+  @@index([status, requestedAt])
+  @@index([refundStatus, refundCheckedAt])
+}
+
+model CancellationMail {
+  id String @id
+  requestId String
+  request CancellationRequest @relation(fields: [requestId], references: [id], onDelete: Restrict)
+  encryptedMessage String?
+  sentAt DateTime?
+  lockedUntil DateTime?
+  createdAt DateTime @default(now())
+  @@index([sentAt, createdAt])
+}
+
+// Voucher data only. Runtime authorization, targeting and settlement are not implemented.
+// SQL-only CHECK constraints and append-only triggers live in the voucher migration.
+enum VoucherKind {
+  PERCENTAGE
+  FIXED_AMOUNT
+  STORED_VALUE
+}
+
+enum VoucherCampaignStatus {
+  DRAFT
+  ACTIVE
+  PAUSED
+  ARCHIVED
+}
+
+enum VoucherCodeMode {
+  PUBLIC
+  INDIVIDUAL
+}
+
+enum VoucherCodeStatus {
+  ACTIVE
+  DISABLED
+  ARCHIVED
+}
+
+enum VoucherRedemptionStatus {
+  RESERVED
+  COMMITTED
+  RELEASED
+  REVERSED
+}
+
+enum VoucherBalanceStatus {
+  ACTIVE
+  SUSPENDED
+  ARCHIVED
+}
+
+enum VoucherBalanceUseStatus {
+  RESERVED
+  COMMITTED
+  RELEASED
+  PARTIALLY_REVERSED
+  REVERSED
+}
+
+enum VoucherBalanceEntryType {
+  ISSUE
+  RESERVE
+  RELEASE
+  SPEND
+  RESTORE
+  ADJUST
+}
+
+model VoucherCampaign {
+  id                           String                       @id @default(cuid())
+  number                       Int                          @unique @default(autoincrement())
+  name                         String
+  kind                         VoucherKind
+  status                       VoucherCampaignStatus        @default(DRAFT)
+  percentageBps                Int?
+  // Fixed discount or initial issued value, depending on kind. Never a shared balance.
+  amountMinor                  Int?
+  currency                     String                       @default("EUR") @db.Char(3)
+  startsAt                     DateTime
+  endsAt                       DateTime?
+  maxRedemptions               Int?
+  maxRedemptionsPerCustomer    Int?
+  maxEligibleTicketsPerBooking Int?
+  ruleVersion                  Int                          @default(1)
+  // Explicit policy choices remain optional until the future activation validator.
+  policy                       Json?
+  source                       String?
+  ownerCompanyId               String
+  ownerCompany                 Company                      @relation("VoucherCampaignOwner", fields: [ownerCompanyId], references: [id], onDelete: Restrict)
+  createdById                  String
+  createdBy                    User                         @relation("VoucherCampaignCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  companyTargets               VoucherCampaignCompany[]
+  eventSeriesTargets           VoucherCampaignEventSeries[]
+  eventTargets                 VoucherCampaignEvent[]
+  venueTargets                 VoucherCampaignVenue[]
+  codes                        VoucherCode[]
+  redemptions                  VoucherRedemption[]
+  balanceUses                  VoucherBalanceUse[]
+  createdAt                    DateTime                     @default(now())
+  updatedAt                    DateTime                     @updatedAt
+
+  @@index([ownerCompanyId, status])
+  @@index([createdById])
+}
+
+model VoucherCampaignCompany {
+  campaignId String
+  campaign   VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  companyId  String
+  company    Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+
+  @@id([campaignId, companyId])
+  @@index([companyId])
+}
+
+model VoucherCampaignEventSeries {
+  campaignId    String
+  campaign      VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  eventSeriesId String
+  eventSeries   EventSeries     @relation(fields: [eventSeriesId], references: [id], onDelete: Restrict)
+
+  @@id([campaignId, eventSeriesId])
+  @@index([eventSeriesId])
+}
+
+model VoucherCampaignEvent {
+  campaignId String
+  campaign   VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  eventId    String
+  event      Event           @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@id([campaignId, eventId])
+  @@index([eventId])
+}
+
+model VoucherCampaignVenue {
+  campaignId String
+  campaign   VoucherCampaign @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  venueId    String
+  venue      Venue           @relation(fields: [venueId], references: [id], onDelete: Restrict)
+
+  @@id([campaignId, venueId])
+  @@index([venueId])
+}
+
+model VoucherCode {
+  id             String              @id @default(cuid())
+  campaignId     String
+  campaign       VoucherCampaign     @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  // Versioned keyed digest of a normalized code; never store the complete bearer code.
+  codeDigest     String              @unique @db.VarChar(128)
+  digestVersion  Int
+  codeSuffix     String?             @db.VarChar(4)
+  mode           VoucherCodeMode
+  status         VoucherCodeStatus   @default(ACTIVE)
+  maxRedemptions Int?
+  startsAt       DateTime?
+  endsAt         DateTime?
+  assignedUserId String?
+  assignedUser   User?               @relation("VoucherCodeRecipient", fields: [assignedUserId], references: [id], onDelete: Restrict)
+  source         String?
+  batchId        String?
+  balance        VoucherBalance?
+  redemptions    VoucherRedemption[]
+  balanceUses    VoucherBalanceUse[]
+  createdAt      DateTime            @default(now())
+  updatedAt      DateTime            @updatedAt
+
+  // Composite reference prevents attributing a code to another campaign.
+  @@unique([id, campaignId])
+  @@index([campaignId, status])
+  @@index([assignedUserId])
+  @@index([campaignId, batchId])
+}
+
+// Exactly one discount-code application per Booking, separate from stored value.
+model VoucherRedemption {
+  id                  String                  @id @default(cuid())
+  bookingId           String                  @unique
+  booking             Booking                 @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  campaignId          String
+  campaign            VoucherCampaign         @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  codeId              String
+  code                VoucherCode             @relation(fields: [codeId, campaignId], references: [id, campaignId], onDelete: Restrict)
+  userId              String?
+  user                User?                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  requestKey          String                  @unique
+  status              VoucherRedemptionStatus @default(RESERVED)
+  reservedUntil       DateTime?
+  committedAt         DateTime?
+  releasedAt          DateTime?
+  reversedAt          DateTime?
+  // Independent from reversal status: E12 may retain consumption after cancellation.
+  limitReturnedAt     DateTime?
+  eligibleQuantity    Int
+  eligibleAmountMinor Int
+  discountAmountMinor Int
+  currency            String                  @db.Char(3)
+  ruleVersion         Int
+  ruleSnapshot        Json
+  targetSnapshot      Json
+  sourceSnapshot      Json
+  createdAt           DateTime                @default(now())
+  updatedAt           DateTime                @updatedAt
+
+  @@index([campaignId, status, limitReturnedAt])
+  @@index([codeId, status, limitReturnedAt])
+  @@index([campaignId, userId, status])
+  @@index([userId])
+  @@index([status, reservedUntil])
+}
+
+model VoucherBalance {
+  id                 String                @id @default(cuid())
+  codeId             String                @unique
+  code               VoucherCode           @relation(fields: [codeId], references: [id], onDelete: Restrict)
+  issuerCompanyId    String
+  issuerCompany      Company               @relation("VoucherBalanceIssuer", fields: [issuerCompanyId], references: [id], onDelete: Restrict)
+  currency           String                @db.Char(3)
+  initialAmountMinor Int
+  // Journal projection; creation alone issues no value. ISSUE updates this atomically.
+  balanceMinor       Int                   @default(0)
+  reservedMinor      Int                   @default(0)
+  status             VoucherBalanceStatus  @default(ACTIVE)
+  expiresAt          DateTime?
+  issuanceSource     String
+  issuanceReference  String?
+  uses               VoucherBalanceUse[]
+  entries            VoucherBalanceEntry[]
+  createdAt          DateTime              @default(now())
+  updatedAt          DateTime              @updatedAt
+
+  @@unique([id, codeId])
+  @@index([issuerCompanyId, status])
+}
+
+// One stored-value use can produce several journal entries and partial restorations.
+model VoucherBalanceUse {
+  id             String                  @id @default(cuid())
+  bookingId      String
+  booking        Booking                 @relation(fields: [bookingId], references: [id], onDelete: Restrict)
+  campaignId     String
+  campaign       VoucherCampaign         @relation(fields: [campaignId], references: [id], onDelete: Restrict)
+  codeId         String
+  code           VoucherCode             @relation(fields: [codeId, campaignId], references: [id, campaignId], onDelete: Restrict)
+  balanceId      String
+  balance        VoucherBalance          @relation(fields: [balanceId, codeId], references: [id, codeId], onDelete: Restrict)
+  userId         String?
+  user           User?                   @relation(fields: [userId], references: [id], onDelete: Restrict)
+  requestKey     String                  @unique
+  status         VoucherBalanceUseStatus @default(RESERVED)
+  amountMinor    Int
+  restoredMinor  Int                     @default(0)
+  currency       String                  @db.Char(3)
+  reservedUntil  DateTime?
+  committedAt    DateTime?
+  releasedAt     DateTime?
+  reversedAt     DateTime?
+  ruleVersion    Int
+  ruleSnapshot   Json
+  targetSnapshot Json
+  sourceSnapshot Json
+  entries        VoucherBalanceEntry[]
+  createdAt      DateTime                @default(now())
+  updatedAt      DateTime                @updatedAt
+
+  @@unique([bookingId, balanceId])
+  @@unique([id, balanceId])
+  @@index([balanceId, status])
+  @@index([codeId, campaignId])
+  @@index([campaignId, userId, status])
+  @@index([userId])
+  @@index([status, reservedUntil])
+}
+
+// SQL migration forbids UPDATE/DELETE/TRUNCATE. Corrections are new entries.
+model VoucherBalanceEntry {
+  id                    String                  @id @default(cuid())
+  balanceId             String
+  balance               VoucherBalance          @relation(fields: [balanceId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  useId                 String?
+  use                   VoucherBalanceUse?      @relation(fields: [useId, balanceId], references: [id, balanceId], onDelete: Restrict, onUpdate: Restrict)
+  type                  VoucherBalanceEntryType
+  operationKey          String                  @unique
+  amountMinor           Int
+  balanceDeltaMinor     Int
+  reservedDeltaMinor    Int
+  currency              String                  @db.Char(3)
+  // RESTORE references the original SPEND; ADJUST can reference a corrected entry.
+  reversalOfId          String?
+  reversalOf            VoucherBalanceEntry?    @relation("VoucherEntryReversal", fields: [reversalOfId, balanceId], references: [id, balanceId], onDelete: Restrict, onUpdate: Restrict)
+  reversals             VoucherBalanceEntry[]   @relation("VoucherEntryReversal")
+  cancellationRequestId String?
+  cancellationRequest   CancellationRequest?    @relation(fields: [cancellationRequestId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  // External refund identity is contextual, not globally unique (partial restorations).
+  externalRefundId      String?
+  createdById           String?
+  createdBy             User?                   @relation("VoucherBalanceEntryActor", fields: [createdById], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  reason                String
+  createdAt             DateTime                @default(now())
+
+  @@unique([id, balanceId])
+  @@index([balanceId, createdAt, id])
+  @@index([useId, balanceId])
+  @@index([reversalOfId, balanceId])
+  @@index([cancellationRequestId])
+  @@index([externalRefundId])
+  @@index([createdById])
+}
+
+// Optional for existing Bookings. No backfill; SQL migration makes snapshots append-only.
+enum TaxRuleSource {
+  EVENT_OVERRIDE
+  SERIES_OVERRIDE
+  COMPANY_COUNTRY_RULE
+}
+
+model CompanyTaxRule {
+  id String @id @default(cuid())
+  companyId String
+  company Company @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  countryCode String @db.Char(2)
+  rate Decimal @db.Decimal(7, 4)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@unique([companyId, countryCode])
+}
+
+model BookingPrice {
+  taxCountryCode String? @db.Char(2)
+  taxRate Decimal? @db.Decimal(7, 4)
+  taxGrossMinor Int?
+  taxMinor Int?
+  taxNetMinor Int?
+  taxSource TaxRuleSource?
+  taxCalculationVersion Int?
+  bookingId           String   @id
+  booking             Booking  @relation(fields: [bookingId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  eventId             String
+  event               Event    @relation(fields: [eventId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  companyId           String
+  company             Company  @relation(fields: [companyId], references: [id], onDelete: Restrict, onUpdate: Restrict)
+  currency            String   @db.Char(3)
+  unitPriceMinor      Int
+  quantity            Int
+  originalAmountMinor Int
+  discountAmountMinor Int
+  voucherAmountMinor  Int
+  payableAmountMinor  Int
+  calculationVersion  Int
+  // Optional until E7 is decided; contains stable position identities and allocations.
+  allocationSnapshot  Json?
+  createdAt           DateTime @default(now())
+
+  @@index([eventId])
+  @@index([companyId])
+}
+
+
+enum NoteVisibility {
+  COMPANY
+  PRIVATE
+}
+
+// MVP: exactly one target, enforced by the note service. No independent tenant.
+model Note {
+  id         String         @id @default(cuid())
+  number     Int            @unique @default(autoincrement())
+  body       String         @db.Text
+  visibility NoteVisibility @default(COMPANY)
+  authorId   String
+  author     User           @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  createdAt  DateTime       @default(now())
+  updatedAt  DateTime       @updatedAt
+
+  eventId               String?
+  event                 Event?               @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventSeriesId         String?
+  eventSeries           EventSeries?         @relation(fields: [eventSeriesId], references: [id], onDelete: Cascade)
+  venueId               String?
+  venue                 Venue?               @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  bookingId             String?
+  booking               Booking?             @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  ticketId              String?
+  ticket                Ticket?              @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  trainerId             String?
+  trainer               Trainer?             @relation(fields: [trainerId], references: [id], onDelete: Cascade)
+  cancellationRequestId String?
+  cancellationRequest   CancellationRequest? @relation(fields: [cancellationRequestId], references: [id], onDelete: Cascade)
+
+  @@index([authorId])
+  @@index([eventId, createdAt, id])
+  @@index([eventSeriesId, createdAt, id])
+  @@index([venueId, createdAt, id])
+  @@index([bookingId, createdAt, id])
+  @@index([ticketId, createdAt, id])
+  @@index([trainerId, createdAt, id])
+  @@index([cancellationRequestId, createdAt, id])
+}
+
+// Connected-account-local immutable manual tax identity.
+model StripeTaxRateCache {
+  stripeAccountId String
+  countryCode String @db.Char(2)
+  rate Decimal @db.Decimal(7,4)
+  displayName String
+  stripeTaxRateId String
+  createdAt DateTime @default(now())
+  @@id([stripeAccountId, countryCode, rate, displayName])
+}

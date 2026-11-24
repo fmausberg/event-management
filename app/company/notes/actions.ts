@@ -1,5 +1,6 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { ZodError } from "zod";
 import { withSessionAudit } from "@/lib/audit/session";
 import { MemberAccessError } from "@/lib/companies/members";
@@ -7,7 +8,14 @@ import * as notes from "@/lib/notes/service";
 
 async function run<T>(source: string, work: () => Promise<T>) {
   return withSessionAudit(source, async () => {
-    try { return { success: true as const, data: await work() }; }
+    try {
+      const data = await work();
+      if (source !== "company/notes.listNotes") {
+        revalidatePath("/company/[companyKey]", "layout");
+        revalidatePath("/admin/audit");
+      }
+      return { success: true as const, data };
+    }
     catch (error) {
       if (error instanceof ZodError) return { success: false as const, message: "Bitte prüfe deine Eingaben. Der Notiztext darf nicht leer sein." };
       if (error instanceof MemberAccessError || error instanceof notes.NoteAccessError) return { success: false as const, message: error.message };
