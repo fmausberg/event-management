@@ -6,6 +6,7 @@ export type NavigationGroup = { id: string; label: string; items: NavigationItem
 export type NavigationData = {
   user: { name: string | null; email: string };
   groups: NavigationGroup[];
+  companySwitcher?: { id: string; name: string; slug: string }[];
 };
 export type NavigationUser = {
   name: string | null;

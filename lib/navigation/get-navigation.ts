@@ -38,5 +38,10 @@ export async function getNavigation() {
     db.eventStaff.findFirst({ where: { userId: session.user.id }, select: { id: true } }),
     db.venueStaff.findFirst({ where: { userId: session.user.id }, select: { id: true } }),
   ]);
+  if (user.role === "ADMIN") {
+    const companies = await db.company.findMany({ orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, slug: true } });
+    const navigation = buildNavigation({ ...user, memberships: companies.map(company => ({ company, role: "COMPANY_ADMIN" as const, status: "ACTIVE" as const })) }, !!(trainer || eventStaff || venueStaff));
+    return { ...navigation, companySwitcher: companies };
+  }
   return buildNavigation(user, !!(trainer || eventStaff || venueStaff));
 }
