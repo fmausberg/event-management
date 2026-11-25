@@ -4,11 +4,11 @@ import { getPrisma } from "@/lib/db/prisma";
 
 import { calculateEventCapacity } from "./calculate-event-capacity";
 
-export async function getPublicEvents(companySlug?: string) {
+export async function getPublicEvents(companySlug?: string, countryCode?: string) {
 
  const events = await getPrisma().event.findMany({
 
-  where: { status: "PUBLISHED", trainers: { none: { responseStatus: { not: "ACCEPTED" } } }, AND: [{ OR: [{ venueApproval: { is: null } }, { venueApproval: { is: { status: "ACCEPTED" } } }] }], endsAt: { gt: new Date() }, ...(companySlug !== undefined ? { company: { slug: companySlug } } : {}) }, orderBy: [{ beginsAt: "asc" }, { id: "asc" }],
+  where: { ...(countryCode ? { venue: { is: { countryCode } } } : {}), status: "PUBLISHED", trainers: { none: { responseStatus: { not: "ACCEPTED" } } }, AND: [{ OR: [{ venueApproval: { is: null } }, { venueApproval: { is: { status: "ACCEPTED" } } }] }], endsAt: { gt: new Date() }, ...(companySlug !== undefined ? { company: { slug: companySlug } } : {}) }, orderBy: [{ beginsAt: "asc" }, { id: "asc" }],
 
   select: { id: true, name: true, shortdescription: true, imageUrl: true, beginsAt: true, ticketPrice: true, currency: true, maxSeats: true,
 
