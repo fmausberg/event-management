@@ -12,7 +12,7 @@ export function NotificationSettings({ companySlug, membershipId, email, setting
 
   companySlug: string; membershipId: string; email: string;
 
-  setting: "notifyBookings" | "notifyCancellationRequests" | "notifyIssues";
+  setting: "notifyEventPublications" | "notifyBookings" | "notifyCancellationRequests" | "notifyIssues";
 
   checked: boolean; canManage: boolean;
 
@@ -24,7 +24,7 @@ export function NotificationSettings({ companySlug, membershipId, email, setting
 
   const [pending, startTransition] = useTransition();
 
-  const label = setting === "notifyBookings" ? "Buchungsbenachrichtigung" : setting === "notifyIssues" ? "Problemmeldungen" : "Stornierungsanfragebenachrichtigung";
+  const label = setting === "notifyEventPublications" ? "Eventveröffentlichung" : setting === "notifyBookings" ? "Buchungsbenachrichtigung" : setting === "notifyIssues" ? "Problemmeldungen" : "Stornierungsanfragebenachrichtigung";
 
   function save(next: boolean) {
 

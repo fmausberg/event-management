@@ -1,3 +1,4 @@
+import { VenueWithTrainers, VenueTrainerHeading } from "@/components/events/venue-with-trainers";
 import { eventStatusLabels as eventStatuses, eventStatusColors as statusColors } from "@/lib/events/status-presentation";
 import { EventApprovalActions } from "./trainer-response";
 
@@ -27,8 +28,6 @@ export default async function MyEventsPage() {
 
     <header><p className="mb-1 text-xs text-zinc-500">Account / Veranstaltungsverwaltung</p><h1 className="text-2xl font-semibold">Veranstaltungsverwaltung</h1><p className="mt-2 text-sm text-zinc-600 dark:text-zinc-400">Veranstaltungen, denen du als Veranstaltungsteam, Ortsteam oder Trainer zugeordnet bist.</p></header>
 
-    <Link href="/account/bookings" className="self-start text-primary-700 underline dark:text-primary-300">Deine eigenen Buchungen und Tickets findest du unter „Meine Buchungen“.</Link>
-
     {!events.length ? <p className="rounded-xl border border-zinc-200 bg-white p-8 text-center text-sm text-zinc-500 dark:border-zinc-800 dark:bg-zinc-950">Hier erscheinen Veranstaltungen, denen du als Veranstaltungsteam, Ortsteam oder Trainer zugeordnet bist, sobald sie veröffentlicht sind oder deine Trainer- bzw. Ortsfreigabe angefragt wurde. Abgesagte und abgeschlossene Veranstaltungen bleiben sichtbar.</p> : [
 
       { title: "Kommende Veranstaltungen", items: groups.upcoming, open: true, empty: "Keine kommenden Veranstaltungen zugeordnet." },
@@ -41,43 +40,43 @@ export default async function MyEventsPage() {
 
       {!group.items.length ? <p className="text-sm text-zinc-500">{group.empty}</p> : <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
 
-      <table className="w-full text-left text-sm">
+        <table className="w-full text-left text-sm">
 
-        <caption className="sr-only">Veranstaltungsverwaltung und Rollen – {group.title}</caption>
+          <caption className="sr-only">Veranstaltungsverwaltung und Rollen – {group.title}</caption>
 
-        <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Veranstaltung", "Beginn", "Veranstalter", "Ort", "Anmeldungen", "Status", "Meine Rolle", "Aktionen"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label}</th>)}</tr></thead>
+          <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Veranstaltung", "Beginn", "Veranstalter", "Ort", "Anmeldungen", "Status", "Meine Rolle", "Aktionen"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label === "Ort" ? <VenueTrainerHeading /> : label}</th>)}</tr></thead>
 
-        <tbody>{group.items.map((event) => <tr key={event.id} className="border-t border-zinc-200 align-top dark:border-zinc-800">
+          <tbody>{group.items.map((event) => <tr key={event.id} className="border-t border-zinc-200 align-top dark:border-zinc-800">
 
-          <th scope="row" className="px-4 py-4 font-medium">{event.status === "PUBLISHED" ? <Link href={`/events/${encodeURIComponent(event.company.slug)}/${encodeURIComponent(event.id)}`} className="text-primary-700 underline dark:text-primary-300">{event.name}</Link> : event.name}</th>
+            <th scope="row" className="px-4 py-4 font-medium">{event.status === "PUBLISHED" ? <Link href={`/events/${encodeURIComponent(event.company.slug)}/${encodeURIComponent(event.id)}`} className="text-primary-700 underline dark:text-primary-300">{event.name}</Link> : event.name}</th>
 
-          <td className="whitespace-nowrap px-4 py-4">{event.beginsAt ? date.format(event.beginsAt) : "Noch offen"}</td>
+            <td className="whitespace-nowrap px-4 py-4">{event.beginsAt ? date.format(event.beginsAt) : "Noch offen"}</td>
 
-          <td className="px-4 py-4">{event.company.name}</td>
+            <td className="px-4 py-4">{event.company.name}</td>
 
-          <td className="px-4 py-4">{event.venueName ?? "Noch kein Ort"}</td>
+            <td className="px-4 py-4"><VenueWithTrainers venue={event.venueName ?? "Noch kein Ort"} trainers={event.trainerDisplayName} /></td>
 
-          <td className="px-4 py-4">{event.validTicketCount}</td>
+            <td className="px-4 py-4">{event.validTicketCount}</td>
 
-          <td className="px-4 py-4"><span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[event.status]}`}>{eventStatuses[event.status]}</span></td>
+            <td className="px-4 py-4"><span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[event.status]}`}>{eventStatuses[event.status]}</span></td>
 
-          <td className="px-4 py-4"><div className="flex flex-wrap gap-2">{event.roles.map((role) => <span key={role} className="whitespace-nowrap rounded-full bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-800 dark:bg-primary-950 dark:text-primary-200">{role}</span>)}</div></td>
+            <td className="px-4 py-4"><div className="flex flex-wrap gap-2">{event.roles.map((role) => <span key={role} className="whitespace-nowrap rounded-full bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-800 dark:bg-primary-950 dark:text-primary-200">{role}</span>)}</div></td>
 
-          <td className="px-4 py-4"><div className="flex flex-wrap items-start gap-2">
-            {(event.trainerAssignments.length > 0 || event.venueResponse) && <EventApprovalActions
-              eventId={event.id}
-              canAccept={event.status === "PENDING_TRAINER_CONFIRMATION" && event.trainerAssignments.some(assignment => assignment.responseStatus !== "ACCEPTED") || !!event.venueResponse && event.venueResponse.status !== "ACCEPTED" && (event.status === "PENDING_VENUE_CONFIRMATION" || event.trainerAssignments.length > 0 && event.status === "PENDING_TRAINER_CONFIRMATION")}
-              hasIssue={event.trainerAssignments.some(assignment => assignment.responseStatus === "ISSUE") || event.venueResponse?.status === "ISSUE"}
-              venueVersion={event.venueResponse?.updatedAt.toISOString()}
-            />}
-            {event.status === "PUBLISHED" && event.confirmedBookingCount > 0 && <Link href={`/company/${encodeURIComponent(event.company.slug)}/events/${encodeURIComponent(event.id)}/tickets`} className="inline-block whitespace-nowrap rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700">Ticketverwaltung</Link>}
-          </div></td>
+            <td className="px-4 py-4"><div className="flex flex-wrap items-start gap-2">
+              {(event.trainerAssignments.length > 0 || event.venueResponse) && <EventApprovalActions
+                eventId={event.id}
+                canAccept={event.status === "PENDING_TRAINER_CONFIRMATION" && event.trainerAssignments.some(assignment => assignment.responseStatus !== "ACCEPTED") || !!event.venueResponse && event.venueResponse.status !== "ACCEPTED" && (event.status === "PENDING_VENUE_CONFIRMATION" || event.trainerAssignments.length > 0 && event.status === "PENDING_TRAINER_CONFIRMATION")}
+                hasIssue={event.trainerAssignments.some(assignment => assignment.responseStatus === "ISSUE") || event.venueResponse?.status === "ISSUE"}
+                venueVersion={event.venueResponse?.updatedAt.toISOString()}
+              />}
+              {event.status === "PUBLISHED" && event.confirmedBookingCount > 0 && <Link href={`/company/${encodeURIComponent(event.company.slug)}/events/${encodeURIComponent(event.id)}/tickets`} className="inline-block whitespace-nowrap rounded-lg bg-primary-600 px-3 py-2 text-sm font-medium text-white hover:bg-primary-700">Ticketverwaltung</Link>}
+            </div></td>
 
-        </tr>)}</tbody>
+          </tr>)}</tbody>
 
-      </table>
+        </table>
 
-    </div>}
+      </div>}
 
     </details>)}
 

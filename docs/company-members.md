@@ -200,3 +200,12 @@ Empfängerauswahl und erneute Prüfung vor dem Versand verwenden dieselbe ODER-
 Verknüpfung, sodass beide Problemarten abgedeckt sind. Nach der ersten Änderung
 sind beide gespeicherten Werte synchron. Bestehende oder noch offene Requests
 älterer Clients synchronisieren die Problemoptionen ebenfalls gemeinsam.
+
+
+### Eventveröffentlichung
+
+Die zusätzliche, standardmäßig deaktivierte Option `notifyEventPublications` versendet pro Event und Wechsel auf `PUBLISHED` eine kompakte Company-Mail mit Beginn, Ort/Adresse sowie öffentlichem Event-Link und Verwaltungslink. Nur aktive, verknüpfte und verifizierte Mitglieder mit gesetzter Option erhalten die Mail; die Einstellung wird vor Zustellung erneut geprüft. Der bestehende verschlüsselte MailOutbox-Prozess übernimmt Versand und Wiederholungen.
+
+Die Erkennung erfolgt zentral im auditierten Transaktionsabschluss anhand von Anfangs- und Endstatus. Zwischenstände innerhalb der Transaktion lösen keine Mail aus. Bearbeitungen bereits veröffentlichter Events lösen keine Mail aus, eine spätere erneute Veröffentlichung dagegen schon. Pro Empfänger und Veröffentlichung wird genau ein Outbox-Eintrag erzeugt. Rollbacks erzeugen keine dauerhaften Nachrichten.
+
+Schemaänderung: `CompanyMembership.notifyEventPublications Boolean @default(false)`. Lokal Migration mit `npx prisma migrate dev --name event_publication_notifications` erstellen, danach `npm run db:generate` ausführen und Anwendung neu starten. Keine Migration durch den Assistenten erstellt oder angewendet.

@@ -5,7 +5,7 @@ import { queueVenueConfirmations, ensureVenueApproval, initializeVenueApprovals,
 
 import { applyCompanyTrainerChanges, readCompanyTrainerChanges, queueBatchTrainerConfirmations, synchronizeTrainerConfirmation, TrainerConfirmationError, type CompanyTrainerChanges } from "@/lib/trainers/confirmation";
 
-import { deliverPendingTrainerConfirmations, deliverPendingVenueConfirmations } from "@/lib/tickets/outbox";
+import { deliverPendingCompanyNotifications, deliverPendingTrainerConfirmations, deliverPendingVenueConfirmations } from "@/lib/tickets/outbox";
 
 import { resolveEventTax, TaxError, taxOverrideFromForm } from "@/lib/taxes/service";
 
@@ -110,13 +110,13 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
  const consentValues = form.getAll("trainerConsentObtained");
  if (consentValues.length > 1 || consentValues.some(value => value !== "yes")) return { message: "Ungültige Trainerzustimmung." };
- const trainerConsentObtained = consentValues.length === 1;
+ const trainerConsentObtained = consentValues.length === 1 && (id === null || intent === "publish");
  const venueConsentValues = form.getAll("venueConsentObtained");
  if (venueConsentValues.length > 1 || venueConsentValues.some(value => value !== "yes")) return { message: "Ungültige Ortsfreigabe." };
- const venueConsentObtained = venueConsentValues.length === 1;
- if (venueConsentObtained && id !== null) return { message: "Vorab eingeholte Ortsfreigaben sind nur bei der Eventerstellung möglich." };
+ const venueConsentObtained = venueConsentValues.length === 1 && (id === null || intent === "publish");
+ if (venueConsentObtained && id !== null && intent !== "publish") return { message: "Bitte starte den Veröffentlichungsprozess, um die Ortsfreigabe zu speichern." };
 
- if (trainerConsentObtained && id !== null) return { message: "Vorab bestätigte Trainerzustimmung ist nur bei der Eventerstellung möglich." };
+ if (trainerConsentObtained && id !== null && intent !== "publish") return { message: "Bitte starte den Veröffentlichungsprozess, um die Trainerzustimmung zu speichern." };
 
 
  if (multiple && (id !== null || !["draft", "publish"].includes(String(intent)))) return { message: "Mehrfacherstellung ist nur für neue Veranstaltungen möglich." };
@@ -150,8 +150,9 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
   venueResponseChange = readCompanyVenueChange(form.get("venueResponseChange"));
   if (venueResponseChange && id === null) throw new VenueConfirmationError("Ortsfreigaben können nur für bestehende Events geändert werden.");
   manualApprovalChange = trainerResponseChanges.length > 0 || venueResponseChange !== null;
-  const responseActorId = manualApprovalChange ? (await auth())?.user?.id : undefined;
-  if (manualApprovalChange && !responseActorId) throw new MemberAccessError("UNAUTHENTICATED");
+  const needsResponseActor = manualApprovalChange || trainerConsentObtained || venueConsentObtained;
+  const responseActorId = needsResponseActor ? (await auth())?.user?.id : undefined;
+  if (needsResponseActor && !responseActorId) throw new MemberAccessError("UNAUTHENTICATED");
 
 
   if (id !== null && !validId(id)) return { message: "Ungültige Veranstaltung." };
@@ -166,7 +167,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
   const existing = id === null ? null : await db.event.findFirst({ where: { id, companyId: company.id }, select: { status: true, imageUrl: true } });
 
-  if (id !== null && (!existing || (intent !== "save" && existing.status !== "DRAFT"))) return { message: "Die Veranstaltung ist nicht verfügbar. Bitte lade die Seite neu." };
+  if (id !== null && (!existing || (intent !== "save" && (intent === "publish" ? ["CANCELLED", "COMPLETED"].includes(existing.status) : !["DRAFT", "TRAINER_NOT_SET", "VENUE_NOT_SET"].includes(existing.status))))) return { message: "Die Veranstaltung ist nicht verfügbar. Bitte lade die Seite neu." };
 
   const schema = intent === "publish" || ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(existing?.status ?? "") ? publishEventSchema : eventSchema;
 
@@ -351,7 +352,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
     const current = await tx.event.findFirst({ where: { id, companyId: company.id }, select: { status: true, imagePublicId: true, venueId: true } });
 
-    if (!current || current.status !== existing?.status || (intent !== "save" && current.status !== "DRAFT")) return { count: 0 };
+    if (!current || current.status !== existing?.status || (intent !== "save" && (intent === "publish" ? ["CANCELLED", "COMPLETED"].includes(current.status) : !["DRAFT", "TRAINER_NOT_SET", "VENUE_NOT_SET"].includes(current.status)))) return { count: 0 };
 
     if (current.venueId !== venueId) await ensureVenueApproval(tx, id);
     const updated = await tx.event.updateMany({ where: { id, companyId: company.id, status: current.status }, data: { ...data, status: intent === "publish" ? "PUBLISHED" : current.status } });
@@ -361,6 +362,15 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
     await tx.eventTrainer.deleteMany({ where: { eventId: id, trainerId: { notIn: trainerIds } } });
 
     if (trainerIds.length) await tx.eventTrainer.createMany({ data: trainerIds.map((trainerId) => ({ eventId: id, trainerId })), skipDuplicates: true });
+
+    if (intent === "publish" && trainerConsentObtained && trainerIds.length) {
+      const confirmed = await tx.eventTrainer.updateMany({ where: { eventId: id, responseStatus: { not: "ACCEPTED" } }, data: { responseStatus: "ACCEPTED", respondedAt: new Date() } });
+      if (confirmed.count) await tx.note.create({ data: { eventId: id, authorId: responseActorId!, body: "Trainerzustimmung bereits erfolgt: Das Company-Mitglied hat die vorherige Zustimmung bestätigt.", visibility: "COMPANY" } });
+    }
+    if (intent === "publish" && venueConsentObtained) {
+      const approval = await ensureVenueApproval(tx, id);
+      if (approval.status !== "ACCEPTED") await tx.eventVenueApproval.update({ where: { id: approval.id }, data: { status: "ACCEPTED", respondedAt: new Date(), respondedById: responseActorId!, manual: true } });
+    }
 
     if (trainerResponseChanges.length) await applyCompanyTrainerChanges(tx, company.id, id, responseActorId!, trainerResponseChanges);
     if (venueResponseChange) await applyCompanyVenueChange(tx, company.id, id, responseActorId!, venueResponseChange);
@@ -388,6 +398,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
  finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
 
+ try { await deliverPendingCompanyNotifications(); } catch { /* Durable outbox retries independently. */ }
  if (!manualApprovalChange) { await deliverPendingTrainerConfirmations(); await deliverPendingVenueConfirmations(); }
 
  refresh(slug);

@@ -38,18 +38,19 @@ export function trainerConfirmationMessage(event: EventFacts, trainerName: strin
   return availabilityMessage([event], trainerName, url);
 }
 
-function issueMessage(event: EventFacts, body: string, url: string) {
+function issueMessage(event: EventFacts, body: string, url: string, name: string | null, email: string) {
   const message = approvalMessage(`Trainer- oder Location-Absage: ${event.name}`, [
     "Für dieses Event besteht Handlungsbedarf. Bitte entscheide, wie du weiter verfahren möchtest.",
     [event.name, event.beginsAt ? date.format(event.beginsAt) + " Uhr" : "Beginn noch offen", event.venue].join("\n"),
     "Eine Absage des genannten Termins wurde gemeldet und die entsprechende Person um Angabe eines Alternativvorschlags gebeten. Im Folgenden findest du die Antwort:",
+    [name?.trim() ? `Name: ${name.trim()}` : null, `E-Mail: ${email}`].filter(Boolean).join("\n"),
     body,
   ], url);
   return { ...message, text: `${message.text}\n\nVeranstaltung verwalten:\n${url}` };
 }
 
-export function trainerIssueMessage(event: EventFacts, _trainerName: string, body: string, url: string) {
-  return issueMessage(event, body, url);
+export function trainerIssueMessage(event: EventFacts, trainerName: string | null, body: string, url: string, email: string) {
+  return issueMessage(event, body, url, trainerName, email);
 }
 
 export function trainerBatchConfirmationMessage(events: EventFacts[], trainerName: string, url: string) {
@@ -59,10 +60,10 @@ export function trainerBatchConfirmationMessage(events: EventFacts[], trainerNam
 export function venueConfirmationMessage(events: EventFacts[], url: string) {
   return availabilityMessage(events, "", url, true);
 }
-export function venueIssueMessage(event: EventFacts, _memberName: string, body: string, url: string) {
-  return issueMessage(event, body, url);
+export function venueIssueMessage(event: EventFacts, memberName: string | null, body: string, url: string, email: string) {
+  return issueMessage(event, body, url, memberName, email);
 }
 
-export function eventApprovalIssueMessage(event: EventFacts, _memberName: string, _role: string, body: string, url: string) {
-  return issueMessage(event, body, url);
+export function eventApprovalIssueMessage(event: EventFacts, memberName: string | null, _role: string, body: string, url: string, email: string) {
+  return issueMessage(event, body, url, memberName, email);
 }

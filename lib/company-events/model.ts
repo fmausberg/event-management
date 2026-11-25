@@ -24,7 +24,7 @@ export const eventSchema = z.object({
 
  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/),
 
- status: z.enum(["PENDING_VENUE_CONFIRMATION", "PENDING_TRAINER_CONFIRMATION", "DRAFT", "PUBLISHED", "CANCELLED", "COMPLETED"]),
+ status: z.enum(["VENUE_NOT_SET", "TRAINER_NOT_SET", "PENDING_VENUE_CONFIRMATION", "PENDING_TRAINER_CONFIRMATION", "DRAFT", "PUBLISHED", "CANCELLED", "COMPLETED"]),
 
 }).refine((v) => !v.endsAt || !v.beginsAt || new Date(v.endsAt) > new Date(v.beginsAt), { path: ["endsAt"], message: "Das Ende muss nach dem Beginn liegen." });
 
@@ -42,7 +42,7 @@ export type EventValues = z.input<typeof eventSchema>;
 
 export type EventState = { id?: string; success?: boolean; message?: string; warnings?: string[]; errors?: Partial<Record<keyof EventValues, string[]>>; dateErrors?: Record<string, string>; conflictingDates?: string[] };
 
-export type EventRow = Omit<EventValues, "maxSeats"> & { id: string; number: number; venueResponse?: { id: string | null; status: "PENDING" | "ACCEPTED" | "ISSUE"; updatedAt: string | null; venueId: string | null; hasTeam: boolean }; trainerResponses?: { id: string; trainerId: string; responseStatus: "PENDING" | "ACCEPTED" | "ISSUE"; respondedAt: string | null }[]; trainerName?: string | null; imageUrl?: string | null; trainerReminderSentAt?: string | null; maxSeats: number | null; remainingSeats: number | null; purchasedSeats: number; checkedInSeats: number; _count: { bookings: number; platformEvents: number } };
+export type EventRow = Omit<EventValues, "maxSeats"> & { id: string; number: number; venueResponse?: { id: string | null; status: "PENDING" | "ACCEPTED" | "ISSUE"; updatedAt: string | null; venueId: string | null; hasTeam: boolean }; trainerResponses?: { id: string; trainerId: string; responseStatus: "PENDING" | "ACCEPTED" | "ISSUE"; respondedAt: string | null }[]; trainerDisplayName?: string; trainerName?: string | null; imageUrl?: string | null; trainerReminderSentAt?: string | null; maxSeats: number | null; remainingSeats: number | null; purchasedSeats: number; checkedInSeats: number; _count: { bookings: number; platformEvents: number } };
 
 export const emptyEvent: EventValues = { freeCancellationUntilMinutesBeforeStart: "", name: "", shortdescription: "", description: "", trainerIds: [], eventSeriesId: "", venueId: "", beginsAt: "", endsAt: "", maxSeats: "", ticketPrice: "", currency: "EUR", status: "DRAFT" };
 

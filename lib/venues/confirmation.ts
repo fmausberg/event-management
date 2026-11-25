@@ -144,17 +144,18 @@ export async function respondToVenueApproval(userId: string, approvalId: string,
     } else if (!(activeStatuses as readonly string[]).includes(approval.event.status) && !["CANCELLED", "COMPLETED"].includes(approval.event.status)) throw new VenueConfirmationError("Für dieses Event kann kein Problem gemeldet werden.");
     const updated = await tx.eventVenueApproval.updateMany({ where: { id: approval.id, updatedAt: approval.updatedAt, status: approval.status }, data: { status: response, respondedAt: new Date(), respondedById: userId, manual: false } });
     if (updated.count !== 1) throw new VenueConfirmationError("Die Ortsfreigabe wurde gleichzeitig geändert. Bitte lade die Seite neu.");
+    const venueDeclined = response === "ISSUE" && (activeStatuses as readonly string[]).includes(approval.event.status);
     // Touch the event to serialize team responses with Company edits and trainer replies.
-    await tx.event.update({ where: { id: approval.eventId }, data: { status: approval.event.status } });
+    await tx.event.update({ where: { id: approval.eventId }, data: { status: venueDeclined ? "VENUE_NOT_SET" : approval.event.status, ...(venueDeclined ? { venueId: null } : {}) } });
     if (issue?.success && noteId) {
       await tx.note.create({ data: { id: noteId, eventId: approval.eventId, authorId: userId, body: issue.data, visibility: "COMPANY" } });
       for (const to of await companyRecipients(tx, approval.event.companyId, "notifyVenueIssues")) {
-        const message: CompanyMessage = { to, ...venueIssueMessage(facts(approval.event), user.name ?? user.email, issue.data, `${accountOrigin()}/company/${encodeURIComponent(approval.event.company.slug)}/events/${encodeURIComponent(approval.eventId)}`), companyNotification: { companyId: approval.event.companyId, type: "notifyVenueIssues" } };
+        const message: CompanyMessage = { to, ...venueIssueMessage(facts(approval.event), user.name, issue.data, `${accountOrigin()}/company/${encodeURIComponent(approval.event.company.slug)}/events/${encodeURIComponent(approval.eventId)}`, user.email), companyNotification: { companyId: approval.event.companyId, type: "notifyVenueIssues" } };
         const requestKey = `venue-issue:${noteId}:${to}`;
         await tx.mailOutbox.upsert({ where: { requestKey }, create: { requestKey, kind: "COMPANY_NOTIFICATION", encryptedMessage: encryptPaymentMail(message) }, update: {} });
       }
     }
-    await synchronizeVenueConfirmation(tx, approval.eventId);
+    if (!venueDeclined) await synchronizeVenueConfirmation(tx, approval.eventId);
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 

@@ -173,6 +173,8 @@ enum MembershipStatus {
 
 
 enum EventStatus {
+  VENUE_NOT_SET
+  TRAINER_NOT_SET
   PENDING_VENUE_CONFIRMATION
 
   PENDING_TRAINER_CONFIRMATION
@@ -508,6 +510,8 @@ model CompanyMembership {
   notifyVenueIssues Boolean @default(true)
 
   notifyTrainerIssues Boolean @default(true)
+
+  notifyEventPublications Boolean @default(false)
 
   notifyBookings Boolean @default(true)
 

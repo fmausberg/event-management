@@ -59,7 +59,7 @@ export async function getMyEvents() {
 
       staff: { where: ownStaff, select: { id: true }, take: 1 },
 
-      trainers: { where: ownTrainer, select: { id: true, responseStatus: true } },
+      trainers: { select: { id: true, responseStatus: true, trainer: { select: { userId: true, firstName: true, lastName: true } } } },
 
     },
 
@@ -69,7 +69,8 @@ export async function getMyEvents() {
 
     ...event,
 
-    trainerAssignments: trainers,
+    trainerAssignments: trainers.filter(assignment => assignment.trainer.userId === user.id).map(({ id, responseStatus }) => ({ id, responseStatus })),
+    trainerDisplayName: trainers.map(assignment => `${assignment.trainer.firstName} ${assignment.trainer.lastName}`.trim()).filter(Boolean).join(", "),
 
     venueName: venue?.name ?? null,
     venueResponse: venue?.staff.length ? event.venueApproval?.venueId === event.venueId ? event.venueApproval
@@ -85,7 +86,7 @@ export async function getMyEvents() {
 
       ...(venue?.staff.length ? ["Ortsteam"] : []),
 
-      ...(trainers.length ? ["Trainer"] : []),
+      ...(trainers.some(assignment => assignment.trainer.userId === user.id) ? ["Trainer"] : []),
 
     ],
 

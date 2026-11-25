@@ -8,7 +8,7 @@ import type { Prisma } from "@prisma/client";
 
 export function upcomingTaxEvents(companyId: string, countryCode: string, now: Date): Prisma.EventWhereInput {
 
- return { companyId, beginsAt: { gt: now }, status: { in: ["DRAFT", "PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"] }, venue: { companyId, countryCode } };
+ return { companyId, beginsAt: { gt: now }, status: { in: ["VENUE_NOT_SET", "TRAINER_NOT_SET", "DRAFT", "PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"] }, venue: { companyId, countryCode } };
 
 }
 

@@ -47,16 +47,21 @@ export async function respondToOwnEventRoles(userId: string, eventId: string, re
 
     const trainersToChange = response === "ISSUE" ? ownTrainers : ownTrainers.filter(assignment => assignment.responseStatus !== "ACCEPTED");
     if (response === "ACCEPTED" && trainersToChange.length && event.status !== "PENDING_TRAINER_CONFIRMATION") throw new TrainerConfirmationError("Die Trainerfreigabe wurde inzwischen geändert. Bitte lade die Seite neu.");
-    const venueToChange = !!venueStageVisible && (response === "ISSUE" || (event.venueApproval?.status ?? "ACCEPTED") !== "ACCEPTED");
+    const trainerDeclined = response === "ISSUE" && ownTrainers.length > 0 && active;
+    const venueToChange = !trainerDeclined && !!venueStageVisible && (response === "ISSUE" || (event.venueApproval?.status ?? "ACCEPTED") !== "ACCEPTED");
     if (response === "ACCEPTED" && venueToChange && event.status !== "PENDING_VENUE_CONFIRMATION" && !(ownTrainers.length && event.status === "PENDING_TRAINER_CONFIRMATION")) throw new TrainerConfirmationError("Die Ortsfreigabe ist derzeit nicht offen.");
     if (!trainersToChange.length && !venueToChange) throw new TrainerConfirmationError("Es ist keine eigene Freigabe mehr offen. Bitte lade die Seite neu.");
     // If a colleague already approved the venue, do not touch that approval and
     // still allow the actor to confirm their independent trainer assignment.
     if (venueToChange && (event.venueApproval?.updatedAt ?? event.updatedAt).toISOString() !== venueVersion) throw new TrainerConfirmationError("Das Ortsteam hat inzwischen geantwortet. Bitte lade die Seite neu.");
 
+    const venueDeclined = response === "ISSUE" && venueToChange && active;
     const respondedAt = new Date();
     for (const assignment of trainersToChange) {
-      const changed = await tx.eventTrainer.updateMany({ where: { id: assignment.id, eventId, responseStatus: assignment.responseStatus, respondedAt: assignment.respondedAt, trainer: { userId, companyId: event.companyId } }, data: { responseStatus: response, respondedAt } });
+      const where = { id: assignment.id, eventId, responseStatus: assignment.responseStatus, respondedAt: assignment.respondedAt, trainer: { userId, companyId: event.companyId } };
+      const changed = trainerDeclined
+        ? await tx.eventTrainer.deleteMany({ where })
+        : await tx.eventTrainer.updateMany({ where, data: { responseStatus: response, respondedAt } });
       if (changed.count !== 1) throw new TrainerConfirmationError("Die Trainerantwort wurde gleichzeitig geändert. Bitte lade die Seite neu.");
     }
     if (venueToChange) {
@@ -64,7 +69,7 @@ export async function respondToOwnEventRoles(userId: string, eventId: string, re
       const changed = await tx.eventVenueApproval.updateMany({ where: { id: approval.id, eventId, updatedAt: approval.updatedAt }, data: { status: response, respondedAt, respondedById: userId, manual: false } });
       if (changed.count !== 1) throw new TrainerConfirmationError("Die Ortsfreigabe wurde gleichzeitig geändert. Bitte lade die Seite neu.");
     }
-    await tx.event.update({ where: { id: eventId }, data: { status: event.status } });
+    await tx.event.update({ where: { id: eventId }, data: { status: trainerDeclined ? "TRAINER_NOT_SET" : venueDeclined ? "VENUE_NOT_SET" : event.status, ...(venueDeclined ? { venueId: null } : {}), ...(trainerDeclined ? { trainerName: null } : {}) } });
     if (issue?.success && noteId) {
       await tx.note.create({ data: { id: noteId, eventId, authorId: userId, body: issue.data, visibility: "COMPANY" } });
       const types: NotificationType[] = [];
@@ -77,12 +82,12 @@ export async function respondToOwnEventRoles(userId: string, eventId: string, re
         venue: venue ? [venue.name, venue.addressLine1, venue.addressLine2, [venue.postalCode, venue.city].filter(Boolean).join(" ")].filter(Boolean).join(", ") : "Noch offen" };
       const role = trainersToChange.length && venueToChange ? "Trainer und Ortsteam" : trainersToChange.length ? "Trainer" : "Ortsteam";
       for (const to of recipients) {
-        const message: CompanyMessage = { to, ...eventApprovalIssueMessage(eventFacts, user.name ?? user.email, role, issue.data, `${accountOrigin()}/company/${encodeURIComponent(event.company.slug)}/events/${encodeURIComponent(eventId)}`),
+        const message: CompanyMessage = { to, ...eventApprovalIssueMessage(eventFacts, user.name, role, issue.data, `${accountOrigin()}/company/${encodeURIComponent(event.company.slug)}/events/${encodeURIComponent(eventId)}`, user.email),
           companyNotification: { companyId: event.companyId, type: types[0]!, additionalTypes: types.slice(1) } };
         const requestKey = `event-issue:${noteId}:${to}`;
         await tx.mailOutbox.upsert({ where: { requestKey }, create: { requestKey, kind: "COMPANY_NOTIFICATION", encryptedMessage: encryptPaymentMail(message) }, update: {} });
       }
     }
-    await synchronizeTrainerConfirmation(tx, eventId);
+    if (!venueDeclined) await synchronizeTrainerConfirmation(tx, eventId);
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

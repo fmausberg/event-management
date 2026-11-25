@@ -318,3 +318,19 @@ Ortsfreigabe bleibt gespeichert, verschafft reinen Ortsteam-Mitgliedern aber
 keine vorzeitige Sichtbarkeit. Veraltete Antwortformulare werden zusätzlich
 serverseitig auf die abgeschlossene Trainerstufe geprüft. Eine Doppelrolle kann
 weiterhin beide eigenen Erklärungen gemeinsam abgeben.
+
+
+## Trainerabsage und erneuter Start
+
+Bei einer Trainerabsage wird nur die Zuordnung des ablehnenden Trainers entfernt. Die Begründung bleibt als Company-Notiz in der Historie, die Company wird über den bestehenden Mailprozess informiert. Aktive Events wechseln auf `TRAINER_NOT_SET` (Trainer fehlt) und bleiben unveröffentlicht, bis ein Company-Mitglied den Veröffentlichungsprozess erneut startet. Das reine Speichern startet keine Freigabe. Der Neustart ist mit neuem Trainer oder bewusst ohne Trainer möglich. Ohne Trainer folgt direkt die Ortsfreigabe; ohne verifiziertes Ortsteam wird diese automatisch erteilt. Vorab eingeholte Zustimmungen können beim Neustart per Checkbox bestätigt werden.
+
+Schemaänderung: `EventStatus.TRAINER_NOT_SET`. Die Migration wird lokal mit `npx prisma migrate dev --name trainer_rejection_status` erzeugt; danach Prisma Client mit `npm run db:generate` aktualisieren und die Anwendung neu starten.
+
+Die Company-Bearbeitung verwendet ausschließlich die Checkboxen für bereits eingeholte Trainer- und Ortsfreigaben; die bisherigen Antwort-Dropdowns entfallen. Auch laufende oder veröffentlichte Events können mit „Veröffentlichungsprozess starten“ erneut synchronisiert werden. Gesetzte Checkboxen bestätigen die jeweilige Freigabe, ungesetzte Checkboxen lassen bereits gespeicherte Freigaben unverändert. Fehlende Freigaben werden in der Reihenfolge Trainer, dann Ort angefragt. Abgesagte und abgeschlossene Events bleiben ausgeschlossen.
+
+
+### Ortsabsage
+
+Lehnt ein Ortsmitglied ein aktives Event ab, wird `venueId` entfernt und der Status auf `VENUE_NOT_SET` (Ort fehlt) gesetzt. Trainer und ihre Zustimmungen bleiben erhalten. Die abgelehnte Ortsfreigabe, Company-Notiz und Mail mit dem bisherigen Ort bleiben nachvollziehbar. Das Event ist unveröffentlicht, bis die Company einen neuen Ort auswählt und den Veröffentlichungsprozess startet. Dann wird eine neue Ortsfreigabe angelegt und angefragt, sofern sie nicht vorab bestätigt wurde oder kein verifiziertes Ortsteam vorhanden ist. Abgesagte/abgeschlossene Events werden durch Problemmeldungen nicht wieder geöffnet. Bei einer kombinierten Trainer-/Ortsrolle hat die Trainerabsage weiterhin Vorrang.
+
+Schemaänderung: `EventStatus.VENUE_NOT_SET`. Lokal `npx prisma migrate dev --name venue_rejection_status`, danach `npm run db:generate` und Anwendung neu starten.

@@ -1,5 +1,7 @@
 // Shared by Company event lists, event details/editors and account management.
 export const eventStatusLabels = {
+  VENUE_NOT_SET: "Ort fehlt",
+  TRAINER_NOT_SET: "Trainer fehlt",
   DRAFT: "Entwurf",
   PENDING_TRAINER_CONFIRMATION: "Trainerfreigabe",
   PENDING_VENUE_CONFIRMATION: "Ortsfreigabe",
@@ -9,6 +11,8 @@ export const eventStatusLabels = {
 } as const;
 
 export const eventStatusColors = {
+  VENUE_NOT_SET: "bg-red-100 text-red-800",
+  TRAINER_NOT_SET: "bg-red-100 text-red-800",
   DRAFT: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
   PENDING_TRAINER_CONFIRMATION: "bg-yellow-100 text-yellow-800",
   PENDING_VENUE_CONFIRMATION: "bg-yellow-100 text-yellow-800",

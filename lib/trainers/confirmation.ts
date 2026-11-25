@@ -40,11 +40,11 @@ function facts(event: Prisma.EventGetPayload<{ include: typeof eventInclude }>) 
 
 export async function synchronizeTrainerConfirmation(tx: Prisma.TransactionClient, eventId: string, options: { notifyTrainers?: boolean; notifyVenue?: boolean } = {}) {
 
-  await ensureVenueApproval(tx, eventId);
   const event = await tx.event.findUniqueOrThrow({ where: { id: eventId }, include: eventInclude });
 
   if (!["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(event.status)) return;
 
+  await ensureVenueApproval(tx, eventId);
   const outstanding = event.trainers.some(assignment => assignment.responseStatus !== "ACCEPTED");
 
   if (!outstanding) {
@@ -154,7 +154,7 @@ export async function respondToTrainerAssignment(userId: string, assignmentId: s
   if (response === "ISSUE" && (typeof requestId !== "string" || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestId))) throw new TrainerConfirmationError("Bitte öffne das Problemformular erneut.");
   const noteId = response === "ISSUE" ? `trainer-issue:${assignmentId}:${requestId}` : null;
   await getPrisma().$transaction(async tx => {
-    const user = await tx.user.findUnique({ where: { id: userId }, select: { emailVerified: true } });
+    const user = await tx.user.findUnique({ where: { id: userId }, select: { emailVerified: true, email: true } });
     const assignment = await tx.eventTrainer.findFirst({ where: { id: assignmentId, trainer: { userId } }, include: { trainer: true, event: { include: eventInclude } } });
     if (!user?.emailVerified || !assignment || assignment.trainer.companyId !== assignment.event.companyId) throw new TrainerConfirmationError("Diese Trainerzuordnung ist nicht verfügbar.");
 
@@ -186,7 +186,7 @@ export async function respondToTrainerAssignment(userId: string, assignmentId: s
 
         const message: CompanyMessage = { to,
 
-          ...trainerIssueMessage(facts(assignment.event), `${assignment.trainer.firstName} ${assignment.trainer.lastName}`, issue.data, `${accountOrigin()}/company/${encodeURIComponent(assignment.event.company.slug)}/events/${encodeURIComponent(assignment.eventId)}`),
+          ...trainerIssueMessage(facts(assignment.event), `${assignment.trainer.firstName} ${assignment.trainer.lastName}`, issue.data, `${accountOrigin()}/company/${encodeURIComponent(assignment.event.company.slug)}/events/${encodeURIComponent(assignment.eventId)}`, user.email),
 
           companyNotification: { companyId: assignment.event.companyId, type: "notifyTrainerIssues" },
 
@@ -200,6 +200,10 @@ export async function respondToTrainerAssignment(userId: string, assignmentId: s
 
     }
 
+    if (response === "ISSUE" && ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(assignment.event.status)) {
+      await tx.eventTrainer.delete({ where: { id: assignmentId } });
+      await tx.event.update({ where: { id: assignment.eventId }, data: { status: "TRAINER_NOT_SET", trainerName: null } });
+    }
     await synchronizeTrainerConfirmation(tx, assignment.eventId);
 
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });

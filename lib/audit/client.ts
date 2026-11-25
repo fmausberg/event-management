@@ -1,4 +1,5 @@
 import "server-only";
+import { queueEventPublication } from "@/lib/companies/event-publication";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { currentAuditContext, type AuditContext } from "./context";
@@ -7,7 +8,7 @@ import { relatedAuditSnapshots } from "./related-snapshots";
 import { assertReviewedRaw } from "./raw";
 
 type Tx = Prisma.TransactionClient;
-type Scope = { tx: Tx; tail: Promise<unknown>; failure?: unknown; failed: boolean; auditContext: AuditContext };
+type Scope = { publicationBefore: Map<string, unknown>; tx: Tx; tail: Promise<unknown>; failure?: unknown; failed: boolean; auditContext: AuditContext };
 const globalForTransactions = globalThis as unknown as { eventSeriesAuditTransactions?: AsyncLocalStorage<Scope> };
 const transactions = globalForTransactions.eventSeriesAuditTransactions ??= new AsyncLocalStorage<Scope>();
 const writes = new Set(["create", "createMany", "createManyAndReturn", "update", "updateMany", "updateManyAndReturn", "delete", "deleteMany", "upsert"]);
@@ -117,6 +118,10 @@ async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snap
   for (const id of new Set([...previous.keys(), ...next.keys()])) {
     const old = previous.get(id);
     const row = next.get(id);
+    if (model === "Event") {
+      const scope = transactions.getStore();
+      if (scope && !scope.publicationBefore.has(id)) scope.publicationBefore.set(id, old?.status ?? null);
+    }
     if (old && row && old.companyId !== row.companyId) throw new Error("Audit: mandantenübergreifende Verschiebungen sind nicht unterstützt.");
     const immutable = model === "Note" ? ["targetModel", "targetId", "authorId"] : model === "EventTrainer" ? ["eventId", "trainerId"] : model === "EventVenueApproval" ? ["eventId", "venueId"] : [];
     if (old && row && immutable.some(field => old[field] !== row[field])) throw new Error("Audit: Autor und Zielzuordnung dürfen nicht nachträglich geändert werden.");
@@ -204,10 +209,18 @@ export function createAuditedClient(base: PrismaClient): PrismaClient {
   async function transaction(work: (tx: Tx) => Promise<unknown>, options?: object, auditContext = currentAuditContext()) {
     if (transactions.getStore()) throw new Error("Audit: verschachtelte $transaction-Aufrufe sind nicht unterstützt; verwende den vorhandenen tx-Client.");
     return base.$transaction(async (tx) => {
-      const scope: Scope = { tx, tail: Promise.resolve(), failed: false, auditContext };
+      const scope: Scope = { publicationBefore: new Map(), tx, tail: Promise.resolve(), failed: false, auditContext };
       return transactions.run(scope, async () => {
         const result = await work(wrap(tx, scope));
         await scope.tail;
+        if (scope.failed) throw scope.failure;
+        if (scope.publicationBefore.size) {
+          const ids = [...scope.publicationBefore].filter(([, status]) => status !== "PUBLISHED").map(([id]) => id);
+          if (ids.length) {
+            const published = await tx.event.findMany({ where: { id: { in: ids }, status: "PUBLISHED" }, select: { id: true } });
+            for (const event of published) await queueEventPublication(tx, event.id);
+          }
+        }
         if (scope.failed) throw scope.failure;
         return result;
       });
