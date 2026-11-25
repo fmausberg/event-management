@@ -185,3 +185,18 @@ Nur aktive, mit verifiziertem Account verknüpfte Mitglieder erhalten die Mails;
 die Berechtigung wird vor dem Versand erneut gelesen. Company-User sehen die
 Option, Company-Admins können sie bearbeiten. Details zur erforderlichen Schema-
 Migration und zur Ortsfreigabe: [Eventstatus](event-status.md).
+
+## Gemeinsame Option für Problemmeldungen
+
+Die Mitgliederverwaltung zeigt nur noch eine Checkbox „Problemmeldungen“ für
+Trainer- und Ortsteam-Issues. Beim Speichern werden die bestehenden Felder
+notifyTrainerIssues und notifyVenueIssues gemeinsam in einem Update gesetzt.
+Die vorhandenen Adminrechte und Audit-Einträge bleiben erhalten; Company-User
+sehen die gemeinsame Option weiterhin nur lesend. Keine zusätzliche Migration.
+
+Bei bislang unterschiedlichen Einstellungen gilt die gemeinsame Option als
+aktiviert, sobald eine der beiden bisherigen Optionen aktiviert war. Anzeige,
+Empfängerauswahl und erneute Prüfung vor dem Versand verwenden dieselbe ODER-
+Verknüpfung, sodass beide Problemarten abgedeckt sind. Nach der ersten Änderung
+sind beide gespeicherten Werte synchron. Bestehende oder noch offene Requests
+älterer Clients synchronisieren die Problemoptionen ebenfalls gemeinsam.

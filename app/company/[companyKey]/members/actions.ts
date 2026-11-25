@@ -38,7 +38,7 @@ export async function changeMemberNotifications(companySlug: string, membershipI
 
       const enabled = data.get("enabled");
 
-      if ((setting !== "notifyBookings" && setting !== "notifyCancellationRequests" && setting !== "notifyTrainerIssues" && setting !== "notifyVenueIssues") || (enabled !== "true" && enabled !== "false")) {
+      if ((setting !== "notifyBookings" && setting !== "notifyCancellationRequests" && setting !== "notifyTrainerIssues" && setting !== "notifyVenueIssues" && setting !== "notifyIssues") || (enabled !== "true" && enabled !== "false")) {
 
         return { message: "Ungültige Benachrichtigungseinstellung." };
 
@@ -48,7 +48,9 @@ export async function changeMemberNotifications(companySlug: string, membershipI
 
         where: { id: membershipId, companyId: company.id },
 
-        data: { [setting]: enabled === "true" },
+        data: ["notifyIssues", "notifyTrainerIssues", "notifyVenueIssues"].includes(setting)
+          ? { notifyTrainerIssues: enabled === "true", notifyVenueIssues: enabled === "true" }
+          : { [setting]: enabled === "true" },
 
       });
 

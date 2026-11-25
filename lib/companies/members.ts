@@ -102,7 +102,7 @@ export async function getCompanyMembers(companySlug: string) {
 
     const account = member.user ?? (matches.length === 1 ? matches[0] : null);
 
-    return { id: member.id, role: member.role, membershipStatus: member.status, linkedVerified: !!member.user?.emailVerified, notifyBookings: member.notifyBookings, notifyCancellationRequests: member.notifyCancellationRequests, notifyTrainerIssues: member.notifyTrainerIssues, notifyVenueIssues: member.notifyVenueIssues, email: member.user?.email ?? member.email ?? "—", status: account ? account.emailVerified ? "verified" : "not verified" : "no account" };
+    return { id: member.id, role: member.role, membershipStatus: member.status, linkedVerified: !!member.user?.emailVerified, notifyBookings: member.notifyBookings, notifyCancellationRequests: member.notifyCancellationRequests, notifyIssues: member.notifyTrainerIssues || member.notifyVenueIssues, notifyTrainerIssues: member.notifyTrainerIssues, notifyVenueIssues: member.notifyVenueIssues, email: member.user?.email ?? member.email ?? "—", status: account ? account.emailVerified ? "verified" : "not verified" : "no account" };
 
   }) };
 

@@ -24,9 +24,10 @@ export type CompanyMessage = MailMessage & {
 
 export async function companyRecipients(tx: Prisma.TransactionClient, companyId: string, type: NotificationType) {
 
+  const issueNotification = type === "notifyTrainerIssues" || type === "notifyVenueIssues";
   const members = await tx.companyMembership.findMany({
 
-    where: { companyId, status: "ACTIVE", [type]: true, user: { is: { emailVerified: { not: null } } } },
+    where: { companyId, status: "ACTIVE", ...(issueNotification ? { OR: [{ notifyTrainerIssues: true }, { notifyVenueIssues: true }] } : { [type]: true }), user: { is: { emailVerified: { not: null } } } },
 
     select: { user: { select: { email: true } } },
 
