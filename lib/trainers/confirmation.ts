@@ -171,10 +171,13 @@ export async function respondToTrainerAssignment(userId: string, assignmentId: s
     } else if (!["PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION", "PUBLISHED", "CANCELLED", "COMPLETED"].includes(assignment.event.status)) {
       throw new TrainerConfirmationError("Für diese Veranstaltung kann derzeit kein Problem gemeldet werden.");
     }
-    const updated = await tx.eventTrainer.updateMany({ where: { id: assignmentId, responseStatus: assignment.responseStatus, trainer: { userId, companyId: assignment.event.companyId } }, data: { responseStatus: response, respondedAt: new Date() } });
-    if (updated.count !== 1) throw new TrainerConfirmationError("Die Rückmeldung wurde inzwischen geändert. Bitte lade die Seite neu.");
+    const notificationOnlyIssue = response === "ISSUE" && (assignment.event.status === "PUBLISHED" || assignment.responseStatus === "ACCEPTED");
+    if (!notificationOnlyIssue) {
+      const updated = await tx.eventTrainer.updateMany({ where: { id: assignmentId, responseStatus: assignment.responseStatus, trainer: { userId, companyId: assignment.event.companyId } }, data: { responseStatus: response, respondedAt: new Date() } });
+      if (updated.count !== 1) throw new TrainerConfirmationError("Die Rückmeldung wurde inzwischen geändert. Bitte lade die Seite neu.");
+    }
     // Serialize responses and Company edits without reopening cancelled/completed events.
-    const eventStatus = ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(assignment.event.status)
+    const eventStatus = !notificationOnlyIssue && ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(assignment.event.status)
       ? "PENDING_TRAINER_CONFIRMATION" : assignment.event.status;
     await tx.event.update({ where: { id: assignment.eventId }, data: { status: eventStatus } });
 
@@ -200,11 +203,11 @@ export async function respondToTrainerAssignment(userId: string, assignmentId: s
 
     }
 
-    if (response === "ISSUE" && ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(assignment.event.status)) {
+    if (response === "ISSUE" && !notificationOnlyIssue && ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(assignment.event.status)) {
       await tx.eventTrainer.delete({ where: { id: assignmentId } });
       await tx.event.update({ where: { id: assignment.eventId }, data: { status: "TRAINER_NOT_SET", trainerName: null } });
     }
-    await synchronizeTrainerConfirmation(tx, assignment.eventId);
+    if (!notificationOnlyIssue) await synchronizeTrainerConfirmation(tx, assignment.eventId);
 
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 

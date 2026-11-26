@@ -44,7 +44,7 @@ function issueMessage(event: EventFacts, body: string, url: string, name: string
     [event.name, event.beginsAt ? date.format(event.beginsAt) + " Uhr" : "Beginn noch offen", event.venue].join("\n"),
     "Eine Absage des genannten Termins wurde gemeldet und die entsprechende Person um Angabe eines Alternativvorschlags gebeten. Im Folgenden findest du die Antwort:",
     [name?.trim() ? `Name: ${name.trim()}` : null, `E-Mail: ${email}`].filter(Boolean).join("\n"),
-    body,
+    `Kommentar:\n${body}`,
   ], url);
   return { ...message, text: `${message.text}\n\nVeranstaltung verwalten:\n${url}` };
 }

@@ -44,7 +44,7 @@ export default async function MyEventsPage() {
 
           <caption className="sr-only">Veranstaltungsverwaltung und Rollen – {group.title}</caption>
 
-          <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Veranstaltung", "Beginn", "Veranstalter", "Ort", "Anmeldungen", "Status", "Meine Rolle", "Aktionen"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label === "Ort" ? <VenueTrainerHeading /> : label}</th>)}</tr></thead>
+          <thead className="bg-zinc-100 dark:bg-zinc-900"><tr>{["Veranstaltung", "Beginn", "Veranstalter", "Ort", "Status", "Meine Rolle", "Aktionen"].map((label) => <th key={label} scope="col" className="px-4 py-3">{label === "Ort" ? <VenueTrainerHeading /> : label}</th>)}</tr></thead>
 
           <tbody>{group.items.map((event) => <tr key={event.id} className="border-t border-zinc-200 align-top dark:border-zinc-800">
 
@@ -56,8 +56,6 @@ export default async function MyEventsPage() {
 
             <td className="px-4 py-4"><VenueWithTrainers venue={event.venueName ?? "Noch kein Ort"} trainers={event.trainerDisplayName} /></td>
 
-            <td className="px-4 py-4">{event.validTicketCount}</td>
-
             <td className="px-4 py-4"><span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[event.status]}`}>{eventStatuses[event.status]}</span></td>
 
             <td className="px-4 py-4"><div className="flex flex-wrap gap-2">{event.roles.map((role) => <span key={role} className="whitespace-nowrap rounded-full bg-primary-100 px-2.5 py-1 text-xs font-medium text-primary-800 dark:bg-primary-950 dark:text-primary-200">{role}</span>)}</div></td>
@@ -65,6 +63,7 @@ export default async function MyEventsPage() {
             <td className="px-4 py-4"><div className="flex flex-wrap items-start gap-2">
               {(event.trainerAssignments.length > 0 || event.venueResponse) && <EventApprovalActions
                 eventId={event.id}
+                canDecline={!(event.trainerAssignments.length > 0 && event.trainerAssignments.every(assignment => assignment.responseStatus === "ACCEPTED")) && (event.status === "PENDING_TRAINER_CONFIRMATION" || event.status === "PENDING_VENUE_CONFIRMATION")}
                 canAccept={event.status === "PENDING_TRAINER_CONFIRMATION" && event.trainerAssignments.some(assignment => assignment.responseStatus !== "ACCEPTED") || !!event.venueResponse && event.venueResponse.status !== "ACCEPTED" && (event.status === "PENDING_VENUE_CONFIRMATION" || event.trainerAssignments.length > 0 && event.status === "PENDING_TRAINER_CONFIRMATION")}
                 hasIssue={event.trainerAssignments.some(assignment => assignment.responseStatus === "ISSUE") || event.venueResponse?.status === "ISSUE"}
                 venueVersion={event.venueResponse?.updatedAt.toISOString()}

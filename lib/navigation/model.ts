@@ -1,6 +1,6 @@
 import type { CompanyRole, MembershipStatus, UserRole } from "@prisma/client";
 
-export type NavigationIcon = "calendar" | "calendar-check" | "calendar-x" | "voucher" | "camera" | "venue" | "series" | "users" | "settings" | "company" | "audit";
+export type NavigationIcon = "calendar" | "calendar-check" | "calendar-x" | "briefcase" | "voucher" | "camera" | "venue" | "series" | "users" | "settings" | "company" | "audit";
 export type NavigationItem = { label: string; href: string; icon: NavigationIcon };
 export type NavigationGroup = { id: string; label: string; items: NavigationItem[] };
 export type NavigationData = {
@@ -28,8 +28,7 @@ export function buildNavigation(user: NavigationUser, hasStaffOrTrainerAssignmen
     ],
   }];
   if (hasStaffOrTrainerAssignment) groups[0].items.push(
-    { label: "Veranstaltungsverwaltung", href: "/account/eventmanagement", icon: "calendar-check" },
-    { label: "Ticket scannen", href: "/account/scan", icon: "camera" },
+    { label: "Meine Einsätze", href: "/account/eventmanagement", icon: "briefcase" },
   );
 
   for (const membership of user.memberships) {

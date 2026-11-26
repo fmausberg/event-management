@@ -65,12 +65,12 @@ describe("navigation visibility", () => {
 });
 
 describe("server-side identity", () => {
-  it.each(["trainer", "eventStaff", "venueStaff"] as const)("shows both staff links for %s without a company membership or date restriction", async (assignment) => {
+  it.each(["trainer", "eventStaff", "venueStaff"] as const)("shows event management for %s without a company membership or date restriction", async (assignment) => {
     findUnique.mockResolvedValue({ ...user, memberships: [] });
     ({ trainer, eventStaff, venueStaff })[assignment].mockResolvedValue({ id: "assignment" });
     const result = await getNavigation();
-    expect(result?.groups[0].items).toContainEqual({ label: "Ticket scannen", href: "/account/scan", icon: "camera" });
-    expect(result?.groups[0].items).toContainEqual({ label: "Veranstaltungsverwaltung", href: "/account/eventmanagement", icon: "calendar-check" });
+    expect(result?.groups[0].items.map(item => item.href)).not.toContain("/account/scan");
+    expect(result?.groups[0].items).toContainEqual({ label: "Meine Einsätze", href: "/account/eventmanagement", icon: "briefcase" });
     expect(eventStaff).toHaveBeenCalledWith({ where: { userId: "user-1" }, select: { id: true } });
     expect(venueStaff).toHaveBeenCalledWith({ where: { userId: "user-1" }, select: { id: true } });
     expect(trainer).toHaveBeenCalledWith({ where: { OR: [{ userId: "user-1" }] }, select: { id: true } });

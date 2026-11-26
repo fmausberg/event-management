@@ -142,9 +142,12 @@ export async function respondToVenueApproval(userId: string, approvalId: string,
       if (!["PENDING", "ISSUE"].includes(approval.status) || approval.event.status !== "PENDING_VENUE_CONFIRMATION" || approval.event.trainers.some(trainer => trainer.responseStatus !== "ACCEPTED")) throw new VenueConfirmationError("Die Ortsfreigabe ist derzeit nicht zur Bestätigung offen.");
       if (!approval.event.endsAt || approval.event.endsAt <= new Date()) throw new VenueConfirmationError("Diese Veranstaltung ist bereits beendet.");
     } else if (!(activeStatuses as readonly string[]).includes(approval.event.status) && !["CANCELLED", "COMPLETED"].includes(approval.event.status)) throw new VenueConfirmationError("Für dieses Event kann kein Problem gemeldet werden.");
-    const updated = await tx.eventVenueApproval.updateMany({ where: { id: approval.id, updatedAt: approval.updatedAt, status: approval.status }, data: { status: response, respondedAt: new Date(), respondedById: userId, manual: false } });
-    if (updated.count !== 1) throw new VenueConfirmationError("Die Ortsfreigabe wurde gleichzeitig geändert. Bitte lade die Seite neu.");
-    const venueDeclined = response === "ISSUE" && (activeStatuses as readonly string[]).includes(approval.event.status);
+    const publishedIssue = response === "ISSUE" && approval.event.status === "PUBLISHED";
+    if (!publishedIssue) {
+      const updated = await tx.eventVenueApproval.updateMany({ where: { id: approval.id, updatedAt: approval.updatedAt, status: approval.status }, data: { status: response, respondedAt: new Date(), respondedById: userId, manual: false } });
+      if (updated.count !== 1) throw new VenueConfirmationError("Die Ortsfreigabe wurde gleichzeitig geändert. Bitte lade die Seite neu.");
+    }
+    const venueDeclined = response === "ISSUE" && !publishedIssue && (activeStatuses as readonly string[]).includes(approval.event.status);
     // Touch the event to serialize team responses with Company edits and trainer replies.
     await tx.event.update({ where: { id: approval.eventId }, data: { status: venueDeclined ? "VENUE_NOT_SET" : approval.event.status, ...(venueDeclined ? { venueId: null } : {}) } });
     if (issue?.success && noteId) {
@@ -155,7 +158,7 @@ export async function respondToVenueApproval(userId: string, approvalId: string,
         await tx.mailOutbox.upsert({ where: { requestKey }, create: { requestKey, kind: "COMPANY_NOTIFICATION", encryptedMessage: encryptPaymentMail(message) }, update: {} });
       }
     }
-    if (!venueDeclined) await synchronizeVenueConfirmation(tx, approval.eventId);
+    if (!venueDeclined && !publishedIssue) await synchronizeVenueConfirmation(tx, approval.eventId);
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }
 

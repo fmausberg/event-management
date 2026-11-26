@@ -47,7 +47,9 @@ export async function respondToOwnEventRoles(userId: string, eventId: string, re
 
     const trainersToChange = response === "ISSUE" ? ownTrainers : ownTrainers.filter(assignment => assignment.responseStatus !== "ACCEPTED");
     if (response === "ACCEPTED" && trainersToChange.length && event.status !== "PENDING_TRAINER_CONFIRMATION") throw new TrainerConfirmationError("Die Trainerfreigabe wurde inzwischen geändert. Bitte lade die Seite neu.");
-    const trainerDeclined = response === "ISSUE" && ownTrainers.length > 0 && active;
+    // Once the trainer has accepted, issues cannot revoke that commitment or the venue.
+    const notificationOnlyIssue = response === "ISSUE" && (event.status === "PUBLISHED" || ownTrainers.length > 0 && ownTrainers.every(assignment => assignment.responseStatus === "ACCEPTED"));
+    const trainerDeclined = response === "ISSUE" && ownTrainers.length > 0 && active && !notificationOnlyIssue;
     const venueToChange = !trainerDeclined && !!venueStageVisible && (response === "ISSUE" || (event.venueApproval?.status ?? "ACCEPTED") !== "ACCEPTED");
     if (response === "ACCEPTED" && venueToChange && event.status !== "PENDING_VENUE_CONFIRMATION" && !(ownTrainers.length && event.status === "PENDING_TRAINER_CONFIRMATION")) throw new TrainerConfirmationError("Die Ortsfreigabe ist derzeit nicht offen.");
     if (!trainersToChange.length && !venueToChange) throw new TrainerConfirmationError("Es ist keine eigene Freigabe mehr offen. Bitte lade die Seite neu.");
@@ -55,16 +57,17 @@ export async function respondToOwnEventRoles(userId: string, eventId: string, re
     // still allow the actor to confirm their independent trainer assignment.
     if (venueToChange && (event.venueApproval?.updatedAt ?? event.updatedAt).toISOString() !== venueVersion) throw new TrainerConfirmationError("Das Ortsteam hat inzwischen geantwortet. Bitte lade die Seite neu.");
 
-    const venueDeclined = response === "ISSUE" && venueToChange && active;
+    const venueDeclined = response === "ISSUE" && venueToChange && active && !notificationOnlyIssue;
     const respondedAt = new Date();
     for (const assignment of trainersToChange) {
+      if (notificationOnlyIssue) continue;
       const where = { id: assignment.id, eventId, responseStatus: assignment.responseStatus, respondedAt: assignment.respondedAt, trainer: { userId, companyId: event.companyId } };
       const changed = trainerDeclined
         ? await tx.eventTrainer.deleteMany({ where })
         : await tx.eventTrainer.updateMany({ where, data: { responseStatus: response, respondedAt } });
       if (changed.count !== 1) throw new TrainerConfirmationError("Die Trainerantwort wurde gleichzeitig geändert. Bitte lade die Seite neu.");
     }
-    if (venueToChange) {
+    if (venueToChange && !notificationOnlyIssue) {
       const approval = await ensureVenueApproval(tx, eventId);
       const changed = await tx.eventVenueApproval.updateMany({ where: { id: approval.id, eventId, updatedAt: approval.updatedAt }, data: { status: response, respondedAt, respondedById: userId, manual: false } });
       if (changed.count !== 1) throw new TrainerConfirmationError("Die Ortsfreigabe wurde gleichzeitig geändert. Bitte lade die Seite neu.");
@@ -88,6 +91,6 @@ export async function respondToOwnEventRoles(userId: string, eventId: string, re
         await tx.mailOutbox.upsert({ where: { requestKey }, create: { requestKey, kind: "COMPANY_NOTIFICATION", encryptedMessage: encryptPaymentMail(message) }, update: {} });
       }
     }
-    if (!venueDeclined) await synchronizeTrainerConfirmation(tx, eventId);
+    if (!venueDeclined && !notificationOnlyIssue) await synchronizeTrainerConfirmation(tx, eventId);
   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 }

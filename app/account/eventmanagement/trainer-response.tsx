@@ -3,7 +3,7 @@
 import { useActionState, useState } from "react";
 import { respondToEventRoles, type TrainerResponseState } from "./actions";
 
-export function EventApprovalActions({ eventId, canAccept, hasIssue, venueVersion }: { eventId: string; canAccept: boolean; hasIssue: boolean; venueVersion?: string }) {
+export function EventApprovalActions({ eventId, canAccept, canDecline = canAccept, hasIssue, venueVersion }: { eventId: string; canAccept: boolean; canDecline?: boolean; hasIssue: boolean; venueVersion?: string }) {
   const [issueOpen, setIssueOpen] = useState(false);
   const [requestId, setRequestId] = useState("");
   const [state, action, pending] = useActionState<TrainerResponseState, FormData>(async (previous, form) => {
@@ -11,7 +11,7 @@ export function EventApprovalActions({ eventId, canAccept, hasIssue, venueVersio
     if (result.success) setIssueOpen(false);
     return result;
   }, {});
-  const awaitingResponse = canAccept && !hasIssue;
+  const awaitingResponse = canDecline && !hasIssue;
   return <form action={action} className={issueOpen ? "min-w-56 space-y-3" : "shrink-0 space-y-2"}>
     <input type="hidden" name="venueVersion" value={venueVersion ?? ""} />
     {issueOpen && <div id={`issue-form-${eventId}`}>
@@ -21,7 +21,7 @@ export function EventApprovalActions({ eventId, canAccept, hasIssue, venueVersio
     </div>}
     <div className={issueOpen ? "flex flex-wrap gap-2" : "inline-flex flex-nowrap items-center gap-2"}>
       {!issueOpen ? <>
-        {awaitingResponse && <button name="response" value="ACCEPTED" disabled={pending} className="inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-green-700 px-2.5 py-1 text-sm font-medium leading-tight text-white hover:bg-green-800 disabled:opacity-50">
+        {canAccept && !hasIssue && <button name="response" value="ACCEPTED" disabled={pending} className="inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg bg-green-700 px-2.5 py-1 text-sm font-medium leading-tight text-white hover:bg-green-800 disabled:opacity-50">
           Annehmen
         </button>}
         <button type="button" disabled={pending} onClick={() => { setRequestId(crypto.randomUUID()); setIssueOpen(true); }} aria-expanded={issueOpen} aria-controls={`issue-form-${eventId}`} className={`inline-flex shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-2.5 py-1 text-sm font-medium leading-tight disabled:opacity-50 ${awaitingResponse ? "bg-red-700 text-white hover:bg-red-800" : "bg-orange-100 text-orange-800 hover:bg-orange-200 dark:bg-orange-950 dark:text-orange-300 dark:hover:bg-orange-900"}`}>
