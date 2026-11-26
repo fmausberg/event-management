@@ -58,11 +58,11 @@ export async function saveVoucherCampaign(slug: string, id: string | null, raw: 
     const changedRules = existing && (Object.entries(values).some(([key, value]) => JSON.stringify(existing[key as keyof typeof values]) !== JSON.stringify(value)) ||
       JSON.stringify(targetIds(existing)) !== JSON.stringify({ companyIds: input.companyIds, seriesIds: input.seriesIds, eventIds: input.eventIds, venueIds: input.venueIds }));
     if (changedRules && existing && (existing._count.codes || existing._count.redemptions || existing._count.balanceUses)) throw new VoucherAdminError("Nach der ersten Codeausgabe sind Regeln, Quelle und Ziele gesperrt. Bitte eine neue Kampagne anlegen.");
-    if (existing?.status === "ACTIVE" && !input.companyIds.length && !input.seriesIds.length && !input.eventIds.length && !input.venueIds.length) throw new VoucherAdminError("Eine aktive Kampagne benötigt mindestens ein Ziel.");
+    if ((!existing || existing.status === "ACTIVE") && !input.companyIds.length && !input.seriesIds.length && !input.eventIds.length && !input.venueIds.length) throw new VoucherAdminError("Eine aktive Kampagne benötigt mindestens ein Ziel.");
     const priorPolicy = existing?.policy && typeof existing.policy === "object" && !Array.isArray(existing.policy) ? existing.policy : {};
     const data = { ...values, name: input.name, policy: { ...priorPolicy, adminDescription: input.description } };
     const campaign = existing ? await tx.voucherCampaign.update({ where: { id: existing.id }, data: { ...data, ...(changedRules ? { ruleVersion: { increment: 1 } } : {}) } }) :
-      await tx.voucherCampaign.create({ data: { ...data, ownerCompanyId: scope.company.id, createdById: actor } });
+      await tx.voucherCampaign.create({ data: { ...data, status: "ACTIVE", ownerCompanyId: scope.company.id, createdById: actor } });
     if (!existing || changedRules) {
       if (existing) {
         await tx.voucherCampaignCompany.deleteMany({ where: { campaignId: campaign.id } });

@@ -1,10 +1,13 @@
 import type { NavigationIcon as IconName } from "@/lib/navigation/model";
 
 const paths: Record<IconName | "panel" | "logout", React.ReactNode> = {
+  briefcase: <><rect x="3" y="7" width="18" height="14" rx="2" /><path d="M8 7V5a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M3 12a24 24 0 0 0 18 0M12 12v4" /></>,
   audit: <><rect x="5" y="3" width="14" height="18" rx="2" /><path d="M9 7h6M9 11h6M9 15h3" /></>,
   company: <><path d="M3 21h18M5 21V5l8-2v18M13 9h6v12M8 7h2M8 11h2M8 15h2M16 12v2M16 17v1" /></>,
   calendar: <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18M8 15h2M14 15h2" /></>,
   "calendar-check": <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18M8 16l2.5 2.5L16 13" /></>,
+  "calendar-x": <><rect x="3" y="5" width="18" height="16" rx="2" /><path d="M16 3v4M8 3v4M3 11h18M9 14l6 5M15 14l-6 5" /></>,
+  voucher: <><path d="M4 5h16a1 1 0 0 1 1 1v3a3 3 0 0 0 0 6v3a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1v-3a3 3 0 0 0 0-6V6a1 1 0 0 1 1-1Z" /><path d="M15 5v2m0 3v1m0 3v1m0 3v1M7 10h4M7 14h3" /></>,
   camera: <><path d="M8 6 9.5 3h5L16 6h4a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z" /><circle cx="12" cy="13" r="4" /></>,
   venue: <><path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 1 1 16 0Z" /><circle cx="12" cy="10" r="2.5" /></>,
   series: <><rect x="6" y="6" width="15" height="15" rx="2" /><path d="M17 6V3H3v14h3M10 11h7M10 16h7" /></>,

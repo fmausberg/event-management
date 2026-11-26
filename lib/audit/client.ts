@@ -1,12 +1,14 @@
 import "server-only";
+import { queueEventPublication } from "@/lib/companies/event-publication";
 import { AsyncLocalStorage } from "node:async_hooks";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { currentAuditContext, type AuditContext } from "./context";
 import { auditPolicies } from "./policy";
+import { relatedAuditSnapshots } from "./related-snapshots";
 import { assertReviewedRaw } from "./raw";
 
 type Tx = Prisma.TransactionClient;
-type Scope = { tx: Tx; tail: Promise<unknown>; failure?: unknown; failed: boolean; auditContext: AuditContext };
+type Scope = { publicationBefore: Map<string, unknown>; tx: Tx; tail: Promise<unknown>; failure?: unknown; failed: boolean; auditContext: AuditContext };
 const globalForTransactions = globalThis as unknown as { eventSeriesAuditTransactions?: AsyncLocalStorage<Scope> };
 const transactions = globalForTransactions.eventSeriesAuditTransactions ??= new AsyncLocalStorage<Scope>();
 const writes = new Set(["create", "createMany", "createManyAndReturn", "update", "updateMany", "updateManyAndReturn", "delete", "deleteMany", "upsert"]);
@@ -73,6 +75,10 @@ function inspectUpdate(model: string, value: unknown) {
   if (model in auditPolicies && model !== "Company" && ("companyId" in object(value) || "company" in object(value))) {
     throw new Error("Audit: Company-Wechsel bestehender auditierter Datensätze sind nicht unterstützt.");
   }
+  // Note authors/targets and assignment identities are immutable; replace assignments instead.
+  const immutable = model === "Note" ? ["authorId", "author", "eventId", "event", "eventSeriesId", "eventSeries", "venueId", "venue", "bookingId", "booking", "ticketId", "ticket", "trainerId", "trainer", "cancellationRequestId", "cancellationRequest"]
+    : model === "EventTrainer" ? ["eventId", "event", "trainerId", "trainer"] : model === "EventVenueApproval" ? ["eventId", "event", "venueId", "venue"] : [];
+  if (immutable.some(field => field in object(value))) throw new Error("Audit: Autor und Zielzuordnung dürfen nicht nachträglich geändert werden.");
   inspectData(model, value);
 }
 
@@ -96,6 +102,8 @@ function jsonValue(value: unknown): Prisma.InputJsonValue | null {
 }
 
 async function snapshots(tx: Tx, policy: Policy): Promise<Snapshot[]> {
+  const related = await relatedAuditSnapshots(tx, policy.delegate);
+  if (related) return related;
   const select: Record<string, unknown> = Object.fromEntries(["id", ...Object.keys(policy.fields), ...Object.keys(policy.privateFields)].filter((field) => !(policy.delegate === "event" && field === "trainerIds")).map((field) => [field, true]));
   if (policy.delegate === "companyMembership") select.user = { select: { name: true } };
   if (policy.delegate === "event") select.trainers = { select: { trainerId: true }, orderBy: { trainerId: "asc" } };
@@ -110,7 +118,13 @@ async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snap
   for (const id of new Set([...previous.keys(), ...next.keys()])) {
     const old = previous.get(id);
     const row = next.get(id);
+    if (model === "Event") {
+      const scope = transactions.getStore();
+      if (scope && !scope.publicationBefore.has(id)) scope.publicationBefore.set(id, old?.status ?? null);
+    }
     if (old && row && old.companyId !== row.companyId) throw new Error("Audit: mandantenübergreifende Verschiebungen sind nicht unterstützt.");
+    const immutable = model === "Note" ? ["targetModel", "targetId", "authorId"] : model === "EventTrainer" ? ["eventId", "trainerId"] : model === "EventVenueApproval" ? ["eventId", "venueId"] : [];
+    if (old && row && immutable.some(field => old[field] !== row[field])) throw new Error("Audit: Autor und Zielzuordnung dürfen nicht nachträglich geändert werden.");
     const changedFields: string[] = [];
     const redactedFields: string[] = [];
     const oldValues: Record<string, Prisma.InputJsonValue | null> = {};
@@ -130,6 +144,14 @@ async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snap
       }
     }
     if (old && row && !changedFields.length && !redactedFields.length) continue;
+    // Keep target/visibility context on UPDATE as well: unchanged FKs must remain
+    // queryable after the source row has been edited or deleted.
+    const contextFields = model === "Note" ? ["number", "companyId", "authorId", "visibility", "targetModel", "targetId", "targetNumber"]
+      : model === "EventTrainer" ? ["number", "companyId", "eventId", "trainerId", "responseStatus"] : model === "EventVenueApproval" ? ["companyId", "eventId", "venueId", "status", "manual", "respondedById"] : [];
+    for (const field of contextFields) {
+      if (old) oldValues[field] = jsonValue(old[field]);
+      if (row) newValues[field] = jsonValue(row[field]);
+    }
     const target = (row ?? old)!;
     const recordName = typeof target.name === "string" ? target.name : model === "Trainer" ? [target.firstName, target.lastName].filter(Boolean).join(" ") : model === "CompanyMembership" ? object(target.user).name : null;
     await tx.auditLog.create({ data: {
@@ -137,7 +159,7 @@ async function recordChanges(tx: Tx, model: string, policy: Policy, before: Snap
       recordNumber: typeof target.number === "number" ? target.number : null,
       recordName: typeof recordName === "string" && recordName ? recordName : null,
       action: !old ? "CREATE" : !row ? "DELETE" : "UPDATE", operation,
-      ...context, changedFields, redactedFields, policyVersion: 4,
+      ...context, changedFields, redactedFields, policyVersion: 7,
       before: old ? oldValues : Prisma.DbNull,
       after: row ? newValues : Prisma.DbNull,
     } });
@@ -187,10 +209,18 @@ export function createAuditedClient(base: PrismaClient): PrismaClient {
   async function transaction(work: (tx: Tx) => Promise<unknown>, options?: object, auditContext = currentAuditContext()) {
     if (transactions.getStore()) throw new Error("Audit: verschachtelte $transaction-Aufrufe sind nicht unterstützt; verwende den vorhandenen tx-Client.");
     return base.$transaction(async (tx) => {
-      const scope: Scope = { tx, tail: Promise.resolve(), failed: false, auditContext };
+      const scope: Scope = { publicationBefore: new Map(), tx, tail: Promise.resolve(), failed: false, auditContext };
       return transactions.run(scope, async () => {
         const result = await work(wrap(tx, scope));
         await scope.tail;
+        if (scope.failed) throw scope.failure;
+        if (scope.publicationBefore.size) {
+          const ids = [...scope.publicationBefore].filter(([, status]) => status !== "PUBLISHED").map(([id]) => id);
+          if (ids.length) {
+            const published = await tx.event.findMany({ where: { id: { in: ids }, status: "PUBLISHED" }, select: { id: true } });
+            for (const event of published) await queueEventPublication(tx, event.id);
+          }
+        }
         if (scope.failed) throw scope.failure;
         return result;
       });

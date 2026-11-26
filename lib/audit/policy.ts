@@ -1,79 +1,179 @@
 // Explicit lists: additions to the Prisma schema never become audit payloads automatically.
+
 export const eventSeriesAuditFields = {
+
   number: "Nummer",
+
   name: "Name",
+
   shortdescription: "Kurzbeschreibung",
+
   description: "Beschreibung",
+
   companyId: "Company-ID",
+
   createdById: "Ersteller-ID",
+
   suggestedVenueId: "Ort-ID (Vorgabe)",
+
   suggestedTrainerId: "Trainer-ID (Vorgabe)",
+
   suggestedFreeCancellationUntilMinutesBeforeStart: "Kostenfreie Stornofrist in Minuten",
+
   suggestedDuration: "Dauer in Minuten (Vorgabe)",
+
   suggestedMaxSeats: "Teilnehmerzahl (Vorgabe)",
+
   suggestedTicketPrice: "Ticketpreis (Vorgabe)",
+
   suggestedCurrency: "Währung",
+
 } as const;
+
+
 
 // Only change markers; values are compared transiently and never persisted.
+
 export const eventSeriesPrivateFields = {
+
   imageUrl: "Titelbild",
+
   suggestedTrainerName: "Trainername (Altbestand)",
+
 } as const;
+
+
 
 export const auditPolicies = {
+  EventVenueApproval: {
+    delegate: "eventVenueApproval",
+    fields: { companyId: "Company-ID", eventId: "Event-ID", venueId: "Ort-ID", status: "Ortsfreigabe", respondedAt: "Antwortzeitpunkt", respondedById: "Antwortendes Mitglied", manual: "Manuelle Freigabe", createdAt: "Angelegt am" },
+    privateFields: {}, affectedBy: [],
+  },
+
+  Note: {
+    delegate: "note",
+    fields: { number: "Notiznummer", companyId: "Company-ID", authorId: "Notizautor", visibility: "Sichtbarkeit", targetModel: "Zielobjekt-Typ", targetId: "Zielobjekt-ID", targetNumber: "Zielobjekt-Nummer", createdAt: "Notiz erstellt am" },
+    privateFields: { body: "Notiztext (Inhalt nicht protokolliert)" },
+    // These otherwise unaudited parents can remove or reparent attached notes.
+    affectedBy: ["Booking", "Ticket", "CancellationRequest"].map(model => ({ model, operations: ["update", "updateMany", "updateManyAndReturn", "upsert", "delete", "deleteMany"] })),
+  },
+
+  EventTrainer: {
+    delegate: "eventTrainer",
+    fields: { number: "Zuordnungsnummer", companyId: "Company-ID", eventId: "Event-ID", trainerId: "Trainer-ID", responseStatus: "Trainer-Rückmeldung", respondedAt: "Antwortzeitpunkt", createdAt: "Zugeordnet am" },
+    privateFields: {},
+    affectedBy: [],
+  },
+
+
   EventSeries: {
+
     delegate: "eventSeries",
+
     fields: eventSeriesAuditFields,
+
     privateFields: eventSeriesPrivateFields,
+
     affectedBy: [{ model: "Trainer", operations: ["delete", "deleteMany"] }],
+
   },
+
   Event: {
+
     delegate: "event",
+
     fields: {
+
       number: "Nummer", name: "Name", shortdescription: "Kurzbeschreibung", description: "Beschreibung",
+
       companyId: "Company-ID", eventSeriesId: "Veranstaltungsreihe-ID", createdById: "Ersteller-ID", venueId: "Ort-ID",
+
       beginsAt: "Beginn", endsAt: "Ende", status: "Status", maxSeats: "Teilnehmerzahl",
+
       ticketPrice: "Ticketpreis", currency: "Währung", freeCancellationUntilMinutesBeforeStart: "Kostenfreie Stornofrist in Minuten",
+
       trainerIds: "Trainer-IDs",
+
     },
+
     privateFields: { trainerName: "Trainername (Altbestand)", imageUrl: "Titelbild", imagePublicId: "Bildreferenz" },
+
     affectedBy: [{ model: "EventTrainer", operations: ["create", "createMany", "createManyAndReturn", "update", "updateMany", "updateManyAndReturn", "upsert", "delete", "deleteMany"] }],
+
   },
+
   Venue: {
+
     delegate: "venue",
+
     fields: { number: "Nummer", name: "Name", companyId: "Company-ID", city: "Stadt", countryCode: "Land" },
+
     privateFields: { addressLine1: "Adresszeile 1", addressLine2: "Adresszeile 2", postalCode: "Postleitzahl" },
+
     affectedBy: [],
+
   },
+
   Trainer: {
+
     delegate: "trainer",
+
     // Names are explicitly approved as target identification; contact data is not.
+
     fields: { number: "Nummer", firstName: "Vorname", lastName: "Nachname", companyId: "Company-ID", userId: "Nutzer-ID" },
+
     privateFields: { email: "E-Mail-Adresse" },
+
     affectedBy: [{ model: "User", operations: ["delete", "deleteMany"] }],
+
   },
+
   Company: {
+
     delegate: "company",
+
     fields: { number: "Nummer", name: "Name", slug: "URL-Kürzel", stripeChargesEnabled: "Zahlungen aktiviert", stripePayoutsEnabled: "Auszahlungen aktiviert" },
+
     privateFields: { stripeAccountId: "Stripe-Verknüpfung" },
+
     affectedBy: [],
+
   },
+
   CompanyMembership: {
+
     delegate: "companyMembership",
-    fields: { number: "Nummer", companyId: "Company-ID", userId: "Nutzer-ID", role: "Rolle", status: "Status", notifyBookings: "Benachrichtigungen: Buchungen", notifyCancellationRequests: "Benachrichtigungen: Stornierungsanfragen" },
+
+    fields: { number: "Nummer", companyId: "Company-ID", userId: "Nutzer-ID", role: "Rolle", status: "Status", notifyVenueIssues: "Benachrichtigungen: Ortsteam-Probleme", notifyTrainerIssues: "Benachrichtigungen: Trainer-Issues", notifyBookings: "Benachrichtigungen: Buchungen", notifyCancellationRequests: "Benachrichtigungen: Stornierungsanfragen" },
+
     privateFields: { email: "Einladungsadresse" },
+
     affectedBy: [],
+
   },
+
 } as const;
+
+
 
 export const auditModelLabels: Readonly<Record<string, string>> = {
-  Login: "Login",
+
+  EventVenueApproval: "Ortsfreigabe", Note: "Notiz", EventTrainer: "Trainerzuordnung", Login: "Login",
+
   EventSeries: "Veranstaltungsreihe", Event: "Veranstaltung", Venue: "Ort",
+
   Trainer: "Trainer", Company: "Company", CompanyMembership: "Mitgliedschaft",
+
 };
 
+
+
 // Event display policy only: Login is not a mutable Prisma model.
+
 export const auditEventPolicies = {
+
   Login: { fields: { userId: "Nutzer-ID", method: "Anmeldeart" }, privateFields: {} },
+
 } as const;
+

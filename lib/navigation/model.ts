@@ -1,11 +1,12 @@
 import type { CompanyRole, MembershipStatus, UserRole } from "@prisma/client";
 
-export type NavigationIcon = "calendar" | "calendar-check" | "camera" | "venue" | "series" | "users" | "settings" | "company" | "audit";
+export type NavigationIcon = "calendar" | "calendar-check" | "calendar-x" | "briefcase" | "voucher" | "camera" | "venue" | "series" | "users" | "settings" | "company" | "audit";
 export type NavigationItem = { label: string; href: string; icon: NavigationIcon };
 export type NavigationGroup = { id: string; label: string; items: NavigationItem[] };
 export type NavigationData = {
   user: { name: string | null; email: string };
   groups: NavigationGroup[];
+  companySwitcher?: { id: string; name: string; slug: string }[];
 };
 export type NavigationUser = {
   name: string | null;
@@ -27,8 +28,7 @@ export function buildNavigation(user: NavigationUser, hasStaffOrTrainerAssignmen
     ],
   }];
   if (hasStaffOrTrainerAssignment) groups[0].items.push(
-    { label: "Veranstaltungsverwaltung", href: "/account/eventmanagement", icon: "calendar-check" },
-    { label: "Ticket scannen", href: "/account/scan", icon: "camera" },
+    { label: "Meine Einsätze", href: "/account/eventmanagement", icon: "briefcase" },
   );
 
   for (const membership of user.memberships) {
@@ -41,8 +41,8 @@ export function buildNavigation(user: NavigationUser, hasStaffOrTrainerAssignmen
       { label: "Orte", href: `${base}/venues`, icon: "venue" },
       { label: "Trainer", href: `${base}/trainers`, icon: "users" },
       { label: "Buchungen", href: `${base}/bookings`, icon: "calendar-check" },
-      { label: "Stornierungen", href: `${base}/cancellations`, icon: "calendar-check" },
-      { label: "Gutscheine", href: `${base}/vouchers`, icon: "calendar-check" },
+      { label: "Stornierungen", href: `${base}/cancellations`, icon: "calendar-x" },
+      { label: "Gutscheine", href: `${base}/vouchers`, icon: "voucher" },
     ];
     if (user.role === "ADMIN" || membership.role === "COMPANY_ADMIN") items.push(
       { label: "Einstellungen", href: `${base}/settings`, icon: "settings" },
@@ -55,7 +55,7 @@ export function buildNavigation(user: NavigationUser, hasStaffOrTrainerAssignmen
     id: "admin", label: "Administration",
     items: [
       { label: "Companies", href: "/admin/companies", icon: "company" },
-      { label: "Gutscheine", href: "/admin/vouchers", icon: "calendar-check" },
+      { label: "Gutscheine", href: "/admin/vouchers", icon: "voucher" },
       { label: "Orte", href: "/admin/venues", icon: "venue" },
       { label: "Veranstaltungsreihen", href: "/admin/event-series", icon: "series" },
       { label: "Veranstaltungen", href: "/admin/events", icon: "calendar" },

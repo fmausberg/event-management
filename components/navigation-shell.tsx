@@ -1,21 +1,27 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useRef, useState } from "react";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 import { logout } from "@/app/(auth)/actions";
 import { isNavigationItemActive, type NavigationData } from "@/lib/navigation/model";
 import { NavigationIcon } from "./navigation-icon";
 import { PageBreadcrumbContext, type PageBreadcrumbValue } from "./page-breadcrumb";
 
-function NavigationLinks({ data, pathname, onNavigate }: {
+function NavigationLinks({ data, pathname, onNavigate, selectedCompanyId, onCompanyChange }: {
   data: NavigationData; pathname: string; onNavigate?: () => void;
+  selectedCompanyId?: string; onCompanyChange?: (id: string) => void;
 }) {
   return (
     <nav aria-label="Hauptnavigation" className="flex-1 space-y-7 overflow-y-auto px-3 py-5">
       {data.groups.map((group) => (
         <section key={group.id} aria-label={group.label}>
-          <h2 className="mb-2 break-words px-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">{group.label}</h2>
+          {data.companySwitcher && group.id.startsWith("company:") ? <div className="mb-2 px-2">
+            <label className="sr-only" htmlFor={`company-switcher-${onNavigate ? "mobile" : "desktop"}`}>Company auswählen</label>
+            <select id={`company-switcher-${onNavigate ? "mobile" : "desktop"}`} value={selectedCompanyId} onChange={event => onCompanyChange?.(event.target.value)} className="w-full min-w-0 rounded-lg border border-zinc-300 bg-white px-2 py-1.5 text-xs font-medium text-zinc-700 focus-visible:outline-primary-600 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+              {data.companySwitcher.map(company => <option key={company.id} value={company.id}>{company.name}</option>)}
+            </select>
+          </div> : <h2 className="mb-2 break-words px-2 text-xs font-medium text-zinc-500 dark:text-zinc-400">{group.label}</h2>}
           <ul className="space-y-1">
             {group.items.map((item) => {
               const active = isNavigationItemActive(pathname, item.href);
@@ -48,12 +54,30 @@ function UserFooter({ data, onNavigate }: { data: NavigationData; onNavigate?: (
 
 export function NavigationShell({ data, children }: { data: NavigationData; children?: React.ReactNode }) {
   const pathname = usePathname();
+  const router = useRouter();
+  const [preferredCompanyId, setPreferredCompanyId] = useState(data.companySwitcher?.[0]?.id);
+  const routeCompany = data.companySwitcher?.find(company => pathname === `/company/${encodeURIComponent(company.slug)}` || pathname.startsWith(`/company/${encodeURIComponent(company.slug)}/`));
+  useEffect(() => {
+    if (routeCompany) setPreferredCompanyId(routeCompany.id);
+  }, [routeCompany?.id]);
+  const selectedCompany = routeCompany ?? data.companySwitcher?.find(company => company.id === preferredCompanyId) ?? data.companySwitcher?.[0];
+  const navigationData = data.companySwitcher ? { ...data, groups: data.groups.filter(group => !group.id.startsWith("company:") || group.id === `company:${selectedCompany?.id}`) } : data;
+  const changeCompany = (id: string) => {
+    const company = data.companySwitcher?.find(option => option.id === id);
+    if (!company) return;
+    setPreferredCompanyId(id);
+    const section = pathname.startsWith("/company/") ? pathname.split("/")[3] : undefined;
+    const targetGroup = data.groups.find(group => group.id === `company:${id}`);
+    const target = targetGroup?.items.find(item => item.href === `/company/${encodeURIComponent(company.slug)}/${section}`);
+    router.push(target?.href ?? `/company/${encodeURIComponent(company.slug)}/events`);
+    closeMobileMenu();
+  };
   const [expanded, setExpanded] = useState(true);
   const [pageBreadcrumb, setPageBreadcrumb] = useState<PageBreadcrumbValue | null>(null);
   const detailLabel = pageBreadcrumb?.pathname === pathname ? pageBreadcrumb.label : null;
   const mobileMenu = useRef<HTMLDetailsElement>(null);
   const closeMobileMenu = () => { if (mobileMenu.current) mobileMenu.current.open = false; };
-  const current = data.groups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label })))
+  const current = navigationData.groups.flatMap((group) => group.items.map((item) => ({ ...item, group: group.label })))
     .find((item) => isNavigationItemActive(pathname, item.href));
   const title = pathname === "/account" ? "Mein Konto" : current?.label || "Veranstaltungsverwaltung";
   const context = current && current.group !== "Allgemein" ? current.group : null;
@@ -65,10 +89,10 @@ export function NavigationShell({ data, children }: { data: NavigationData; chil
     <div className="flex min-h-dvh flex-1 font-sans">
       <a href="#page-content" className="sr-only z-50 rounded bg-primary-600 p-3 text-white focus:not-sr-only focus:fixed focus:left-3 focus:top-3">Zum Inhalt springen</a>
       <aside id="desktop-navigation" aria-label="Seitenleiste" className={`sticky top-0 hidden h-dvh w-64 shrink-0 flex-col border-r border-zinc-200 bg-primary-50 ${expanded ? "md:flex" : "md:hidden"} dark:border-zinc-800 dark:bg-zinc-950`}>
-        <Link href="/" className="flex h-14 shrink-0 items-center gap-3 border-b border-zinc-200 px-5 font-semibold dark:border-zinc-800">
-          <span className="rounded-lg bg-[var(--brand-icon-background,#007c80)] p-2 text-white"><NavigationIcon name="calendar" /></span>Veranstaltungsverwaltung
-        </Link>
-        <NavigationLinks data={data} pathname={pathname} />
+        <a href="https://event-yoga.com" className="flex h-14 shrink-0 items-center gap-3 border-b border-zinc-200 px-5 font-semibold dark:border-zinc-800">
+          <span className="rounded-lg bg-[var(--brand-icon-background,#007c80)] p-2 text-white"><NavigationIcon name="calendar" /></span>Event Yoga
+        </a>
+        <NavigationLinks data={navigationData} pathname={pathname} selectedCompanyId={selectedCompany?.id} onCompanyChange={changeCompany} />
         <UserFooter data={data} />
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
@@ -80,7 +104,7 @@ export function NavigationShell({ data, children }: { data: NavigationData; chil
           <details ref={mobileMenu} className="group md:hidden" onKeyDown={(event) => { if (event.key === "Escape") { closeMobileMenu(); mobileMenu.current?.querySelector("summary")?.focus(); } }}>
             <summary className="flex h-14 cursor-pointer list-none items-center gap-3 px-5 text-sm font-medium [&::-webkit-details-marker]:hidden"><NavigationIcon name="panel" /><span>Menü</span><span className="ml-auto truncate text-zinc-500">{title}</span></summary>
             <div className="flex max-h-[calc(100dvh-3.5rem)] flex-col overflow-y-auto border-t border-zinc-200 bg-primary-50 dark:border-zinc-800 dark:bg-zinc-950">
-              <NavigationLinks data={data} pathname={pathname} onNavigate={closeMobileMenu} />
+              <NavigationLinks data={navigationData} pathname={pathname} onNavigate={closeMobileMenu} selectedCompanyId={selectedCompany?.id} onCompanyChange={changeCompany} />
               <UserFooter data={data} onNavigate={closeMobileMenu} />
             </div>
           </details>

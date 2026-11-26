@@ -7,12 +7,13 @@ const getOrigin = () => window.location.origin;
 const getServerOrigin = () => "";
 const escapeAttribute = (value: string) => value.replaceAll("&", "&amp;").replaceAll('"', "&quot;").replaceAll("<", "&lt;").replaceAll(">", "&gt;");
 
-export function EmbedCode({ slug, companyName }: { slug: string; companyName: string }) {
+export function EmbedCode({ slug, companyName, countries }: { slug: string; companyName: string; countries: { code: string; name: string }[] }) {
   const origin = useSyncExternalStore(subscribe, getOrigin, getServerOrigin);
   const field = useRef<HTMLTextAreaElement>(null);
   const [message, setMessage] = useState("");
   const [copying, setCopying] = useState(false);
-  const url = origin ? `${origin}/events/${encodeURIComponent(slug)}?embed=1` : "";
+  const [country, setCountry] = useState("");
+  const url = origin ? `${origin}/events/${encodeURIComponent(slug)}?embed=1${country ? `&country=${encodeURIComponent(country)}` : ""}` : "";
   const code = url ? `<iframe
   src="${escapeAttribute(url)}"
   title="${escapeAttribute(`Veranstaltungen von ${companyName}`)}"
@@ -37,11 +38,20 @@ export function EmbedCode({ slug, companyName }: { slug: string; companyName: st
   return <section className="max-w-2xl space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
     <h2 className="text-xl font-semibold">Veranstaltungen auf deiner Website einbinden</h2>
     <p className="text-sm">Füge diesen HTML-Code auf deiner Website ein. Die Übersicht zeigt beim Laden die aktuellen veröffentlichten Veranstaltungen deiner Company. Veranstaltungsdetails und Buchung öffnen sich in einem neuen Tab.</p>
+    <div>
+      <label htmlFor="company-embed-country" className="text-sm font-medium">Land</label>
+      <select id="company-embed-country" value={country} onChange={event => { setCountry(event.target.value); setMessage(""); }} aria-describedby="company-embed-country-help" className="mt-2 block w-full rounded-lg border border-zinc-300 bg-transparent px-3 py-2 text-sm dark:border-zinc-700">
+        <option value="">Alle Länder</option>
+        {countries.map(item => <option key={item.code} value={item.code}>{item.name} ({item.code})</option>)}
+      </select>
+      <p id="company-embed-country-help" className="mt-2 text-xs text-zinc-500">Der Filter verwendet das Land des Veranstaltungsorts. Für jede Unterseite kannst du einen eigenen Einbettungscode kopieren oder herunterladen.</p>
+    </div>
     <div><label htmlFor="company-embed-code" className="text-sm font-medium">iframe-Code</label>
       <textarea ref={field} id="company-embed-code" readOnly rows={9} value={code} placeholder="Einbettungscode wird geladen …" spellCheck={false} onFocus={(event) => event.currentTarget.select()} className="mt-2 block w-full rounded-lg border border-zinc-300 bg-zinc-50 p-3 font-mono text-xs dark:border-zinc-700 dark:bg-zinc-900" />
     </div>
     <div className="flex flex-wrap items-center gap-4">
       <button type="button" disabled={!code || copying} onClick={() => void copy()} className="rounded-md bg-primary-700 px-4 py-2 text-white disabled:opacity-50">{copying ? "Wird kopiert …" : "Code kopieren"}</button>
+      {code && <a href={`data:text/html;charset=utf-8,${encodeURIComponent(code)}`} download={`events-${slug}${country ? `-${country}` : ""}.html`} className="text-sm underline">Code herunterladen</a>}
       {url && <a href={url} target="_blank" rel="noopener noreferrer" className="text-sm underline">Vorschau öffnen</a>}
     </div>
     {message && <p role="status" className="text-sm">{message}</p>}

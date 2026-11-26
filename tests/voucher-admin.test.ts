@@ -47,7 +47,7 @@ beforeEach(() => {
 afterEach(() => vi.unstubAllEnvs());
 it("allows an active owner-company admin to save combined targets transactionally", async () => {
   expect(await saveVoucherCampaign("studio", null, values({ seriesIds: ["series"], eventIds: ["event"], venueIds: ["venue"] }))).toBe("campaign");
-  expect(db.voucherCampaign.create).toHaveBeenCalledWith({ data: expect.objectContaining({ ownerCompanyId: "company", createdById: "actor", percentageBps: 1000, policy: { adminDescription: "Interne Beschreibung" } }) });
+  expect(db.voucherCampaign.create).toHaveBeenCalledWith({ data: expect.objectContaining({ status: "ACTIVE", ownerCompanyId: "company", createdById: "actor", percentageBps: 1000, policy: { adminDescription: "Interne Beschreibung" } }) });
   for (const table of [db.voucherCampaignCompany, db.voucherCampaignEventSeries, db.voucherCampaignEvent, db.voucherCampaignVenue]) expect(table.createMany).toHaveBeenCalledOnce();
   expect(db.$transaction).toHaveBeenCalledWith(expect.any(Function), { isolationLevel: "Serializable" });
 });
@@ -88,7 +88,9 @@ it("scopes platform-admin targets to the company selected by the URL", async () 
   await saveVoucherCampaign("studio", null, values({ eventIds: ["event"] }));
   expect(db.event.count).toHaveBeenLastCalledWith({ where: { id: { in: ["event"] }, companyId: "company" } });
 });
-it("blocks activation and code issuance without any explicit target", async () => {
+it("blocks creation, activation and code issuance without any explicit target", async () => {
+  await expect(saveVoucherCampaign("studio", null, values({ companyIds: [] }))).rejects.toThrow("Ziel");
+  expect(db.voucherCampaign.create).not.toHaveBeenCalled();
   current.companyTargets = [];
   await expect(changeVoucherCampaignStatus("studio", "campaign", "ACTIVE")).rejects.toThrow("Ziel");
   await expect(issueVoucherCodes("studio", "campaign", issue())).rejects.toThrow("Ziel");

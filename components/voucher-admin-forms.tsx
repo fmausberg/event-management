@@ -22,9 +22,13 @@ function FieldInfo({ label, children }: { label: string; children: ReactNode }) 
   </span>;
 }
 
-function FieldLabel({ label, help, children }: { label: string; help: ReactNode; children: ReactNode }) {
+function RequiredMark() {
+  return <><span aria-hidden="true" className="text-red-600 dark:text-red-400"> *</span><span className="sr-only"> (Pflichtfeld)</span></>;
+}
+
+function FieldLabel({ label, help, children, required = false }: { label: string; help: ReactNode; children: ReactNode; required?: boolean }) {
   return <label className="block">
-    <span className="flex flex-wrap items-center gap-2 font-medium"><span>{label}</span><FieldInfo label={label}>{help}</FieldInfo></span>
+    <span className="flex flex-wrap items-center gap-2 font-medium"><span>{label}{required && <RequiredMark />}</span><FieldInfo label={label}>{help}</FieldInfo></span>
     {children}
   </label>;
 }
@@ -40,7 +44,11 @@ export function VoucherCampaignForm({ slug, options, row, start, drawer = false,
     return result;
   }, {});
   const [kind, setKind] = useState(row?.kind ?? "PERCENTAGE");
+  const [name, setName] = useState(row?.name ?? "");
+  const [value, setValue] = useState(row?.value ?? "10");
+  const [startsAt, setStartsAt] = useState(row?.startsAt ?? start);
   const [targets, setTargets] = useState({ companyIds: row?.companyIds ?? [], seriesIds: row?.seriesIds ?? [], eventIds: row?.eventIds ?? [], venueIds: row?.venueIds ?? [] });
+  const requiredFieldsFilled = !!name.trim() && !!kind && !!value.trim() && !!startsAt && Object.values(targets).some(ids => ids.length > 0);
   useEffect(() => {
     if (!drawer) return;
     const dialog = panel.current!;
@@ -55,18 +63,18 @@ export function VoucherCampaignForm({ slug, options, row, start, drawer = false,
   const form = <UnsavedChangesForm saveState={state} action={action} className={drawer ? "space-y-5" : "space-y-5 rounded-xl border border-zinc-200 bg-white p-5 dark:border-zinc-800 dark:bg-zinc-950"}>
     <header className="flex items-center justify-between gap-4"><h2 id={drawer ? "voucher-campaign-form-title" : undefined} className="text-lg font-semibold">{row ? "Kampagne bearbeiten" : "Neue Kampagne"}</h2>{drawer && <button type="button" disabled={pending} aria-label="Formular schließen" data-discard-changes onClick={onCancel} className="rounded p-2 text-xl">×</button>}</header>
     <fieldset disabled={pending || row?.archived} className="space-y-4">
-      <FieldLabel label="Name" help="Der interne Name der Kampagne, zum Beispiel „Sommeraktion 2027“. Er wird nicht als Gutscheincode verwendet."><input className={input} name="name" required maxLength={160} defaultValue={row?.name} /></FieldLabel>
+      <FieldLabel required label="Name" help="Der interne Name der Kampagne, zum Beispiel „Sommeraktion 2027“. Er wird nicht als Gutscheincode verwendet."><input className={input} name="name" required maxLength={160} value={name} onChange={event => setName(event.target.value)} /></FieldLabel>
       <FieldLabel label="Interne Beschreibung" help="Notizen für die Verwaltung, etwa Zweck, Zielgruppe oder Ansprechpartner. Diese Beschreibung sehen Buchende nicht."><textarea className={input} name="description" maxLength={2000} defaultValue={row?.description} /></FieldLabel>
       {locked && <p className="text-sm text-zinc-500">Codes wurden bereits ausgegeben. Regeln und Ziele sind geschützt. Für andere Konditionen bitte eine neue Kampagne erstellen.</p>}
       <div className="grid gap-4 sm:grid-cols-2">
-        <FieldLabel label="Gutscheinart" help="Prozent reduziert den Preis prozentual. Ein fester Rabatt zieht einmalig einen Eurobetrag ab. Wertguthaben speichert einen Betrag, der auch auf mehrere Buchungen verteilt eingesetzt werden kann."><select className={input} name="kind" value={kind} onChange={e => setKind(e.target.value)} disabled={locked}>
+        <FieldLabel required label="Gutscheinart" help="Prozent reduziert den Preis prozentual. Ein fester Rabatt zieht einmalig einen Eurobetrag ab. Wertguthaben speichert einen Betrag, der auch auf mehrere Buchungen verteilt eingesetzt werden kann."><select className={input} name="kind" value={kind} onChange={e => setKind(e.target.value)} disabled={locked}>
           <option value="PERCENTAGE">Prozentualer Rabatt</option><option value="FIXED_AMOUNT">Fester Euro-Rabatt</option><option value="STORED_VALUE">Wertguthaben</option>
         </select>{locked && <input type="hidden" name="kind" value={kind} />}</FieldLabel>
-        <FieldLabel label={kind === "PERCENTAGE" ? "Rabatt in %" : kind === "STORED_VALUE" ? "Ausgabewert je Gutschein in EUR" : "Rabatt in EUR"}
+        <FieldLabel required label={kind === "PERCENTAGE" ? "Rabatt in %" : kind === "STORED_VALUE" ? "Ausgabewert je Gutschein in EUR" : "Rabatt in EUR"}
           help={kind === "PERCENTAGE" ? "Prozentsatz zwischen 0,01 und 100. Beispiel: 20 bedeutet 20 % Rabatt." : kind === "STORED_VALUE" ? "Startguthaben jedes neu ausgegebenen Wertgutscheins. Beispiel: 50 bedeutet 50,00 EUR pro Code." : "Eurobetrag, der einmal pro Buchung abgezogen wird. Ein nicht benötigter Rest wird nicht gespeichert."}>
-          <input className={input} name="value" required inputMode="decimal" defaultValue={row?.value ?? "10"} readOnly={locked} />
+          <input className={input} name="value" required inputMode="decimal" value={value} onChange={event => setValue(event.target.value)} readOnly={locked} />
         </FieldLabel>
-        <FieldLabel label="Beginn" help="Ab diesem Zeitpunkt darf die Kampagne für neue Buchungen verwendet werden. Bereits reservierte Einlösungen behalten ihren gespeicherten Stand."><input className={input} type="datetime-local" step="0.001" name="startsAt" required defaultValue={row?.startsAt ?? start} readOnly={locked} /></FieldLabel>
+        <FieldLabel required label="Beginn" help="Ab diesem Zeitpunkt darf die Kampagne für neue Buchungen verwendet werden. Bereits reservierte Einlösungen behalten ihren gespeicherten Stand."><input className={input} type="datetime-local" step="0.001" name="startsAt" required value={startsAt} onChange={event => setStartsAt(event.target.value)} readOnly={locked} /></FieldLabel>
         <FieldLabel label="Ende (optional)" help="Nach diesem Zeitpunkt sind keine neuen Einlösungen mehr möglich. Leer bedeutet: kein festes Kampagnenende."><input className={input} type="datetime-local" step="0.001" name="endsAt" defaultValue={row?.endsAt} readOnly={locked} /></FieldLabel>
         <FieldLabel label="Gesamtlimit (leer = unbegrenzt)" help="Maximale Zahl wirksamer Einlösungen der gesamten Kampagne über alle Codes hinweg. Reservierte Einlösungen zählen mit; vollständig rückabgewickelte Einlösungen geben das Limit wieder frei."><input className={input} type="number" min="1" step="1" name="maxRedemptions" defaultValue={row?.maxRedemptions} readOnly={locked} /></FieldLabel>
         <FieldLabel label="Limit je Kundenidentität" help="Wie oft dieselbe Person diese Kampagne insgesamt nutzen darf – auch mit verschiedenen Codes. Bei eingeloggten Personen zählt das Konto, bei Gästen nur die normalisierte Buchungs-E-Mail als weiche Begrenzung."><input className={input} type="number" min="1" step="1" name="maxRedemptionsPerCustomer" defaultValue={row?.maxRedemptionsPerCustomer} readOnly={locked} /></FieldLabel>
@@ -76,7 +84,9 @@ export function VoucherCampaignForm({ slug, options, row, start, drawer = false,
       <input type="hidden" name="currency" value="EUR" />
       <p className="text-sm text-zinc-500">Währung: EUR. Bei 100 % Rabatt ist ohne Ticketlimit genau ein Ticket kostenlos. Wertguthaben hat kein Ticketlimit. Gäste werden nur weich über ihre Buchungs-E-Mail begrenzt.</p>
       <div className="space-y-4">
+        <p className="font-medium">Geltungsbereich<RequiredMark /><span className="block text-sm font-normal text-zinc-500">Mindestens ein Ziel auswählen.</span></p>
         {options.companies.map(company => <div key={company.id} className="flex flex-wrap items-center gap-2"><label className="flex items-center gap-2 font-medium"><input type="checkbox" name="companyIds" value={company.id} checked={targets.companyIds.includes(company.id)} onChange={event => setTargets(old => ({ ...old, companyIds: event.target.checked ? [company.id] : [] }))} disabled={locked} />Gesamtes Unternehmen</label><FieldInfo label="Gesamtes Unternehmen">Wählt alle bestehenden und später angelegten Veranstaltungen von {company.name} aus.</FieldInfo>{locked && targets.companyIds.map(id => <input key={id} type="hidden" name="companyIds" value={id} />)}</div>)}
+        <div hidden={targets.companyIds.length > 0} className="space-y-4">
         {([
           ["seriesIds", "Veranstaltungsreihen", options.series, "Die Kampagne gilt für alle Veranstaltungen, die einer ausgewählten Veranstaltungsreihe zugeordnet sind. Später zugeordnete Veranstaltungen werden ebenfalls erfasst."],
           ["eventIds", "Einzelne Veranstaltungen", options.events, "Die Kampagne gilt nur für die konkret ausgewählten einzelnen Veranstaltungen. Andere Veranstaltungen derselben Company oder Reihe sind dadurch nicht automatisch enthalten."],
@@ -89,9 +99,10 @@ export function VoucherCampaignForm({ slug, options, row, start, drawer = false,
             {locked && targets[key].map(id => <input key={id} type="hidden" name={key} value={id} />)}
           </div></div>
         </details>)}
+        </div>
       </div>
-      <p className="text-sm text-zinc-500">Ziele gelten per ODER; Überschneidungen erhöhen den Rabatt nicht. Company-, Reihen- und Ortsziele erfassen auch spätere Zuordnungen. Wertguthaben ist auf die ausstellende Company beschränkt. Ein Entwurf darf ohne Ziel gespeichert, aber nicht aktiviert oder mit Codes ausgestattet werden.</p>
-      <div className="flex gap-3"><button className={button} disabled={pending || row?.archived}>{pending ? "Wird gespeichert …" : "Kampagne speichern"}</button>{drawer && <button type="button" disabled={pending} data-discard-changes onClick={onCancel} className="text-sm underline">Abbrechen</button>}</div>
+      <p className="text-sm text-zinc-500">Ziele gelten per ODER; Überschneidungen erhöhen den Rabatt nicht. Company-, Reihen- und Ortsziele erfassen auch spätere Zuordnungen. Wertguthaben ist auf die ausstellende Company beschränkt. Neue Kampagnen werden direkt aktiv gespeichert und benötigen mindestens ein Ziel. Sie können später pausiert werden.</p>
+      <div className="flex gap-3"><button className={button} disabled={pending || row?.archived || !requiredFieldsFilled}>{pending ? (row ? "Wird gespeichert …" : "Wird aktiviert …") : row ? "Kampagne speichern" : "Kampagne aktivieren"}</button>{drawer && <button type="button" disabled={pending} data-discard-changes onClick={onCancel} className="text-sm underline">Abbrechen</button>}</div>
     </fieldset>
     {state.message && <p role="status" className="text-sm">{state.message}</p>}
   </UnsavedChangesForm>;

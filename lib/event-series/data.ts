@@ -1,4 +1,5 @@
 import "server-only";
+import { eligibleVenueApprovalMember } from "@/lib/venues/approval-members";
 import { requireCompanyAccess } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 
@@ -11,8 +12,8 @@ export async function getCompanySeries(slug: string, adminOnly = false) {
       suggestedFreeCancellationUntilMinutesBeforeStart: true, suggestedDuration: true, suggestedMaxSeats: true, suggestedTicketPrice: true, suggestedCurrency: true, suggestedTrainerName: true, suggestedTrainerId: true, suggestedVenueId: true,
       _count: { select: { events: true } },
     } }),
-    db.venue.findMany({ where: { companyId: company.id }, orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true } }),
+    db.venue.findMany({ where: { companyId: company.id }, orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, _count: { select: { staff: { where: eligibleVenueApprovalMember } } } } }),
     db.trainer.findMany({ where: { companyId: company.id }, orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "asc" }], select: { id: true, firstName: true, lastName: true, email: true } }),
   ]);
-  return { company, canManage, venues, trainers, series: series.map((row) => ({ ...row, suggestedTicketPrice: row.suggestedTicketPrice?.toFixed(2) ?? null })) };
+  return { company, canManage, venues: venues.map(({ _count, ...venue }) => ({ ...venue, hasApprovalTeam: _count.staff > 0 })), trainers, series: series.map((row) => ({ ...row, suggestedTicketPrice: row.suggestedTicketPrice?.toFixed(2) ?? null })) };
 }

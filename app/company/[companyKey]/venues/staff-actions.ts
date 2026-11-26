@@ -1,4 +1,9 @@
 "use server";
+import { withSessionAudit } from "@/lib/audit/session";
+import { revalidatePath } from "next/cache";
+import { synchronizeTrainerConfirmation } from "@/lib/trainers/confirmation";
+import { queueVenueConfirmations } from "@/lib/venues/confirmation";
+import { deliverPendingVenueConfirmations } from "@/lib/tickets/outbox";
 import { Prisma } from "@prisma/client";
 import { notifyAssignment } from "@/lib/mail/assignment";
 import { auth } from "@/auth";
@@ -42,13 +47,27 @@ export async function addVenueStaff(slug: string, venueId: string, email: string
   if (users.length > 1) return { message: "Die E-Mail-Adresse ist keinem eindeutigen Account zugeordnet." };
   const assignment = await db.venueStaff.create({ data: { venueId, email: parsed.data, userId: users[0]?.emailVerified ? users[0].id : null, assignedById: actor } });
   const notification = await notifyAssignment("venue", slug, assignment.id);
+  const pending = await db.event.findMany({ where: { venueId, status: "PENDING_VENUE_CONFIRMATION" }, select: { id: true } });
+  await db.$transaction(tx => queueVenueConfirmations(tx, pending.map(event => event.id)));
+  await deliverPendingVenueConfirmations();
+  revalidatePath("/account/eventmanagement");
   return { success: true, message: notification.message };
  } catch (error) { return { message: failure(error) }; }
 }
 export async function removeVenueStaff(slug: string, venueId: string, id: string) {
- try {
-  const db = await access(slug, venueId);
-  await db.venueStaff.deleteMany({ where: { id, venueId } });
-  return { success: true };
- } catch (error) { return { message: failure(error) }; }
+ return withSessionAudit("company/venues.removeVenueStaff", async () => {
+  try {
+   const db = await access(slug, venueId);
+   await db.$transaction(async tx => {
+    await tx.venueStaff.deleteMany({ where: { id, venueId } });
+    const pending = await tx.event.findMany({ where: { venueId, status: { in: ["PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"] } }, select: { id: true } });
+    for (const event of pending) await synchronizeTrainerConfirmation(tx, event.id);
+   }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+   await deliverPendingVenueConfirmations();
+   revalidatePath("/account/eventmanagement");
+   revalidatePath("/company/[companyKey]", "layout");
+   revalidatePath("/events", "layout");
+   return { success: true };
+  } catch (error) { return { message: failure(error) }; }
+ });
 }

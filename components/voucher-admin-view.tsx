@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import type { VoucherAdministration } from "@/lib/vouchers/admin-data";
 import { formatBerlinDateTime } from "@/lib/events/berlin-date-time";
-import { VoucherCodesTable, VoucherStatusForm } from "./voucher-admin-forms";
+import { VoucherCampaignForm, VoucherCodesTable, VoucherStatusForm, type CampaignFormValues } from "./voucher-admin-forms";
 import { VoucherCampaignsTable } from "./voucher-campaigns-table";
 import { PageBreadcrumb } from "./page-breadcrumb";
 
@@ -12,6 +12,14 @@ const date = (d: Date | null) => d ? new Intl.DateTimeFormat("de-DE", { timeZone
 const statuses: Record<string, string> = { DRAFT: "Entwurf", ACTIVE: "Aktiv", PAUSED: "Pausiert", ARCHIVED: "Archiviert", DISABLED: "Gesperrt", RESERVED: "Reserviert", COMMITTED: "Erfolgreich", REVERSED: "Rückabgewickelt", PARTIALLY_REVERSED: "Teilweise rückabgewickelt", RELEASED: "Freigegeben" };
 function textField(value: Prisma.JsonValue | null, key: string) {
   return value && typeof value === "object" && !Array.isArray(value) && typeof value[key] === "string" ? value[key] as string : "";
+}
+function values(row: VoucherAdministration["rows"][number]): CampaignFormValues {
+  const c = row.campaign;
+  return { id: c.id, name: c.name, description: textField(c.policy, "adminDescription"), kind: c.kind,
+    value: ((c.percentageBps ?? c.amountMinor ?? 0) / 100).toFixed(2), startsAt: formatBerlinDateTime(c.startsAt), endsAt: c.endsAt ? formatBerlinDateTime(c.endsAt) : "",
+    maxRedemptions: String(c.maxRedemptions ?? ""), maxRedemptionsPerCustomer: String(c.maxRedemptionsPerCustomer ?? ""), maxEligibleTicketsPerBooking: String(c.maxEligibleTicketsPerBooking ?? ""), source: c.source ?? "",
+    companyIds: c.companyTargets.map(item => item.companyId), seriesIds: c.eventSeriesTargets.map(item => item.eventSeriesId), eventIds: c.eventTargets.map(item => item.eventId), venueIds: c.venueTargets.map(item => item.venueId),
+    locked: !!(c._count.codes || c._count.redemptions || c._count.balanceUses), archived: c.status === "ARCHIVED" };
 }
 function Targets({ row, data }: { row: VoucherAdministration["rows"][number]; data: VoucherAdministration }) {
   const c = row.campaign;
@@ -48,6 +56,7 @@ export function VoucherAdministrationView({ data, detail = false }: { data: Vouc
       <p className="text-sm">{date(c.startsAt)} – {date(c.endsAt)}</p><Targets row={row} data={data} /><Stats row={row} />
       <VoucherStatusForm slug={data.company.slug} campaignId={c.id} status={c.status} />
     </section>
+    <VoucherCampaignForm slug={data.company.slug} options={data.options} row={values(row)} start={formatBerlinDateTime(new Date())} />
     <>
       <section className={panel}>
         <p className="text-sm text-zinc-500">Trackingquelle, Code und Status können über den Bearbeitungsstift geändert werden. Archivierte Codes bleiben schreibgeschützt.</p>
