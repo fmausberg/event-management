@@ -10,6 +10,7 @@ import EventsPage from "@/app/company/[companyKey]/events/page";
 import { saveEvent } from "@/app/company/[companyKey]/events/actions";
 import { getEventBookings } from "@/lib/bookings/management";
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
+ eventbriteConnection: { findUnique: vi.fn() },
  user: { findUnique: vi.fn() }, company: { findUnique: vi.fn() }, companyMembership: { findUnique: vi.fn() },
  trainer: { findMany: vi.fn() },
  bookingPrice: { create: vi.fn() }, ticket: { createMany: vi.fn() }, ticketMail: { create: vi.fn() },

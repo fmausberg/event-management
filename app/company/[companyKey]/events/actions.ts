@@ -1,4 +1,5 @@
 "use server";
+import { deliverEventbritePublications, queueEventbritePublication } from "@/lib/eventbrite/publication";
 import { eligibleVenueApprovalMember } from "@/lib/venues/approval-members";
 import { randomUUID } from "node:crypto";
 import { queueVenueConfirmations, ensureVenueApproval, initializeVenueApprovals, applyCompanyVenueChange, readCompanyVenueChange, VenueConfirmationError, type CompanyVenueChange } from "@/lib/venues/confirmation";
@@ -107,6 +108,9 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
  const intent = form.get("intent") ?? (id === null ? "draft" : "save");
 
  const multiple = form.get("creationMode") === "multiple";
+ const eventbriteValues = form.getAll("postToEventbrite");
+ if (eventbriteValues.length > 1 || eventbriteValues.some(value => value !== "yes" && value !== "no")) return { message: "Ungültige Eventbrite-Auswahl." };
+ const postToEventbrite = eventbriteValues[0] === "yes";
 
  const consentValues = form.getAll("trainerConsentObtained");
  if (consentValues.length > 1 || consentValues.some(value => value !== "yes")) return { message: "Ungültige Trainerzustimmung." };
@@ -165,9 +169,15 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
   const db = getPrisma();
 
-  const existing = id === null ? null : await db.event.findFirst({ where: { id, companyId: company.id }, select: { status: true, imageUrl: true } });
+  const existing = id === null ? null : await db.event.findFirst({ where: { id, companyId: company.id }, select: { status: true, imageUrl: true, postToEventbrite: true, eventbritePublication: { select: { status: true } } } });
 
   if (id !== null && (!existing || (intent !== "save" && (intent === "publish" ? ["CANCELLED", "COMPLETED"].includes(existing.status) : !["DRAFT", "TRAINER_NOT_SET", "VENUE_NOT_SET"].includes(existing.status))))) return { message: "Die Veranstaltung ist nicht verfügbar. Bitte lade die Seite neu." };
+
+  if (existing?.eventbritePublication && postToEventbrite !== existing.postToEventbrite) return { message: "Der Eventbrite-Auftrag wurde bereits angelegt. Bitte Änderungen und Absagen direkt in Eventbrite verwalten." };
+  if (postToEventbrite && !existing?.eventbritePublication) {
+    const connection = await db.eventbriteConnection.findUnique({ where: { companyId: company.id }, select: { status: true } });
+    if (connection?.status !== "CONNECTED") return { message: "Bitte zuerst eine gültige Eventbrite-Verbindung in den Company-Einstellungen herstellen." };
+  }
 
   const schema = intent === "publish" || ["PUBLISHED", "PENDING_TRAINER_CONFIRMATION", "PENDING_VENUE_CONFIRMATION"].includes(existing?.status ?? "") ? publishEventSchema : eventSchema;
 
@@ -259,7 +269,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
   if (hasUpload) uploaded = await uploadEventImage(company.id, file);
 
-  const data = { ...fields, ...taxData, ...(uploaded ?? (removeImage ? { imageUrl: null, imagePublicId: null } : id === null && series ? { imageUrl: series.imageUrl, imagePublicId: null } : {})), trainerName: null, beginsAt: parsed.data.beginsAt ? new Date(parsed.data.beginsAt) : null, endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null };
+  const data = { ...fields, postToEventbrite, ...taxData, ...(uploaded ?? (removeImage ? { imageUrl: null, imagePublicId: null } : id === null && series ? { imageUrl: series.imageUrl, imagePublicId: null } : {})), trainerName: null, beginsAt: parsed.data.beginsAt ? new Date(parsed.data.beginsAt) : null, endsAt: parsed.data.endsAt ? new Date(parsed.data.endsAt) : null };
 
   if (id === null) {
 
@@ -378,6 +388,10 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
     await synchronizeTrainerConfirmation(tx, id, { notifyTrainers: !manualApprovalChange, notifyVenue: !manualApprovalChange });
 
+    if (postToEventbrite) {
+      const final = await tx.event.findUniqueOrThrow({ where: { id }, select: { status: true } });
+      if (final.status === "PUBLISHED") await queueEventbritePublication(tx, id);
+    }
     return updated;
 
    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -398,6 +412,7 @@ export async function saveEvent(slug: string, id: string | null, _previous: Even
 
  finally { if (uploaded && !saved) await deleteEventImage(uploaded.imagePublicId); }
 
+ try { await deliverEventbritePublications((await requireCompanyAccess(slug)).company.id); } catch { /* Durable publication work remains visible and recoverable. */ }
  try { await deliverPendingCompanyNotifications(); } catch { /* Durable outbox retries independently. */ }
  if (!manualApprovalChange) { await deliverPendingTrainerConfirmations(); await deliverPendingVenueConfirmations(); }
 
@@ -451,7 +466,7 @@ export async function deleteEvent(slug: string, id: string, _previous: EventStat
   const result = await getPrisma().$transaction(async (tx) => {
 
    const approval = await tx.eventVenueApproval.findUnique({ where: { eventId: id }, select: { batchId: true } });
-   const deleted = await tx.event.deleteMany({ where: { id, companyId: company.id, bookings: { none: {} }, platformEvents: { none: {} } } });
+   const deleted = await tx.event.deleteMany({ where: { id, companyId: company.id, bookings: { none: {} }, platformEvents: { none: {} }, eventbritePublication: { is: null } } });
 
    if (deleted.count && approval?.batchId) {
      const peer = await tx.eventVenueApproval.findFirst({ where: { batchId: approval.batchId }, select: { eventId: true } });

@@ -59,7 +59,7 @@ export async function removeEvent(id: string) {
 
   const result = await prisma.$transaction(async tx => {
     const approval = await tx.eventVenueApproval.findUnique({ where: { eventId: id }, select: { batchId: true } });
-    const result = await tx.event.deleteMany({ where: { id, bookings: { none: {} }, platformEvents: { none: {} } } });
+    const result = await tx.event.deleteMany({ where: { id, bookings: { none: {} }, platformEvents: { none: {} }, eventbritePublication: { is: null } } });
     if (result.count && approval?.batchId) {
       const peer = await tx.eventVenueApproval.findFirst({ where: { batchId: approval.batchId }, select: { eventId: true } });
       if (peer) await queueVenueConfirmations(tx, [peer.eventId]);

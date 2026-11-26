@@ -103,7 +103,7 @@ describe("deletion safeguards", () => {
   it("deletes only without bookings AND platform mappings and revalidates", async () => {
     const data = new FormData(); data.set("confirmed", "yes");
     expect(await deleteEvent("event-1", {}, data)).toEqual({});
-    expect(db.event.deleteMany).toHaveBeenCalledWith({ where: { id: "event-1", bookings: { none: {} }, platformEvents: { none: {} } } });
+    expect(db.event.deleteMany).toHaveBeenCalledWith({ where: { id: "event-1", bookings: { none: {} }, platformEvents: { none: {} }, eventbritePublication: { is: null } } });
     expect(revalidatePath).toHaveBeenCalledWith("/admin/events");
   });
 

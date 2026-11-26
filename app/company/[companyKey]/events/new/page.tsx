@@ -22,6 +22,6 @@ export default async function NewEventPage({ params, searchParams }: { params: P
   return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
     <PageBreadcrumb label="Neue Veranstaltung" />
     <h1 className="text-2xl font-semibold">Veranstaltung erstellen</h1>
-    <NewEvent slug={result.company.slug} defaultSeries={defaultSeries} series={result.series} venues={result.venues} trainers={result.trainers} />
+    <NewEvent eventbriteConnected={result.eventbriteConnected} slug={result.company.slug} defaultSeries={defaultSeries} series={result.series} venues={result.venues} trainers={result.trainers} />
   </main>;
 }

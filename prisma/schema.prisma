@@ -717,6 +717,9 @@ model EventSeries {
 
 
 model Event {
+  eventbriteCapacitySync EventbriteCapacitySync?
+  postToEventbrite Boolean @default(false)
+  eventbritePublication EventbritePublication?
   venueApproval EventVenueApproval?
 
   taxRateOverride Decimal? @db.Decimal(7, 4)
@@ -1030,6 +1033,10 @@ model TicketMail {
 
 
 model PlatformEvent {
+  lastBookingImportAt DateTime?
+  lastBookingImportError String?
+  bookingImportToken String?
+  bookingImportStartedAt DateTime?
 
   // ID & number
 
@@ -1075,6 +1082,45 @@ model PlatformEvent {
 
   @@index([eventId, syncStatus])
 
+}
+
+// Durable publication work. Ambiguous remote creates require manual reconciliation.
+enum EventbritePublicationStatus {
+  PENDING
+  PROCESSING
+  ERROR
+  UNCERTAIN
+  PUBLISHED
+}
+
+model EventbritePublication {
+  eventId String @id
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  organizationId String
+  status EventbritePublicationStatus @default(PENDING)
+  externalEventId String? @unique
+  ticketClassId String?
+  venueId String?
+  lastError String?
+  attemptedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([status, createdAt])
+}
+
+model EventbriteCapacitySync {
+  eventId String @id
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  revision Int @default(1)
+  syncedRevision Int @default(0)
+  retryAt DateTime? @default(now())
+  lastCapacity Int?
+  lastSyncedAt DateTime?
+  lastError String?
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([retryAt])
 }
 
 

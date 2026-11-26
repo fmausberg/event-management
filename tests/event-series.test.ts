@@ -7,6 +7,7 @@ import { seriesSchema } from "@/lib/event-series/validation";
 import { uploadEventImage, deleteEventImage } from "@/lib/events/images";
 vi.mock("@/lib/events/images", async (original) => ({ ...await original<typeof import("@/lib/events/images")>(), uploadEventImage: vi.fn(), deleteEventImage: vi.fn() }));
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
+ eventbriteConnection: { findUnique: vi.fn() },
  $transaction: vi.fn(), event: { findMany: vi.fn(), updateMany: vi.fn() }, eventTrainer: { deleteMany: vi.fn(), createMany: vi.fn() },
  trainer: { findMany: vi.fn(), findFirst: vi.fn() },
  user: { findUnique: vi.fn() }, company: { findUnique: vi.fn() }, companyMembership: { findUnique: vi.fn() },

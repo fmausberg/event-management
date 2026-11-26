@@ -15,5 +15,7 @@ export async function getCompanySeries(slug: string, adminOnly = false) {
     db.venue.findMany({ where: { companyId: company.id }, orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, _count: { select: { staff: { where: eligibleVenueApprovalMember } } } } }),
     db.trainer.findMany({ where: { companyId: company.id }, orderBy: [{ lastName: "asc" }, { firstName: "asc" }, { id: "asc" }], select: { id: true, firstName: true, lastName: true, email: true } }),
   ]);
-  return { company, canManage, venues: venues.map(({ _count, ...venue }) => ({ ...venue, hasApprovalTeam: _count.staff > 0 })), trainers, series: series.map((row) => ({ ...row, suggestedTicketPrice: row.suggestedTicketPrice?.toFixed(2) ?? null })) };
+  const connection = await db.eventbriteConnection.findUnique({ where: { companyId: company.id }, select: { status: true } });
+  const eventbriteConnected = connection?.status === "CONNECTED";
+  return { company, canManage, eventbriteConnected, venues: venues.map(({ _count, ...venue }) => ({ ...venue, hasApprovalTeam: _count.staff > 0 })), trainers, series: series.map((row) => ({ ...row, suggestedTicketPrice: row.suggestedTicketPrice?.toFixed(2) ?? null })) };
 }

@@ -5,9 +5,11 @@ import { companyRecipients, type CompanyMessage } from "./notifications";
 import { accountOrigin } from "@/lib/auth/verification";
 import { encryptPaymentMail } from "@/lib/payments/mail";
 import { escapeHtml } from "@/lib/mail/templates/footer";
+import { queueEventbritePublication } from "@/lib/eventbrite/publication";
 
 /** Called once per committed publication transition, inside its transaction. */
 export async function queueEventPublication(tx: Prisma.TransactionClient, eventId: string) {
+  await queueEventbritePublication(tx, eventId);
   const event = await tx.event.findUniqueOrThrow({ where: { id: eventId }, include: { company: { select: { slug: true } }, venue: true } });
   const recipients = await companyRecipients(tx, event.companyId, "notifyEventPublications");
   if (!recipients.length) return;

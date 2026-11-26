@@ -91,7 +91,7 @@ export const auditPolicies = {
 
       beginsAt: "Beginn", endsAt: "Ende", status: "Status", maxSeats: "Teilnehmerzahl",
 
-      ticketPrice: "Ticketpreis", currency: "Währung", freeCancellationUntilMinutesBeforeStart: "Kostenfreie Stornofrist in Minuten",
+      postToEventbrite: "Auf Eventbrite veröffentlichen", ticketPrice: "Ticketpreis", currency: "Währung", freeCancellationUntilMinutesBeforeStart: "Kostenfreie Stornofrist in Minuten",
 
       trainerIds: "Trainer-IDs",
 

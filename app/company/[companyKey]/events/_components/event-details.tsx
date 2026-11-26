@@ -10,6 +10,7 @@ import type { EventRow } from "@/lib/company-events/model";
 import type { SeriesRow, VenueOption } from "@/lib/event-series/validation";
 import type { TrainerOption } from "@/lib/trainers/validation";
 import { EventForm, StatusTag, TrainerReminderControls } from "./events-table";
+import { EventbritePublication } from "./eventbrite-publication";
 import { EventStaff } from "./event-staff";
 
 const panelClass = "relative rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950";
@@ -19,8 +20,8 @@ const date = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: 
 const headingDate = new Intl.DateTimeFormat("de-DE", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Berlin" });
 const weekday = new Intl.DateTimeFormat("de-DE", { weekday: "short", timeZone: "Europe/Berlin" });
 
-export function EventDetails({ slug, row, series, venues, trainers, canManage, children }: {
-  slug: string; row: EventRow; series: SeriesRow[]; venues: VenueOption[]; trainers: TrainerOption[]; canManage: boolean; children?: ReactNode;
+export function EventDetails({ slug, row, series, venues, trainers, canManage, children, eventbriteConnected = false }: {
+  eventbriteConnected?: boolean; slug: string; row: EventRow; series: SeriesRow[]; venues: VenueOption[]; trainers: TrainerOption[]; canManage: boolean; children?: ReactNode;
 }) {
   const router = useRouter();
   const [editing, setEditing] = useState(false);
@@ -55,7 +56,7 @@ export function EventDetails({ slug, row, series, venues, trainers, canManage, c
           <button type="button" form={formId} data-discard-changes disabled={busy} aria-label="Änderungen verwerfen" title="Änderungen verwerfen" onClick={event => { event.preventDefault(); event.stopPropagation(); closeEditor(); }} className="rounded-lg p-3 text-zinc-500 hover:bg-zinc-100 focus-visible:outline-2 focus-visible:outline-primary-600 disabled:opacity-40 dark:hover:bg-zinc-800"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round"><path d="m6 6 12 12M18 6 6 18" /></svg></button>
         </span> : <button ref={editButton} type="button" aria-label="Details bearbeiten" title="Details bearbeiten" onClick={event => { event.preventDefault(); event.stopPropagation(); if (details.current) details.current.open = true; setMessage(""); setEditing(true); }} className="absolute right-3 top-2 rounded-lg p-3 text-primary-700 hover:bg-primary-50 focus-visible:outline-2 focus-visible:outline-primary-600 dark:text-primary-300 dark:hover:bg-primary-950"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round"><path d="m16 3 5 5L8 21H3v-5ZM13 6l5 5" /></svg></button>)}
       </summary>
-      <div className={contentClass}>{editing ? <EventForm inline formId={formId} onBusyChange={setBusy} slug={slug} row={row} series={series} venues={venues} trainers={trainers} onCancel={closeEditor} onSaved={text => { closeEditor(); setMessage(text); router.refresh(); }} /> : <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+      <div className={contentClass}>{editing ? <EventForm eventbriteConnected={eventbriteConnected} inline formId={formId} onBusyChange={setBusy} slug={slug} row={row} series={series} venues={venues} trainers={trainers} onCancel={closeEditor} onSaved={text => { closeEditor(); setMessage(text); router.refresh(); }} /> : <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <dl className="grid min-w-0 gap-4 sm:grid-cols-2">
           <div className="sm:col-span-2"><dt className="text-sm text-zinc-500">Veranstaltungsreihe</dt><dd className="mt-1 min-h-11 border border-transparent px-3 py-2 text-sm">{eventSeries ? <Link className="text-primary-700 underline dark:text-primary-300" href={`/company/${encodeURIComponent(slug)}/event-series/${encodeURIComponent(eventSeries.id)}`}>{eventSeries.name}</Link> : "Keine Veranstaltungsreihe"}</dd></div>
           {attributes.map(([label, value]) => <div key={label} className={`min-w-0 ${label === "Trainer" ? "min-h-32" : label === "Kostenfreie Stornofrist (optional)" ? "min-h-40" : ""}`}><dt className="text-sm text-zinc-500">{label}</dt><dd className="mt-1 min-h-11 whitespace-pre-wrap break-words border border-transparent px-3 py-2 text-sm">{value}</dd></div>)}
@@ -71,6 +72,7 @@ export function EventDetails({ slug, row, series, venues, trainers, canManage, c
         ) : <p className="text-sm text-zinc-500">Kein Titelbild</p>}</div>
       </div>}</div>
     </details>
+    {canManage && <EventbritePublication slug={slug} row={row} />}
     {children}
     {canManage && <>
       <details className={panelClass}><summary className={summaryClass}>Veranstaltungsteam</summary><div className={`${contentClass} overflow-x-auto`}><EventStaff embedded slug={slug} eventId={row.id} /></div></details>

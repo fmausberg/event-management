@@ -8,6 +8,7 @@ import type { SeriesRow } from "@/lib/event-series/validation";
 import { uploadEventImage, deleteEventImage } from "@/lib/events/images";
 vi.mock("@/lib/events/images", async (original) => ({ ...await original<typeof import("@/lib/events/images")>(), uploadEventImage: vi.fn(), deleteEventImage: vi.fn() }));
 const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
+ eventbriteConnection: { findUnique: vi.fn() },
  trainer: { findMany: vi.fn(), findFirst: vi.fn() },
  booking: { groupBy: vi.fn() },
  user: { findUnique: vi.fn() }, company: { findUnique: vi.fn() }, companyMembership: { findUnique: vi.fn() },
@@ -16,6 +17,7 @@ const { auth, db } = vi.hoisted(() => ({ auth: vi.fn(), db: {
  eventSeries: { findMany: vi.fn(), findFirst: vi.fn() }, venue: { findMany: vi.fn(), findFirst: vi.fn() },
 } }));
 vi.mock("server-only", () => ({}));
+vi.mock("@/lib/eventbrite/publication", () => ({ deliverEventbritePublications: vi.fn(), queueEventbritePublication: vi.fn() }));
 vi.mock("@/auth", () => ({ auth }));
 vi.mock("@/lib/db/prisma", () => ({ getPrisma: () => db }));
 vi.mock("next/cache", () => ({ revalidatePath: vi.fn() }));
@@ -33,6 +35,18 @@ it("returns not found for a series outside the company", async () => {
  await expect(SeriesPage({ params: Promise.resolve({ companyKey: "yoga", seriesId: "foreign-series" }) })).rejects.toThrow("NOT_FOUND");
 });
 const values = { ...emptyEvent, name: "Yoga", beginsAt: "2026-10-14T10:00:00+02:00", endsAt: "2026-10-14T11:00:00+02:00", maxSeats: "20", ticketPrice: "12,50" };
+it("saves the Eventbrite opt-in on drafts using the connected company", async () => {
+ db.eventbriteConnection.findUnique.mockResolvedValue({ status: "CONNECTED" });
+ const result = await saveEvent("yoga", null, {}, form({ postToEventbrite: "yes", intent: "draft" }));
+ expect(result.success).toBe(true);
+ expect(db.event.create).toHaveBeenCalledWith(expect.objectContaining({ data: expect.objectContaining({ postToEventbrite: true, companyId: "company-id", status: "DRAFT" }) }));
+});
+it("rejects a forged Eventbrite opt-in without a connected organization", async () => {
+ db.eventbriteConnection.findUnique.mockResolvedValue(null);
+ const result = await saveEvent("yoga", null, {}, form({ postToEventbrite: "yes", intent: "draft" }));
+ expect(result.success).not.toBe(true);
+ expect(db.event.create).not.toHaveBeenCalled();
+});
 function form(overrides: Record<string, string> = {}) { const data = new FormData(); Object.entries({ ...values, ...overrides }).forEach(([key, value]) => Array.isArray(value) ? value.forEach((id) => data.append(key, id)) : data.set(key, value)); return data; }
 beforeEach(() => {
  vi.resetAllMocks(); db.$transaction.mockImplementation((fn) => fn(db)); db.trainer.findMany.mockResolvedValue([]); auth.mockResolvedValue({ user: { id: "actor" } }); db.user.findUnique.mockResolvedValue({ role: "ADMIN" });
@@ -161,7 +175,7 @@ it("scopes updates and protected deletes to the company", async () => {
  await saveEvent("yoga", "event-1", {}, form());
  expect(db.event.updateMany).toHaveBeenCalledWith({ where: { id: "event-1", companyId: "company-id", status: "DRAFT" }, data: expect.any(Object) });
  await deleteEvent("yoga", "event-1", {}, form({ confirmed: "yes" }));
- expect(db.event.deleteMany).toHaveBeenCalledWith({ where: { id: "event-1", companyId: "company-id", bookings: { none: {} }, platformEvents: { none: {} } } });
+ expect(db.event.deleteMany).toHaveBeenCalledWith({ where: { id: "event-1", companyId: "company-id", bookings: { none: {} }, platformEvents: { none: {} }, eventbritePublication: { is: null } } });
 });
 it.each(["COMPANY_USER", "COMPANY_ADMIN"])("allows active %s", async (role) => {
  db.user.findUnique.mockResolvedValue({ role: "USER" }); db.companyMembership.findUnique.mockResolvedValue({ role, status: "ACTIVE" });

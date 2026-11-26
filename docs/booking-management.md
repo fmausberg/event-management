@@ -15,6 +15,12 @@ vorhandener Benutzerbezug und externe Referenzen bleiben beim Bearbeiten erhalte
 Fehlende Kundenangaben werden beim Lesen aus dem zugeordneten Account ergänzt.
 Datum und Quelle sind in der Tabelle sichtbar und nicht editierbar.
 
+Bei Events mit Eventbrite-Zuordnung steht im Buchungsbereich zusätzlich
+**„Eventbrite-Buchungen synchronisieren“** bereit. Der manuelle Abgleich übernimmt
+neue Buchungen sowie Änderungen und Stornierungen, ohne Duplikate, lokale Tickets
+oder Mails zu erzeugen. Letzter erfolgreicher Import und Fehler werden angezeigt.
+Details und erforderliche Migration: [Eventbrite-Buchungsimport](eventbrite.md#buchungen-per-knopfdruck-importieren).
+
 Erhöhungen bestätigter Plätze werden in einer serialisierbaren Transaktion gegen
 die Eventkapazität geprüft. Stornierungen und Reduktionen bleiben auch bei einer
 bereits überbelegten Veranstaltung möglich. Diese Prüfung schützt die neuen
