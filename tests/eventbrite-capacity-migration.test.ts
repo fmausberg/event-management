@@ -43,6 +43,6 @@ it("queues transactional capacity work for all local booking lifecycle paths and
     expect(await revision()).toBeGreaterThan(before);
     await db.exec(`UPDATE "EventbritePublication" SET status = 'PUBLISHED' WHERE "eventId" = 'other';`);
     expect((await db.query('SELECT * FROM "EventbriteCapacitySync" WHERE "eventId" = \'other\'')).rows).toHaveLength(1);
-    expect((await db.query('SELECT "retryAt" FROM "EventbriteCapacitySync" WHERE "eventId" = \'event\'')).rows[0].retryAt).not.toBeNull();
+    expect((await db.query<{ retryAt: Date | null }>('SELECT "retryAt" FROM "EventbriteCapacitySync" WHERE "eventId" = \'event\'')).rows[0].retryAt).not.toBeNull();
   } finally { await db.close(); }
 }, 30000);
