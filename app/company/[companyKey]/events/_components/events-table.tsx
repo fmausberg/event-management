@@ -397,9 +397,7 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
   { key: "name", label: "Name", required: true, maxLength: 160 }, { key: "shortdescription", label: "Kurzbeschreibung" },
 
   { key: "beginsAt", label: "Beginn", type: "datetime-local", required: true }, { key: "endsAt", label: "Ende", type: "datetime-local", required: true },
-
-  { key: "maxSeats", label: "Teilnehmerzahl", type: "number", required: true, min: 1, step: "1" },
-
+  { key: "maxSeats", label: "Teilnehmerzahl", type: "number", required: true, min: 0, step: "1" },
   { key: "ticketPrice", label: "Ticketpreis", type: "number", required: true, min: 0, step: "0.01" },
 
  ];

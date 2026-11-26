@@ -52,8 +52,8 @@ export function validateEvent(
   }
 
   const maxSeats = Number(values.maxSeats);
-  if (!/^\d+$/.test(values.maxSeats.trim()) || !Number.isInteger(maxSeats) || maxSeats <= 0 || maxSeats > 2_147_483_647) {
-    errors.maxSeats = "Bitte eine ganze Zahl zwischen 1 und 2147483647 eingeben.";
+  if (!/^\d+$/.test(values.maxSeats.trim()) || !Number.isInteger(maxSeats) || maxSeats < 0 || maxSeats > 2_147_483_647) {
+    errors.maxSeats = "Bitte eine ganze Zahl zwischen 0 und 2147483647 eingeben.";
   }
   if (Object.keys(errors).length || !beginsAt || !endsAt) return { success: false, errors };
   return { success: true, data: { name, beginsAt, endsAt, maxSeats, ...(values.freeCancellationUntilMinutesBeforeStart !== undefined && cancellation.success ? { freeCancellationUntilMinutesBeforeStart: cancellation.data } : {}) } };

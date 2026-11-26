@@ -17,9 +17,7 @@ export const eventSchema = z.object({
  eventSeriesId: z.string().max(191).transform((v) => v || null), venueId: z.string().max(191).transform((v) => v || null),
 
  beginsAt: z.union([z.literal(""), z.iso.datetime({ offset: true })]), endsAt: z.union([z.literal(""), z.iso.datetime({ offset: true })]),
-
- maxSeats: z.union([z.literal("").transform(() => null), z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(1).max(2147483647))]),
-
+ maxSeats: z.union([z.literal("").transform(() => null), z.string().regex(/^\d+$/).transform(Number).pipe(z.number().int().min(0).max(2147483647))]),
  ticketPrice: z.union([z.literal("").transform(() => null), z.string().trim().transform((v) => v.replace(",", ".")).pipe(z.string().regex(/^\d{1,8}(\.\d{1,2})?$/, "Bitte gib einen Preis ab 0 mit maximal zwei Nachkommastellen ein."))]),
 
  currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/),
