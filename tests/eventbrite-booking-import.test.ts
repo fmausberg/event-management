@@ -98,6 +98,28 @@ it("does not infer cancellation from an order missing in a later snapshot", asyn
   expect(stored[0].status).toBe("CONFIRMED");
 });
 
+it("successfully imports an event with no orders or attendees", async () => {
+  remoteOrders = []; remoteAttendees = [];
+  expect(await importEventbriteBookings("studio", "event-1")).toMatchObject({ created: 0, updated: 0, unchanged: 0, skipped: 0 });
+  expect(mapping.lastBookingImportAt).toBeInstanceOf(Date);
+  expect(mapping.lastBookingImportError).toBeNull();
+  expect(stored).toHaveLength(0);
+});
+
+it.each([
+  ["/v3/events/200/", 404, "Event"],
+  ["/v3/events/200/orders/", 400, "Bestellungen"],
+  ["/v3/events/200/attendees/", 503, "Teilnehmer"],
+] as const)("identifies the failing %s request with HTTP %s without exposing provider data", async (path, status, label) => {
+  const original = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (url: string) => new URL(url).pathname === path
+    ? Response.json({ error_description: "private-token buyer@example.com" }, { status }) : original(url));
+  await expect(importEventbriteBookings("studio", "event-1")).rejects.toThrow(`Anfrage: ${label}, HTTP ${status}`);
+  expect(mapping.lastBookingImportError).not.toContain("private-token");
+  expect(mapping.lastBookingImportError).not.toContain("buyer@example.com");
+  expect(stored).toHaveLength(0);
+});
+
 it("preserves all previous bookings and success timestamp if any page fails", async () => {
   await importEventbriteBookings("studio", "event-1");
   const before = structuredClone(stored); const lastImport = mapping.lastBookingImportAt;

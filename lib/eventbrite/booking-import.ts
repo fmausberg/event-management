@@ -93,9 +93,13 @@ async function request(token: string, path: string, deadline: number): Promise<u
     });
   } catch { throw new EventbriteBookingImportError("Eventbrite ist gerade nicht erreichbar. Der letzte erfolgreiche Import bleibt erhalten."); }
   if (!response.ok) {
-    if (response.status === 401 || response.status === 403) throw new EventbriteBookingImportError("Der Zugriff auf die Eventbrite-Buchungen fehlt. Bitte die Verbindung und Leserechte prüfen.");
-    if (response.status === 429) throw new EventbriteBookingImportError("Eventbrite begrenzt gerade die Anfragen. Bitte später erneut versuchen.");
-    throw new EventbriteBookingImportError("Eventbrite konnte die Buchungen nicht liefern. Bitte später erneut versuchen.");
+    // Fixed labels only: never expose request URLs, tokens or provider response bodies.
+    const resource = path.split("?")[0].endsWith("/orders/") ? "Bestellungen"
+      : path.split("?")[0].endsWith("/attendees/") ? "Teilnehmer" : "Event";
+    const details = `Anfrage: ${resource}, HTTP ${response.status}`;
+    if (response.status === 401 || response.status === 403) throw new EventbriteBookingImportError(`Der Zugriff auf die Eventbrite-Buchungen fehlt (${details}). Bitte die Verbindung und Leserechte prüfen.`);
+    if (response.status === 429) throw new EventbriteBookingImportError(`Eventbrite begrenzt gerade die Anfragen (${details}). Bitte später erneut versuchen.`);
+    throw new EventbriteBookingImportError(`Eventbrite konnte die Buchungen nicht liefern (${details}). Bitte bei HTTP 400 oder 404 einen Plattformadministrator kontaktieren; bei Serverfehlern später erneut versuchen.`);
   }
   try { return await response.json(); } catch { throw incomplete(); }
 }
