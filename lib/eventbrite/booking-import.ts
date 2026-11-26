@@ -114,7 +114,8 @@ async function request(token: string, path: string, deadline: number): Promise<u
   } catch { throw new EventbriteBookingImportError("Eventbrite ist gerade nicht erreichbar. Der letzte erfolgreiche Import bleibt erhalten."); }
   if (!response.ok) {
     // Fixed labels only: never expose request URLs, tokens or provider response bodies.
-    const resource = path.split("?")[0].endsWith("/orders/") ? "Bestellungen"
+    const resource = /^orders\/\d+\/$/.test(path.split("?")[0]) ? "Bestellung"
+      : path.split("?")[0].endsWith("/orders/") ? "Bestellungen"
       : path.split("?")[0].endsWith("/attendees/") ? "Teilnehmer" : "Event";
     let providerDetails = "";
     try { providerDetails = providerErrorDetails(await response.json()); } catch { /* Keep HTTP diagnostics for non-JSON errors. */ }
@@ -131,9 +132,11 @@ async function readPages<T>(token: string, path: string, key: "orders" | "attend
   const seen = new Set<string>();
   let continuation: string | undefined;
   for (let page = 0; page < 100; page++) {
-    const query = new URLSearchParams(key === "orders" ? { status: "both" } : {});
+    // Some Eventbrite deployments reject the documented status=both filter.
+    // Read the default listing and explicitly reconcile omitted known orders below.
+    const query = new URLSearchParams();
     if (continuation) query.set("continuation", continuation);
-    const raw = await request(token, `${path}?${query}`, deadline);
+    const raw = await request(token, query.size ? `${path}?${query}` : path, deadline);
     const data = z.object({ pagination }).loose().parse(raw);
     records.push(...z.array(schema).parse(data[key]));
     if (records.length > 5000) throw new EventbriteBookingImportError("Dieser Import überschreitet die Grenze von 5.000 Datensätzen. Bitte einen Plattformadministrator kontaktieren; es wurde nichts importiert.");
@@ -143,6 +146,35 @@ async function readPages<T>(token: string, path: string, key: "orders" | "attend
     seen.add(next); continuation = next;
   }
   throw new EventbriteBookingImportError("Eventbrite liefert zu viele Ergebnisseiten. Es wurde nichts importiert.");
+}
+
+/** The default listing may omit inactive orders. Fetch known occupied orders
+ * missing from it individually, so cancellation never depends on that default.
+ * Also resolve attendee references absent from the listing, and placed orders
+ * without attendee rows. An unavailable detail is an error, never a cancellation.
+ */
+async function completeOrderSnapshot(token: string, externalEventId: string, orders: Order[], attendees: Attendee[], knownConfirmedIds: string[], deadline: number) {
+  const listedIds = new Set(orders.map(order => order.id));
+  if (listedIds.size !== orders.length || new Set(attendees.map(attendee => attendee.id)).size !== attendees.length ||
+    orders.some(order => order.event_id !== externalEventId) || attendees.some(attendee => attendee.event_id !== externalEventId)) throw incomplete();
+  const missing = new Set(knownConfirmedIds.filter(orderId => !listedIds.has(orderId)));
+  const attendeeOrderIds = new Set(attendees.map(attendee => attendee.order_id).filter((orderId): orderId is string => !!orderId));
+  for (const orderId of attendeeOrderIds) if (!listedIds.has(orderId)) missing.add(orderId);
+  for (const order of orders) if (order.status === "placed" && !attendeeOrderIds.has(order.id)) missing.add(order.id);
+  let completeOrders = [...orders];
+  let completeAttendees = [...attendees];
+  const expandedOrderSchema = orderSchema.extend({ attendees: z.array(attendeeSchema) });
+  for (const orderId of missing) {
+    if (!id.safeParse(orderId).success) throw incomplete();
+    const order = expandedOrderSchema.parse(await request(token, `orders/${encodeURIComponent(orderId)}/?expand=attendees`, deadline));
+    if (order.id !== orderId || order.event_id !== externalEventId || order.attendees.some(attendee => attendee.event_id !== externalEventId || attendee.order_id !== orderId)) throw incomplete();
+    completeOrders = completeOrders.filter(existing => existing.id !== orderId);
+    completeOrders.push(order);
+    completeAttendees = completeAttendees.filter(attendee => attendee.order_id !== orderId);
+    completeAttendees.push(...order.attendees);
+    if (completeOrders.length > 5000 || completeAttendees.length > 5000) throw new EventbriteBookingImportError("Dieser Import überschreitet die Grenze von 5.000 Datensätzen. Bitte einen Plattformadministrator kontaktieren; es wurde nichts importiert.");
+  }
+  return { orders: completeOrders, attendees: completeAttendees };
 }
 
 export function bookingImportErrorMessage(error: unknown): string {
@@ -178,7 +210,14 @@ export async function importEventbriteBookings(slug: string, eventId: string) {
       readPages<Order>(token, `${path}orders/`, "orders", orderSchema, deadline),
       readPages<Attendee>(token, `${path}attendees/`, "attendees", attendeeSchema, deadline),
     ]);
-    const snapshot = normalizeEventbriteBookings(mapping.externalEventId, orders, attendees);
+    const known = await db.booking.findMany({ where: { eventId, platform: "EVENTBRITE", status: "CONFIRMED" }, select: { externalBookingId: true, status: true } });
+    const knownConfirmedIds = known.filter(row => row.status === "CONFIRMED").map(row => {
+      if (!row.externalBookingId || !id.safeParse(row.externalBookingId).success) throw incomplete();
+      return row.externalBookingId;
+    });
+    const complete = await completeOrderSnapshot(token, mapping.externalEventId, orders, attendees, knownConfirmedIds, deadline);
+    const snapshot = normalizeEventbriteBookings(mapping.externalEventId, complete.orders, complete.attendees);
+    const resolvedIds = new Set(complete.orders.map(order => order.id));
     // Recheck permissions after network requests, before any booking is written.
     await requireBookingEvent(slug, eventId);
     return await db.$transaction(async tx => {
@@ -193,6 +232,7 @@ export async function importEventbriteBookings(slug: string, eventId: string) {
         externalBookingId: true, quantity: true, status: true, customerName: true, customerEmail: true, bookedAt: true,
       } });
       const existing = new Map(previous.map(row => [row.externalBookingId, row]));
+      if (previous.some(row => row.status === "CONFIRMED" && !resolvedIds.has(row.externalBookingId ?? ""))) throw new EventbriteBookingImportError("Der lokale Buchungsbestand wurde während des Imports geändert. Bitte erneut synchronisieren; es wurde nichts importiert.");
       if (snapshot.pendingOrderIds.some(orderId => existing.has(orderId))) throw new EventbriteBookingImportError("Eine bereits importierte Bestellung hat jetzt einen offenen Zahlungsstatus. Bitte den Stand in Eventbrite prüfen; es wurde nichts importiert.");
       const inputs = [...snapshot.bookings];
       let skipped = snapshot.skipped;

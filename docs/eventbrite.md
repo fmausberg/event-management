@@ -140,8 +140,24 @@ Genau eine Eventbrite-Zuordnung und eine gültige Verbindung zur tatsächlichen
 Organisation des entfernten Events sind erforderlich. Die Zuordnung darf für den
 allgemeinen Kapazitäts-Sync weiterhin `DISABLED` sein; dies sperrt den manuellen Import nicht.
 
-Jeder Klick liest alle Seiten der Bestellungen (`status=both`, einschließlich
-inaktiver Bestellungen) und der Teilnehmer dieses Events. Die Eventbrite-API
+Jeder Klick liest alle Seiten der Bestellungen ohne `status`-Filter und die
+Teilnehmer dieses Events. Der zuvor verwendete Filter `status=both` wird von der
+eingesetzten Eventbrite-API mit `ARGUMENTS_ERROR` abgewiesen, obwohl er in der
+öffentlichen Dokumentation aufgeführt ist.
+
+Da die Standardliste inaktive Bestellungen auslassen kann, werden bereits lokal
+bestätigte Bestellungen, die darin fehlen, einzeln über
+`GET /orders/{order_id}/?expand=attendees` abgeglichen. Das gilt auch für
+Teilnehmer mit fehlender Bestellung in der Liste und für platzierte Bestellungen
+ohne Teilnehmerdaten. Damit bleiben bekannte Stornierungen und Teilstornierungen
+berücksichtigt. Nicht abrufbare Bestellungen werden nicht als storniert interpretiert;
+der gesamte Import bricht dann ab. Einzelabrufe unterliegen demselben Zeitlimit
+und werden auf das Limit von 5.000 Datensätzen angerechnet. Bereits stornierte,
+nicht mehr gelistete lokale Bestellungen bleiben erhalten. Eine vollständige
+Historie unbekannter, auch in der Teilnehmerliste fehlender inaktiver Bestellungen
+wird durch die Standardliste nicht garantiert.
+
+Die Eventbrite-API
 liefert einen Teilnehmerdatensatz pro Ticket. Eine lokale Buchung entspricht
 einer Eventbrite-Bestellung, identifiziert durch `(EVENTBRITE, order.id)`.
 Übernommen werden Käufername, E-Mail, ursprüngliches Bestelldatum und die Zahl
