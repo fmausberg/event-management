@@ -11,8 +11,8 @@ export async function getVoucherAdministration(slug: string, campaignId?: string
     const companyFilter = { companyId: scope.company.id };
     const [companies, series, events, venues, campaigns] = await Promise.all([
       tx.company.findMany({ where: { id: scope.company.id }, select: { id: true, name: true }, orderBy: { name: "asc" } }),
-      tx.eventSeries.findMany({ where: companyFilter, select: { id: true, number: true, name: true }, orderBy: [{ number: "asc" }, { id: "asc" }] }),
-      tx.event.findMany({ where: companyFilter, select: { id: true, number: true, name: true, beginsAt: true }, orderBy: [{ beginsAt: "desc" }, { id: "asc" }] }),
+      tx.eventSeries.findMany({ where: companyFilter, select: { id: true, number: true, name: true }, orderBy: [{ name: "asc" }, { id: "asc" }] }),
+      tx.event.findMany({ where: companyFilter, select: { id: true, number: true, name: true, beginsAt: true }, orderBy: [{ beginsAt: { sort: "asc", nulls: "last" } }, { name: "asc" }, { id: "asc" }] }),
       tx.venue.findMany({ where: companyFilter, select: { id: true, name: true }, orderBy: { name: "asc" } }),
       tx.voucherCampaign.findMany({ where: { ownerCompanyId: scope.company.id, ...(campaignId ? { id: campaignId } : {}) },
         include: { ...targetInclude, _count: { select: { codes: true, redemptions: true, balanceUses: true } } }, orderBy: { createdAt: "desc" } }),
