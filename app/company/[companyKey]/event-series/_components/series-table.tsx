@@ -22,7 +22,7 @@ const fields: { name: keyof SeriesValues; label: string; type?: string; maxLengt
   { name: "name", label: "Name", maxLength: 160 },
   { name: "shortdescription", label: "Kurzbeschreibung", maxLength: 500 },
   { name: "suggestedDuration", label: "Dauer in Minuten (Vorgabe)", type: "number", min: 1, max: 2147483647, step: "1" },
-  { name: "suggestedMaxSeats", label: "Teilnehmerzahl (Vorgabe)", type: "number", min: 1, max: 2147483647, step: "1" },
+  { name: "suggestedMaxSeats", label: "Teilnehmerzahl (Vorgabe)", type: "number", min: 0, max: 2147483647, step: "1" },
   { name: "suggestedTicketPrice", label: "Ticketpreis (Vorgabe)", type: "number", min: 0, max: 99999999.99, step: "0.01" },
 ];
 export function SeriesForm({ slug, row, venues, trainers, onSaved, onCancel, inline = false, readOnly = false }: { inline?: boolean; readOnly?: boolean; slug: string; row?: SeriesRow; trainers: TrainerOption[]; venues: VenueOption[]; onSaved: (message: string, id?: string) => void; onCancel: () => void }) {
