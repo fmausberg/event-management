@@ -20,7 +20,7 @@ beforeEach(() => {
   maximum = 10; reserved = 2; sold = 3; held = 0; remoteCapacity = 10; ticketCapacity = 10;
   db.$transaction.mockImplementation(async work => work(db));
   db.$queryRaw.mockResolvedValue([{ locked: true }]);
-  db.eventbriteCapacitySync.findMany.mockImplementation(async () => job.retryAt && job.retryAt <= new Date() ? [{ eventId: job.eventId, revision: job.revision }] : []);
+  db.eventbriteCapacitySync.findMany.mockImplementation(async ({ where }) => job.retryAt && (!where.eventId || where.eventId === job.eventId) && (where.retryAt.not === null || job.retryAt <= new Date()) ? [{ eventId: job.eventId, revision: job.revision }] : []);
   db.eventbriteCapacitySync.findUnique.mockImplementation(async () => ({ ...job }));
   db.eventbriteCapacitySync.findUniqueOrThrow.mockImplementation(async () => ({ ...job }));
   db.eventbriteCapacitySync.update.mockImplementation(async ({ data }) => { Object.assign(job, data); return { ...job }; });
@@ -49,6 +49,23 @@ beforeEach(() => {
   });
 });
 afterEach(() => vi.unstubAllGlobals());
+
+it("immediately processes a changed event even when its retry time is in the future", async () => {
+  job.retryAt = new Date(Date.now() + 60_000);
+  expect(await deliverPendingEventbriteCapacity()).toEqual({ checked: 0, failures: 0 });
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(await deliverPendingEventbriteCapacity({ eventId: "local", ignoreRetryDelay: true })).toEqual({ checked: 1, failures: 0 });
+  expect(remoteCapacity).toBe(8);
+  expect(job.retryAt).toBeNull();
+});
+
+it("does not reprocess clean jobs or bypass backoff for a global sweep", async () => {
+  job.retryAt = new Date(Date.now() + 60_000);
+  expect(await deliverPendingEventbriteCapacity({ ignoreRetryDelay: true })).toEqual({ checked: 0, failures: 0 });
+  job.retryAt = null;
+  expect(await deliverPendingEventbriteCapacity({ eventId: "local", ignoreRetryDelay: true })).toEqual({ checked: 0, failures: 0 });
+  expect(fetchMock).not.toHaveBeenCalled();
+});
 
 it("keeps 8 total and 5 free after 2 local tickets and 3 Eventbrite tickets", async () => {
   expect(await deliverPendingEventbriteCapacity()).toEqual({ checked: 1, failures: 0 });

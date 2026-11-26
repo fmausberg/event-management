@@ -9,7 +9,7 @@ import { relatedAuditSnapshots } from "./related-snapshots";
 import { assertReviewedRaw } from "./raw";
 
 type Tx = Prisma.TransactionClient;
-type Scope = { capacityChanged: boolean; publicationBefore: Map<string, unknown>; tx: Tx; tail: Promise<unknown>; failure?: unknown; failed: boolean; auditContext: AuditContext };
+type Scope = { capacityEventIds: Set<string>; publicationBefore: Map<string, unknown>; tx: Tx; tail: Promise<unknown>; failure?: unknown; failed: boolean; auditContext: AuditContext };
 const globalForTransactions = globalThis as unknown as { eventSeriesAuditTransactions?: AsyncLocalStorage<Scope> };
 const transactions = globalForTransactions.eventSeriesAuditTransactions ??= new AsyncLocalStorage<Scope>();
 const writes = new Set(["create", "createMany", "createManyAndReturn", "update", "updateMany", "updateManyAndReturn", "delete", "deleteMany", "upsert"]);
@@ -210,19 +210,47 @@ export function createAuditedClient(base: PrismaClient): PrismaClient {
   function affectsCapacity(model: string, operation: string, args: unknown[]) {
     const input = object(args[0]);
     const data = [input.data, input.create, input.update].flatMap(value => Array.isArray(value) ? value : [value]).map(object);
-    if (model === "Booking") return operation.startsWith("create") || operation.startsWith("delete") || operation === "upsert" || data.some(row => ["quantity", "status", "eventId", "platform"].some(field => field in row));
+    if (model === "Booking") return operation.startsWith("create") || operation.startsWith("delete") || operation === "upsert" || data.some(row => ["quantity", "status", "eventId", "event", "platform"].some(field => field in row));
     if (model === "Event") return data.some(row => "maxSeats" in row);
     return model === "EventbritePublication" && data.some(row => row.status === "PUBLISHED");
   }
-  async function capacityAfterCommit() {
+  async function affectedCapacityEvents(tx: Tx, model: string, operation: string, args: unknown[]) {
+    const ids = new Set<string>();
+    if (!affectsCapacity(model, operation, args)) return ids;
+    const input = object(args[0]);
+    const field = model === "Event" ? "id" : "eventId";
+    const add = (row: unknown) => {
+      const data = object(row);
+      const value = data[field];
+      const id = typeof value === "string" ? value : object(value).set;
+      if (typeof id === "string") ids.add(id);
+      const connected = object(object(data.event).connect).id;
+      if (typeof connected === "string") ids.add(connected);
+    };
+    for (const value of [input.data, input.create, input.update]) {
+      for (const row of Array.isArray(value) ? value : [value]) add(row);
+    }
+    if (!operation.startsWith("create")) {
+      // Resolve existing rows before delete/reparenting, including bulk writes.
+      const many = operation.endsWith("Many") || operation.endsWith("ManyAndReturn");
+      const rows = await invoke(tx, model, many ? "findMany" : "findUnique", [{ where: input.where, select: { [field]: true } }]);
+      for (const row of Array.isArray(rows) ? rows : [rows]) add(row);
+    }
+    return ids;
+  }
+  async function capacityAfterCommit(eventIds: Set<string>) {
     // The DB outbox is authoritative. A provider failure never undoes a local sale.
-    try { await deliverPendingEventbriteCapacity({ take: 1 }); } catch { /* Scheduler retries durable work. */ }
+    await transactions.exit(async () => {
+      for (const eventId of eventIds) {
+        try { await deliverPendingEventbriteCapacity({ eventId, take: 1, ignoreRetryDelay: true }); } catch { /* Scheduler retries durable work. */ }
+      }
+    });
   }
   async function transaction(work: (tx: Tx) => Promise<unknown>, options?: object, auditContext = currentAuditContext()) {
     if (transactions.getStore()) throw new Error("Audit: verschachtelte $transaction-Aufrufe sind nicht unterstützt; verwende den vorhandenen tx-Client.");
-    let capacityChanged = false;
+    let capacityEventIds = new Set<string>();
     const result = await base.$transaction(async (tx) => {
-      const scope: Scope = { capacityChanged: false, publicationBefore: new Map(), tx, tail: Promise.resolve(), failed: false, auditContext };
+      const scope: Scope = { capacityEventIds: new Set(), publicationBefore: new Map(), tx, tail: Promise.resolve(), failed: false, auditContext };
       return transactions.run(scope, async () => {
         const result = await work(wrap(tx, scope));
         await scope.tail;
@@ -235,11 +263,11 @@ export function createAuditedClient(base: PrismaClient): PrismaClient {
           }
         }
         if (scope.failed) throw scope.failure;
-        capacityChanged = scope.capacityChanged;
+        capacityEventIds = scope.capacityEventIds;
         return result;
       });
     }, options);
-    if (capacityChanged) await capacityAfterCommit();
+    if (capacityEventIds.size) await capacityAfterCommit(capacityEventIds);
     return result;
   }
 
@@ -247,7 +275,7 @@ export function createAuditedClient(base: PrismaClient): PrismaClient {
     const execute = async (tx: Tx) => {
       inspectWrite(model, operation, object(args[0]));
       const activeScope = scope ?? transactions.getStore();
-      if (activeScope && affectsCapacity(model, operation, args)) activeScope.capacityChanged = true;
+      if (activeScope) for (const id of await affectedCapacityEvents(tx, model, operation, args)) activeScope.capacityEventIds.add(id);
       if (needsAudit(model, operation, object(args[0]))) {
         return auditedWrite(tx, model, operation, args, context);
       }
@@ -257,8 +285,9 @@ export function createAuditedClient(base: PrismaClient): PrismaClient {
       // Existing unrelated writes retain their original transaction behavior.
       if (!needsAudit(model, operation, object(args[0]))) {
         inspectWrite(model, operation, object(args[0]));
+        const eventIds = await affectedCapacityEvents(base, model, operation, args);
         const result = await invoke(base, model, operation, args);
-        if (affectsCapacity(model, operation, args)) await capacityAfterCommit();
+        if (eventIds.size) await capacityAfterCommit(eventIds);
         return result;
       }
       return transaction(async () => execute(transactions.getStore()!.tx), undefined, context);

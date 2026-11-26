@@ -25,10 +25,12 @@ async function api(token: string, path: string, deadline: number, body?: unknown
 /** Durable queue is populated by DB triggers. HTTP writes happen only after the
  * originating booking commit, serialized across instances with an advisory lock.
  */
-export async function deliverPendingEventbriteCapacity(options: { eventId?: string; companyId?: string; take?: number } = {}) {
+export async function deliverPendingEventbriteCapacity(options: { eventId?: string; companyId?: string; take?: number; ignoreRetryDelay?: boolean } = {}) {
   const db = getPrisma();
+  // Only a specific changed event may bypass backoff; clean jobs stay untouched.
+  const immediate = Boolean(options.eventId && options.ignoreRetryDelay);
   const jobs = await db.eventbriteCapacitySync.findMany({ where: {
-    ...(options.eventId ? { eventId: options.eventId } : {}), retryAt: { lte: new Date() },
+    ...(options.eventId ? { eventId: options.eventId } : {}), retryAt: immediate ? { not: null } : { lte: new Date() },
     event: { status: "PUBLISHED", endsAt: { gt: new Date() }, ...(options.companyId ? { companyId: options.companyId } : {}) },
   }, orderBy: [{ retryAt: "asc" }, { eventId: "asc" }], take: options.take ?? 5, select: { eventId: true, revision: true } });
   let failures = 0;
@@ -38,7 +40,7 @@ export async function deliverPendingEventbriteCapacity(options: { eventId?: stri
         const [lock] = await tx.$queryRaw<{ locked: boolean }[]>`SELECT pg_try_advisory_xact_lock(190722, hashtext(${candidate.eventId})) AS locked`;
         if (!lock?.locked) return 0;
         const job = await tx.eventbriteCapacitySync.findUnique({ where: { eventId: candidate.eventId } });
-        if (!job?.retryAt || job.retryAt > new Date()) return 0;
+        if (!job?.retryAt || (!immediate && job.retryAt > new Date())) return 0;
         try {
           const event = await tx.event.findUniqueOrThrow({ where: { id: job.eventId }, include: { eventbritePublication: true } });
           const publication = event.eventbritePublication;

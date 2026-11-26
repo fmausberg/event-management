@@ -89,9 +89,10 @@ begrenzte Importsperre. Diese Migration wurde ebenfalls nicht auf eine Datenbank
 angewendet; über denselben Deployment-Ablauf ausrollen und den Client neu generieren.
 
 Der automatische Kontingentabgleich benötigt
-`20261126183000_eventbrite_capacity_sync` (Outbox `EventbriteCapacitySync` sowie
-Trigger auf `Booking`, `Event.maxSeats` und erfolgreiche Veröffentlichungen).
-Die Migration wurde nur in einer isolierten Testdatenbank ausgeführt, nicht auf
+`20261126183729_eventbrite_capacity_synch` (Outbox `EventbriteCapacitySync`) sowie
+`20261126210000_eventbrite_capacity_triggers` (Trigger auf `Booking`,
+`Event.maxSeats` und erfolgreiche Veröffentlichungen).
+Die Migrationen wurden nur in einer isolierten Testdatenbank ausgeführt, nicht auf
 einer Entwicklungs- oder Produktionsdatenbank. Über den vorhandenen
 `prisma migrate deploy`-/Docker-Migrationscontainer ausrollen und den Prisma-Client
 beim Build generieren. Keine neuen ENV-Variablen erforderlich.
@@ -162,9 +163,12 @@ ohne Belegungswirkung wie das nachträgliche Verknüpfen eines Benutzerkontos er
 keinen Auftrag. Bestehende veröffentlichte Eventbrite-Events werden durch die
 Migration für einen ersten Abgleich vorgemerkt.
 
-Nach dem Commit stößt der zentrale Prisma-Zugang einen wartenden Auftrag an;
+Nach dem Commit gleicht der zentrale Prisma-Zugang gezielt die von der Änderung
+betroffenen Events ab, statt einen beliebigen Auftrag aus der Warteschlange zu wählen;
 dies umfasst manuelle Buchungen, öffentliche Checkouts, Reservierungen,
 Zahlungseingänge, bestätigte Ablaufvorgänge, Stornierungen und vollständige Refunds.
+Für diese sofortigen Versuche wird eine bestehende Wiederholungswartezeit übergangen;
+bereits vollständig abgeglichene Events werden nicht erneut gesendet.
 Es werden keine Provideraufrufe innerhalb der ursprünglichen Buchungstransaktion
 ausgeführt. Zusätzlich bearbeitet der bestehende geschützte Scheduler
 `POST /api/payments/reconcile` bis zu fünf Aufträge pro Lauf. Er muss regelmäßig
