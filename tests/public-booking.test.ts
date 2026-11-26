@@ -278,7 +278,7 @@ it("displays only linked trainer first names instead of the legacy text", async 
 it("uses the event cover image on the booking page", async () => {
  db.event.findFirst.mockResolvedValue({ ...event, imageUrl: "https://res.cloudinary.com/test/image/upload/cover.jpg", eventSeries: { imageUrl: "https://images.example/series.jpg" } });
  const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ companySlug: "yoga", eventId: "event-1" }) }));
- expect(html).toContain('src="https://res.cloudinary.com/test/image/upload/cover.jpg"'); expect(html).not.toContain('src="https://images.example/series.jpg"');
+ expect(html).toContain('src="https://res.cloudinary.com/test/image/upload/c_fill,g_center,w_1280,h_720/q_auto:good/f_auto/cover.jpg"'); expect(html).not.toContain('src="https://images.example/series.jpg"');
 });
 
 it("previews only server-calculated prices without reserving or creating a booking", async () => {
