@@ -6,6 +6,7 @@ const { db, fetchMock } = vi.hoisted(() => ({
   fetchMock: vi.fn(),
   db: {
     $transaction: vi.fn(), event: { findUniqueOrThrow: vi.fn() },
+    booking: { aggregate: vi.fn() },
     eventbriteConnection: { findUnique: vi.fn() },
     platformEvent: { create: vi.fn(), findFirst: vi.fn() },
     eventbritePublication: { findMany: vi.fn(), updateMany: vi.fn(), update: vi.fn(), findUniqueOrThrow: vi.fn(), upsert: vi.fn() },
@@ -22,6 +23,7 @@ const paidTicket = () => ({ id: "300", free: false, include_fee: true, cost: mon
 
 beforeEach(() => {
   vi.resetAllMocks();
+  db.booking.aggregate.mockResolvedValue({ _sum: { quantity: 0 } });
   vi.stubEnv("EVENTBRITE_LISTED", undefined);
   vi.stubGlobal("fetch", fetchMock);
   job = { eventId: "event-1", organizationId: "10", status: "PENDING", venueId: null, externalEventId: null, ticketClassId: null };
@@ -98,6 +100,16 @@ it("does not enqueue events without an explicit opt-in", async () => {
   event.postToEventbrite = false;
   await queueEventbritePublication(db as unknown as Prisma.TransactionClient, event.id);
   expect(db.eventbritePublication.upsert).not.toHaveBeenCalled();
+});
+
+it("subtracts existing local reservations from the initial Eventbrite event capacity", async () => {
+  event.maxSeats = 10;
+  db.booking.aggregate.mockResolvedValue({ _sum: { quantity: 2 } });
+  await deliverEventbritePublications();
+  const eventCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/organizations/10/events/"))!;
+  const ticketCall = fetchMock.mock.calls.find(([url]) => String(url).endsWith("/ticket_classes/"))!;
+  expect(JSON.parse(eventCall[1].body).event.capacity).toBe(8);
+  expect(JSON.parse(ticketCall[1].body).ticket_class.capacity).toBe(10);
 });
 
 it("persists organization binding and refuses to recreate an existing mapping", async () => {

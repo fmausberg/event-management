@@ -20,6 +20,6 @@ export function EventbriteBookingImport({ slug, eventId, summaries, disabled = f
     {summary.running && <p role="status">Für dieses Event läuft bereits ein Import. Bitte die Seite später aktualisieren.</p>}
     {state.message && <p role={state.success ? "status" : "alert"} className={state.success ? "text-green-700 dark:text-green-300" : "text-red-700 dark:text-red-300"}>{state.message}</p>}
     {!state.message && summary.lastError && <p role="alert" className="text-red-700 dark:text-red-300">{summary.lastError}</p>}
-    <p className="text-xs text-zinc-500">Übernimmt Buchungen und Stornierungen. Zahlungen und Tickets bleiben bei Eventbrite. Freie Plätze werden erst mit dem nächsten Import aktualisiert; dieser Button ändert kein Kontingent bei Eventbrite.</p>
+    <p className="text-xs text-zinc-500">Übernimmt Eventbrite-Buchungen und Stornierungen in die lokalen freien Plätze. Zahlungen und Tickets bleiben bei Eventbrite. Lokale Buchungen und Zahlungsreservierungen werden automatisch vom Eventbrite-Gesamtkontingent abgezogen; importierte Eventbrite-Verkäufe werden nicht doppelt abgezogen.</p>
   </section>;
 }

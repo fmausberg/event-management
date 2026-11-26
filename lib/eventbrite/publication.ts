@@ -5,6 +5,7 @@ import { getPrisma } from "@/lib/db/prisma";
 import { decrypt } from "./connection";
 import { plainTextToDescription, sanitizeDescription } from "@/lib/descriptions/html";
 import { escapeHtml } from "@/lib/mail/templates/footer";
+import { eventbriteCapacityTarget, nonEventbriteReservations } from "./capacity-model";
 
 const idSchema = z.object({ id: z.string().regex(/^\d+$/) });
 class PublicationError extends Error {
@@ -97,6 +98,8 @@ export async function deliverEventbritePublications(companyId?: string) {
       if (existingRemote && existingRemote.status !== "draft") throw new PublicationError("Das Event wurde bei Eventbrite geändert und wird nicht erneut veröffentlicht.");
       // Validate before the first create; invalid configuration must not create a venue.
       const listed = listedForNewEvents();
+      const reservations = await db.booking.aggregate({ where: nonEventbriteReservations(event.id), _sum: { quantity: true } });
+      const capacity = eventbriteCapacityTarget(event.maxSeats, reservations._sum.quantity ?? 0);
 
       // Persist uncertainty BEFORE each non-idempotent create. The response ID and
       // local mapping commit together; a DB/network failure cannot cause a retry.
@@ -124,7 +127,7 @@ export async function deliverEventbritePublications(companyId?: string) {
       const eventData = { event: {
         name: { html: escapeHtml(event.name) }, summary: (event.shortdescription ?? event.name).slice(0, 140),
         start: { timezone: "Europe/Berlin", utc: utc(event.beginsAt) }, end: { timezone: "Europe/Berlin", utc: utc(event.endsAt) },
-        currency: event.currency, venue_id: venueId, listed, online_event: false, capacity: event.maxSeats, locale: "de_DE",
+        currency: event.currency, venue_id: venueId, listed, online_event: false, capacity, locale: "de_DE",
       } };
       const externalId = job.externalEventId ?? await createRemote(`organizations/${org}/events/`, eventData, "externalEventId");
       const path = `events/${encodeURIComponent(externalId)}/`;

@@ -2,8 +2,9 @@
 
 Implementiert sind die Organisationsverknüpfung, die optionale Veröffentlichung
 von Company-Events mit einer Ticketklasse zum gespeicherten Bruttopreis und ein
-manueller Buchungsimport pro Event. Laufender Kapazitätsabgleich, spätere
-Event-Änderungen/Absagen und Webhooks sind weiterhin nicht implementiert. Die allgemeinen Adapter-Platzhalter
+manueller Buchungsimport pro Event und der automatische Abgleich des Eventbrite-
+Gesamtkontingents. Sonstige spätere Event-Änderungen/Absagen und Webhooks sind
+weiterhin nicht implementiert. Die allgemeinen Adapter-Platzhalter
 bleiben unverändert. Stripe bleibt unabhängig.
 
 ## Konfiguration vor dem Betrieb
@@ -87,6 +88,14 @@ den letzten erfolgreichen Import, eine bereinigte Fehlermeldung und eine zeitlic
 begrenzte Importsperre. Diese Migration wurde ebenfalls nicht auf eine Datenbank
 angewendet; über denselben Deployment-Ablauf ausrollen und den Client neu generieren.
 
+Der automatische Kontingentabgleich benötigt
+`20261126183000_eventbrite_capacity_sync` (Outbox `EventbriteCapacitySync` sowie
+Trigger auf `Booking`, `Event.maxSeats` und erfolgreiche Veröffentlichungen).
+Die Migration wurde nur in einer isolierten Testdatenbank ausgeführt, nicht auf
+einer Entwicklungs- oder Produktionsdatenbank. Über den vorhandenen
+`prisma migrate deploy`-/Docker-Migrationscontainer ausrollen und den Prisma-Client
+beim Build generieren. Keine neuen ENV-Variablen erforderlich.
+
 ## Events veröffentlichen
 
 Das Event-Formular enthält **„Bei Veröffentlichung auch auf Eventbrite posten“**.
@@ -124,12 +133,82 @@ nicht automatisch aus der lokalen Steuerkonfiguration eingerichtet; zusätzliche
 Aufschläge müssen dort geklärt werden. Das entfernte Event bleibt dann als Entwurf
 erhalten, statt unbemerkt einen höheren Käuferpreis anzubieten.
 
-**Es gibt noch kein gemeinsames Platzkontingent.** Eventbrite erhält die volle
-Teilnehmerzahl unabhängig von lokalen Buchungen. Beide Plattformen können dieselben
-Plätze verkaufen; Überbuchungen sind möglich. Eventbrite-Buchungen können manuell
-importiert werden; Zahlungen und Ticketcodes werden nicht importiert. Kontingente daher bis zur
-Implementierung des Abgleichs separat in Eventbrite verwalten. Lokale spätere
-Änderungen und Absagen werden ebenfalls nicht übertragen.
+Schon beim Anlegen erhält Eventbrite das um lokale Belegungen reduzierte
+Gesamtkontingent; spätere Änderungen werden automatisch abgeglichen (siehe unten).
+Eventbrite-Buchungen werden weiterhin manuell importiert; Zahlungen und Ticketcodes
+werden nicht importiert. Sonstige lokale Event-Änderungen und Absagen werden nicht übertragen.
+
+## Automatischer Kontingentabgleich
+
+Für von dieser Anwendung veröffentlichte Events gilt:
+
+`Eventbrite-Gesamtkontingent = max(0, Event.maxSeats − aktive Plätze außerhalb Eventbrite)`.
+
+Aktiv sind `CONFIRMED` und `PENDING_PAYMENT`. Die Plattform `NULL` steht für lokale
+Buchungen und wird ausdrücklich eingeschlossen; andere externe Plattformen außer
+Eventbrite belegen ebenfalls Plätze. Eventbrite-Buchungen werden aus der Summe
+ausgeschlossen, da Eventbrite seine eigenen Verkäufe und Reservierungen selbst abzieht.
+Beispiel: insgesamt 10, lokal 2 reserviert/verkauft → Eventbrite insgesamt 8.
+Mit 3 Eventbrite-Verkäufen verbleiben dort 5; nach dem manuellen Import zeigt die
+lokale Plattform ebenfalls 5 frei von 10. Eine lokale Stornierung gibt diese Plätze
+wieder für Eventbrite frei. Zahlungsreservierungen bleiben bis zur bestätigten
+Freigabe/Expiry belegt, entsprechend den bestehenden Checkout-Regeln.
+
+Datenbanktrigger merken betroffene Events innerhalb derselben lokalen Transaktion
+vor: Erstellung, Mengen-/Status-/Plattform-/Eventwechsel und Löschen von Buchungen,
+Änderung des lokalen Ticketkontingents und erfolgreiche Eventbrite-Veröffentlichung.
+Ein Rollback verwirft auch den Auftrag. Reine Eventbrite-Importe und Änderungen
+ohne Belegungswirkung wie das nachträgliche Verknüpfen eines Benutzerkontos erzeugen
+keinen Auftrag. Bestehende veröffentlichte Eventbrite-Events werden durch die
+Migration für einen ersten Abgleich vorgemerkt.
+
+Nach dem Commit stößt der zentrale Prisma-Zugang einen wartenden Auftrag an;
+dies umfasst manuelle Buchungen, öffentliche Checkouts, Reservierungen,
+Zahlungseingänge, bestätigte Ablaufvorgänge, Stornierungen und vollständige Refunds.
+Es werden keine Provideraufrufe innerhalb der ursprünglichen Buchungstransaktion
+ausgeführt. Zusätzlich bearbeitet der bestehende geschützte Scheduler
+`POST /api/payments/reconcile` bis zu fünf Aufträge pro Lauf. Er muss regelmäßig
+laufen, auch für die erstmalige Anpassung bestehender Events. API-/Datenbankfehler
+machen eine bereits gespeicherte Buchung nicht rückgängig.
+
+Der Worker verwendet eine eigene, maximal 25 Sekunden dauernde Transaktion mit
+einem nicht wartenden PostgreSQL-Advisory-Lock pro Event (Namespace `190722`).
+Dadurch schreiben mehrere App-Instanzen nicht gleichzeitig für dasselbe Event.
+Die Outbox zählt Revisionen: Neue Buchungen während eines Provideraufrufs bleiben
+auch dann vorgemerkt, wenn ein älterer Abgleich abgeschlossen wurde. Fehler werden
+bereinigt gespeichert und nach frühestens einer Minute erneut versucht; neue
+lokale Änderungen machen den Auftrag sofort wieder fällig. Provideraufrufe sind
+pro Anfrage auf 15 und insgesamt auf 20 Sekunden begrenzt.
+
+Verwendet werden `GET/POST /events/{id}/capacity_tier/` für die explizite
+Gesamtkapazität und die gespeicherte Ticketklasse für deren Obergrenze. Die
+Ticketklasse bleibt mindestens 1 groß (normalen Ticketklassen erlaubt Eventbrite
+keine Kapazität 0); bei vollständig lokal belegtem Event begrenzt die
+Event-Gesamtkapazität auf 0. Beim Reduzieren wird zuerst die Gesamtgrenze gesenkt,
+beim Erhöhen zuerst die Ticketklasse angepasst. Preise, `listed`, Eventdetails,
+Ticketverkaufszeiten und Absagestatus werden dabei nicht geändert. Der Worker
+prüft die ursprüngliche Organisation und den tatsächlichen Eventbrite-Eventstatus.
+Reservierte Sitzplätze, manuelle Inventory-Tiers der verwalteten Ticketklasse und
+Eventbrite-Kapazitätsblöcke benötigen eine manuelle Prüfung und werden abgewiesen.
+
+Bei bereits zu vielen verkauften/reservierten Eventbrite-Tickets wird die Grenze
+nicht unter diesen Bestand gesenkt, sondern auf ihn begrenzt. Der Konflikt bleibt
+als Fehler sichtbar und wird erneut geprüft. Eine solche Überbelegung löst keine
+automatische Stornierung oder Erstattung aus.
+
+Unter **Event → Eventbrite** stehen letztes bestätigtes Gesamtkontingent, Zeitpunkt,
+ausstehender Abgleich und Fehler sowie **„Kontingent jetzt abgleichen“** bereit.
+Lokale Eventabsagen bleiben der zuvor vereinbarte manuelle Prozess; der Worker
+bearbeitet nur lokal veröffentlichte, noch nicht beendete Events.
+
+Der Abgleich erfolgt nachgelagert und ersetzt keinen atomaren Checkout über beide
+Plattformen. Parallele Käufe, API-Ausfälle und noch nicht importierte Eventbrite-
+Verkäufe können weiterhin Überbuchungen verursachen. Diese werden angezeigt,
+aber nicht automatisch rückabgewickelt. Der manuelle Import von Eventbrite-
+Buchungen bleibt für korrekte lokale freie Plätze notwendig.
+
+API-Vertrag: [offizieller API Blueprint](https://www.eventbrite.com/platform/new/docs/eventbrite-api-v3-public.apib)
+(Capacity Tier, Ticket Class Update; geprüft am 26.11.2026).
 
 ## Buchungen per Knopfdruck importieren
 
@@ -199,8 +278,10 @@ einem Prozessabbruch kann der nächste bewusste Klick die Sperre nach fünf Minu
 statt zu einem unvollständigen Import. Es gibt keinen automatischen Import oder Webhook.
 
 Importierte bestätigte Plätze gehen sofort in die lokale Kapazitätsberechnung ein,
-auch wenn das Event damit überbelegt ist. Es wird kein Bestand zurück an Eventbrite
-geschrieben. Zwischen zwei Klicks können die lokalen Zahlen deshalb veraltet sein.
+auch wenn das Event damit überbelegt ist. Sie ändern das an Eventbrite übertragene
+Gesamtkontingent nicht: Der automatische Kontingentworker zieht ausschließlich
+Belegungen außerhalb Eventbrite ab. Zwischen zwei Klicks können die lokalen Zahlen
+deshalb veraltet sein.
 
 Abnahme: Erstimport, unveränderte Wiederholung, neue Bestellung, Käuferänderung,
 Teil-/Vollstornierung, fehlgeschlagene Folgeseite, paralleler Klick, widerrufene

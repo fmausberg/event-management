@@ -717,6 +717,7 @@ model EventSeries {
 
 
 model Event {
+  eventbriteCapacitySync EventbriteCapacitySync?
   postToEventbrite Boolean @default(false)
   eventbritePublication EventbritePublication?
   venueApproval EventVenueApproval?
@@ -1106,6 +1107,20 @@ model EventbritePublication {
   updatedAt DateTime @updatedAt
 
   @@index([status, createdAt])
+}
+
+model EventbriteCapacitySync {
+  eventId String @id
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  revision Int @default(1)
+  syncedRevision Int @default(0)
+  retryAt DateTime? @default(now())
+  lastCapacity Int?
+  lastSyncedAt DateTime?
+  lastError String?
+  updatedAt DateTime @default(now()) @updatedAt
+
+  @@index([retryAt])
 }
 
 

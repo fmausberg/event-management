@@ -1,4 +1,5 @@
 import { deliverEventbritePublications } from "@/lib/eventbrite/publication";
+import { deliverPendingEventbriteCapacity } from "@/lib/eventbrite/capacity";
 import { reconcileVenueApprovals } from "@/lib/venues/confirmation";
 import { reconcileVoucherRefunds } from "@/lib/payments/refund-reconciliation";
 
@@ -75,6 +76,7 @@ export async function POST(request: Request) {
   try { failures += (await deliverPendingCompanyNotifications()).failures; } catch { failures++; }
 
   try { failures += (await deliverEventbritePublications()).failures; } catch { failures++; }
+  try { failures += (await deliverPendingEventbriteCapacity()).failures; } catch { failures++; }
 
   let reviews = { queued: 0, delivered: 0 };
 

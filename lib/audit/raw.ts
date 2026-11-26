@@ -22,6 +22,7 @@ const allowed = new Set([
   'SELECT "id" FROM "VoucherCampaign" WHERE "id" = ? FOR UPDATE',
   'SELECT "id" FROM "VoucherBalance" WHERE "id" = ? FOR UPDATE',
   "SELECT pg_advisory_xact_lock(190721, 1)",
+  "SELECT pg_try_advisory_xact_lock(190722, hashtext(?)) AS locked",
   reviewCandidates,
 ].map(normalize));
 

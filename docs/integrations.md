@@ -41,7 +41,10 @@ Für Eventbrite gibt es einen separaten manuellen Import unter **Event → Buchu
 aktualisiert Käuferdaten und gültige Platzanzahlen, berücksichtigt Stornierungen und
 speichert einen letzten Erfolgszeitpunkt. Der gesamte Snapshot wird atomar übernommen.
 Dabei entstehen keine Zahlungen, lokalen Tickets oder zusätzlichen Mails.
-Ein automatischer Import und Rückübertragung von Verfügbarkeiten sind nicht enthalten.
+Ein automatischer Buchungsimport ist nicht enthalten. Der separate Eventbrite-
+Kontingentworker überträgt nach lokalen Buchungsänderungen das Gesamtkontingent
+abzüglich aktiver Nicht-Eventbrite-Belegungen. Er überträgt ausdrücklich nicht die
+globalen freien Plätze, weil Eventbrite eigene Verkäufe bereits abzieht.
 Migration, Grenzen und Betrieb: [Eventbrite](eventbrite.md#buchungen-per-knopfdruck-importieren).
 
 ## Adapter und explizite Synchronisierung
@@ -69,7 +72,8 @@ Fehlgeschlagene aktive Zuordnungen bleiben ACTIVE; DISABLED und ERROR werden
 
 Die allgemeinen Adapter haben keinen automatischen Scheduler und erstellen keine
 Drittanbieter-Events. Die separate Eventbrite-Veröffentlichung nach Opt-in verwendet
-den bestehenden Reconcile-Scheduler. Für echte Event-/Buchungsadapter fehlen
+den bestehenden Reconcile-Scheduler. Auch der separate Eventbrite-Kontingentabgleich
+verwendet ihn für Wiederholungen. Für allgemeine Event-/Buchungsadapter fehlen
 geprüfte Anbieterverträge, deren Anbindung an Company-Zugangsdaten und Webhook-Verarbeitung.
 Versionierung externer Updates und Serialisierung überlappender Sync-Aufrufe
 müssen bei der Integration ergänzt werden. Verteilte Buchungen können gleichzeitig
