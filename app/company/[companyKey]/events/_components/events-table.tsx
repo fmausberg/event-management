@@ -414,12 +414,12 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
 
    {!inline && <p className="text-xs text-zinc-500"><span className="text-red-600 dark:text-red-400">*</span> Zum Veröffentlichen erforderlich. Entwürfe dürfen unvollständig sein.</p>}
 
-   <div className="space-y-2">
+   {(eventbriteConnected || row?.postToEventbrite || row?.eventbritePublication) && <div className="space-y-2">
     <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="postToEventbrite" value="yes" checked={postToEventbrite} onChange={event => setPostToEventbrite(event.target.checked)} disabled={pending || (!eventbriteConnected && !postToEventbrite) || !!row?.eventbritePublication} aria-describedby="eventbrite-publish-help" className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-primary-600" /><span>Bei Veröffentlichung auch auf Eventbrite posten</span></label>
     {!!row?.eventbritePublication && <input type="hidden" name="postToEventbrite" value={row.postToEventbrite ? "yes" : "no"} />}
     <p id="eventbrite-publish-help" className="text-xs text-zinc-500">{eventbriteConnected ? "Wird nach allen Freigaben mit einer Ticketklasse zum Bruttopreis veröffentlicht. Eventbrite-Gebühren trägt der Veranstalter." : "Bitte zuerst eine Eventbrite-Organisation in den Company-Einstellungen verbinden."}</p>
     {postToEventbrite && <p className="text-xs text-zinc-500">Lokale Buchungen und Zahlungsreservierungen reduzieren das Eventbrite-Gesamtkontingent automatisch. Eventbrite-Buchungen werden nach der Veröffentlichung per Knopfdruck importiert. Änderungen an Eventdetails und Absagen bitte weiterhin auch direkt in Eventbrite durchführen.</p>}
-   </div>
+   </div>}
 
    <fieldset disabled={pending} className={inline ? "grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : "space-y-4"}>
 
