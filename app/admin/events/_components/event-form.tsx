@@ -16,7 +16,7 @@ const fields = [
   { name: "name", label: "Name", type: "text" },
   { name: "beginsAt", label: "Beginn", type: "datetime-local", step: "0.001" },
   { name: "endsAt", label: "Ende", type: "datetime-local", step: "0.001" },
-  { name: "maxSeats", label: "Maximale Plätze", type: "number", min: 1, max: 2147483647, step: "1" },
+  { name: "maxSeats", label: "Maximale Plätze", type: "number", min: 0, max: 2147483647, step: "1" },
 ] as const;
 
 export function EventForm({ action, initialValues = emptyValues }: Props) {
