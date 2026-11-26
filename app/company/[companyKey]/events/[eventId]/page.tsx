@@ -27,7 +27,7 @@ export default async function CompanyEventDetailPage({ params, searchParams }: {
   if (!event) notFound();
   return <main className="flex min-w-0 flex-1 flex-col gap-6 bg-zinc-50 p-6 sm:p-10 dark:bg-black">
     <PageBreadcrumb label={event.name || "Unbenannter Entwurf"} />
-    <EventDetails slug={result.company.slug} row={event} series={result.series} venues={result.venues} trainers={result.trainers} canManage={result.canManage}>
+    <EventDetails eventbriteConnected={result.eventbriteConnected} slug={result.company.slug} row={event} series={result.series} venues={result.venues} trainers={result.trainers} canManage={result.canManage}>
       <EventBookings slug={result.company.slug} eventId={event.id} />
       <EventTickets slug={result.company.slug} eventId={event.id} />
     </EventDetails>

@@ -1,10 +1,12 @@
 type BookingPayment = {
+  platform?: string | null;
   quantity: number;
   payment?: { status: string; amount: number; currency: string } | null;
   price?: { originalAmountMinor: number; currency: string; payableAmountMinor?: number } | null;
 };
 
 export function bookingPaymentSummary(booking: BookingPayment, event: { ticketPrice?: { toString(): string } | null; currency?: string }) {
+  if (booking.platform === "EVENTBRITE" && !booking.payment && !booking.price) return "Über Eventbrite verwaltet (Betrag nicht importiert)";
   const payment = booking.payment;
   if (!payment && booking.price?.payableAmountMinor !== 0) return "Kein Zahlungsbetrag erfasst";
   if (payment?.status === "PARTIALLY_REFUNDED") return "Teilweise erstattet – Restbetrag unbekannt";

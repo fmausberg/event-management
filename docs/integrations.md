@@ -1,8 +1,9 @@
 # Kapazität und externe Eventplattformen
 
-Die Company-Verknüpfung mit einer bestehenden Eventbrite-Organisation ist separat
-implementiert: [Eventbrite-Einrichtung](eventbrite.md). Die folgenden Adapter und
-Webhook-Platzhalter bleiben unabhängig davon unverändert.
+Die Company-Verknüpfung mit einer bestehenden Eventbrite-Organisation und die
+optionale Veröffentlichung mit Ticketklasse sind separat implementiert:
+[Eventbrite-Einrichtung und Veröffentlichung](eventbrite.md). Die folgenden
+Adapter und Webhook-Platzhalter bleiben unabhängig davon unverändert.
 
 ## Datenmodell
 
@@ -35,6 +36,14 @@ Die nachträgliche Zuordnung einer bestehenden externen Buchung zu einem anderen
 Event wird abgewiesen. Aktive Stornierungsprozesse dürfen nicht überschrieben
 werden. Ein Import führt nicht selbst einen externen Verfügbarkeits-Sync aus.
 
+Für Eventbrite gibt es einen separaten manuellen Import unter **Event → Buchungen**:
+**„Eventbrite-Buchungen synchronisieren“**. Er liest Bestellungen und Teilnehmer,
+aktualisiert Käuferdaten und gültige Platzanzahlen, berücksichtigt Stornierungen und
+speichert einen letzten Erfolgszeitpunkt. Der gesamte Snapshot wird atomar übernommen.
+Dabei entstehen keine Zahlungen, lokalen Tickets oder zusätzlichen Mails.
+Ein automatischer Import und Rückübertragung von Verfügbarkeiten sind nicht enthalten.
+Migration, Grenzen und Betrieb: [Eventbrite](eventbrite.md#buchungen-per-knopfdruck-importieren).
+
 ## Adapter und explizite Synchronisierung
 
 `lib/integrations/types.ts` enthält plattformunabhängige Typen.
@@ -58,8 +67,9 @@ Fehlgeschlagene aktive Zuordnungen bleiben ACTIVE; DISABLED und ERROR werden
 
 ## Grenzen
 
-Es gibt keinen automatischen Scheduler für externe Eventplattformen und keine
-automatische Drittanbieter-Eventerstellung. Für echte Event-/Buchungsadapter fehlen
+Die allgemeinen Adapter haben keinen automatischen Scheduler und erstellen keine
+Drittanbieter-Events. Die separate Eventbrite-Veröffentlichung nach Opt-in verwendet
+den bestehenden Reconcile-Scheduler. Für echte Event-/Buchungsadapter fehlen
 geprüfte Anbieterverträge, deren Anbindung an Company-Zugangsdaten und Webhook-Verarbeitung.
 Versionierung externer Updates und Serialisierung überlappender Sync-Aufrufe
 müssen bei der Integration ergänzt werden. Verteilte Buchungen können gleichzeitig

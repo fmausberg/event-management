@@ -1,4 +1,6 @@
 "use client";
+import { EventbriteBookingImport } from "../../../_components/eventbrite-booking-import";
+import type { EventbriteBookingImportSummary } from "@/lib/eventbrite/booking-import-state";
 import { UnsavedChangesForm } from "@/components/unsaved-changes";
 import { bookingSource } from "@/lib/bookings/source";
 import { ObjectNotes, type NoteSummaries } from "@/components/object-notes";
@@ -42,7 +44,7 @@ export function RemoveBooking({ slug, eventId, row, onDeleted }: { slug: string;
     const [state, action, pending] = useActionState<BookingState, FormData>(async (previous, form) => { const result = await deleteBooking(slug, eventId, row.id, previous, form); if (result.success) onDeleted(result.message!); return result; }, {});
     return <div className="max-w-64">{confirm ? <form action={action}><p>Buchung #{row.number} endgültig löschen?</p>{row.platform && <p className="text-xs">Ein Plattformimport kann die Buchung erneut anlegen.</p>}<input type="hidden" name="confirmed" value="yes" /><div className="mt-2 flex gap-3"><button disabled={pending} className="text-red-700 underline dark:text-red-300">{pending ? "Wird gelöscht …" : "Löschen bestätigen"}</button><button type="button" disabled={pending} onClick={() => setConfirm(false)} className="underline">Abbrechen</button></div></form> : <button type="button" onClick={() => setConfirm(true)} aria-label={`Buchung ${row.number} löschen`} className="text-red-700 underline dark:text-red-300">Löschen</button>}{state.message && <p role="alert" className="text-red-700 dark:text-red-300">{state.message}</p>}</div>;
 }
-export function BookingsTable({ company, event, bookings, revenue, noteSummaries, canSeeTaxes = false, embedded = false }: { canSeeTaxes?: boolean; embedded?: boolean; noteSummaries: NoteSummaries; revenue: EventRevenue; company: { name: string; slug: string }; event: { id: string; name: string; maxSeats: number | null; beginsAt: string }; bookings: BookingRow[] }) {
+export function BookingsTable({ company, event, bookings, revenue, noteSummaries, canSeeTaxes = false, embedded = false, eventbriteImports = [] }: { eventbriteImports?: EventbriteBookingImportSummary[]; canSeeTaxes?: boolean; embedded?: boolean; noteSummaries: NoteSummaries; revenue: EventRevenue; company: { name: string; slug: string }; event: { id: string; name: string; maxSeats: number | null; beginsAt: string }; bookings: BookingRow[] }) {
     const [editor, setEditor] = useState<{ row?: BookingRow } | null>(null);
     const [query, setQuery] = useState(""); const [message, setMessage] = useState("");
     const visible = bookings.filter((b) => [b.number, b.customerName, b.customerEmail, b.externalBookingId, bookingSource(b)].join(" ").toLocaleLowerCase("de-DE").includes(query.trim().toLocaleLowerCase("de-DE")));
@@ -57,6 +59,7 @@ export function BookingsTable({ company, event, bookings, revenue, noteSummaries
             </div>
             <button type="button" disabled={!!editor} onClick={() => { setEditor({}); setMessage(""); }} className={primary}>+ Buchung erstellen</button>
         </header>
+        <EventbriteBookingImport slug={company.slug} eventId={event.id} summaries={eventbriteImports} disabled={!!editor} />
         <EventRevenueSummary revenue={revenue} />
         {message && <p role="status" className="text-green-700 dark:text-green-300">{message}</p>}
         {editor && <BookingForm modal={embedded} key={editor.row?.id ?? "new"} slug={company.slug} eventId={event.id} row={editor.row} onCancel={() => setEditor(null)} onSaved={(text) => { setEditor(null); setMessage(text); }} />}

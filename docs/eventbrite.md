@@ -1,9 +1,10 @@
 # Eventbrite: Company mit bestehender Organisation verbinden
 
-Implementiert ist ausschließlich die Organisationsverknüpfung. Event-Erstellung,
-Event-Checkbox, Synchronisierung, Ticketklassen, Buchungsimporte und Webhooks sind
-nicht Bestandteil dieser Änderung. Bestehende Adapter-Platzhalter bleiben unverändert.
-Stripe bleibt unabhängig.
+Implementiert sind die Organisationsverknüpfung, die optionale Veröffentlichung
+von Company-Events mit einer Ticketklasse zum gespeicherten Bruttopreis und ein
+manueller Buchungsimport pro Event. Laufender Kapazitätsabgleich, spätere
+Event-Änderungen/Absagen und Webhooks sind weiterhin nicht implementiert. Die allgemeinen Adapter-Platzhalter
+bleiben unverändert. Stripe bleibt unabhängig.
 
 ## Konfiguration vor dem Betrieb
 
@@ -44,9 +45,155 @@ Keinen AUTH_SECRET- oder Ticketschlüssel wiederverwenden. Auf allen Instanzen
 denselben dedizierten Schlüssel nutzen und sicher sichern. Ein Schlüsselwechsel
 erfordert vorherige Neuverschlüsselung oder Trennen und erneutes Verbinden.
 
-**Es wurde keine Migration erzeugt oder ausgeführt. Vor Deployment eine
-Prisma-Migration erstellen, prüfen und über den vorhandenen Deployment-Ablauf
-ausrollen. Den Prisma-Client neu generieren.**
+Die Verbindung benötigt die bestehende Migration
+`20261108164814_add_eventbrite_connection`. Die Event-Veröffentlichung ergänzt
+`20261126160109_eventbrite_event_publication` (Opt-in am Event und dauerhafter
+Veröffentlichungsauftrag). Die neue Migration wurde nicht auf eine Datenbank
+angewendet. Beim Deployment über den bestehenden Ablauf mit `prisma migrate deploy`
+ausrollen; Docker verwendet dafür den Migrationscontainer. Den Prisma-Client beim
+Build neu generieren. Niemals `migrate dev` oder `db push` gegen Produktion verwenden.
+
+Der manuelle Buchungsimport benötigt zusätzlich
+`20261126161000_eventbrite_manual_booking_import`. Sie ergänzt auf `PlatformEvent`
+den letzten erfolgreichen Import, eine bereinigte Fehlermeldung und eine zeitlich
+begrenzte Importsperre. Diese Migration wurde ebenfalls nicht auf eine Datenbank
+angewendet; über denselben Deployment-Ablauf ausrollen und den Client neu generieren.
+
+## Events veröffentlichen
+
+Das Event-Formular enthält **„Bei Veröffentlichung auch auf Eventbrite posten“**.
+Die Option ist standardmäßig aus und nur mit einer verbundenen Organisation
+auswählbar. Sie bleibt am Entwurf gespeichert und gilt bei Mehrfacherstellung für
+alle ausgewählten Termine. Die vorhandenen Company-Mitglieder mit Event-Verwaltungsrecht
+dürfen die Option verwenden; OAuth und Verbindungsverwaltung bleiben Admin-Aufgaben.
+
+Der bestehende zentrale Veröffentlichungs-Hook legt den Auftrag in derselben
+Datenbanktransaktion an, sobald der endgültige Status `PUBLISHED` erreicht ist.
+Offene Trainer-/Ortsfreigaben lösen noch keine Übertragung aus. Auch ohne
+Benachrichtigungsempfänger wird der Auftrag gespeichert. Ein Auftrag bleibt an die
+damals verbundene Organisations-ID gebunden; ein späterer Organisationswechsel
+leitet ihn nicht auf eine andere Organisation um.
+
+Nach dem Speichern werden bis zu fünf wartende Aufträge der Company bearbeitet.
+Der bestehende geschützte Scheduler `POST /api/payments/reconcile` bearbeitet ebenfalls
+bis zu fünf wartende Aufträge pro Aufruf. Er muss regelmäßig laufen, insbesondere
+für Veröffentlichungen nach späteren Freigaben und größere Mehrfacherstellungen.
+
+Übertragen werden Name, Kurzbeschreibung (Eventbrite-Summary maximal 140 Zeichen),
+Beschreibung über Structured Content, Beginn/Ende mit Zeitzone `Europe/Berlin`,
+Ort samt Adresse, EUR und Teilnehmerzahl. Das Titelbild wird noch nicht übertragen.
+Eventbrite muss für die Organisation einen nutzbaren Standard-Veranstalter und
+bei kostenpflichtigen Tickets die erforderliche Zahlungskonfiguration bereitstellen.
+Fehlende Provider-Voraussetzungen erscheinen als Übertragungsfehler am lokalen Event.
+
+Die Ticketklasse **„Teilnahme“** erhält den unveränderten Bruttopreis als ganzzahlige
+Centzahl. Kostenpflichtige Tickets verwenden `include_fee: true`: Eventbrite-Gebühren
+reduzieren die Veranstalterauszahlung. Bei 0 EUR wird eine kostenlose Ticketklasse
+angelegt. Vor Veröffentlichung wird der von Eventbrite gelieferte Preis geprüft.
+Unlesbare Preise, abweichende Währung/Beträge, fehlende Gebührenübernahme oder
+nicht-null Steuerbeträge sperren die Veröffentlichung. Eventbrite-Steuern werden
+nicht automatisch aus der lokalen Steuerkonfiguration eingerichtet; zusätzliche
+Aufschläge müssen dort geklärt werden. Das entfernte Event bleibt dann als Entwurf
+erhalten, statt unbemerkt einen höheren Käuferpreis anzubieten.
+
+**Es gibt noch kein gemeinsames Platzkontingent.** Eventbrite erhält die volle
+Teilnehmerzahl unabhängig von lokalen Buchungen. Beide Plattformen können dieselben
+Plätze verkaufen; Überbuchungen sind möglich. Eventbrite-Buchungen können manuell
+importiert werden; Zahlungen und Ticketcodes werden nicht importiert. Kontingente daher bis zur
+Implementierung des Abgleichs separat in Eventbrite verwalten. Lokale spätere
+Änderungen und Absagen werden ebenfalls nicht übertragen.
+
+## Buchungen per Knopfdruck importieren
+
+Unter **Event → Buchungen** und auf der separaten Buchungsseite erscheint bei einem
+zugeordneten Event der Button **„Eventbrite-Buchungen synchronisieren“**. Er ist für
+die vorhandenen berechtigten Company-Mitglieder und Plattform-Admins verfügbar.
+Genau eine Eventbrite-Zuordnung und eine gültige Verbindung zur tatsächlichen
+Organisation des entfernten Events sind erforderlich. Die Zuordnung darf für den
+allgemeinen Kapazitäts-Sync weiterhin `DISABLED` sein; dies sperrt den manuellen Import nicht.
+
+Jeder Klick liest alle Seiten der Bestellungen (`status=both`, einschließlich
+inaktiver Bestellungen) und der Teilnehmer dieses Events. Die Eventbrite-API
+liefert einen Teilnehmerdatensatz pro Ticket. Eine lokale Buchung entspricht
+einer Eventbrite-Bestellung, identifiziert durch `(EVENTBRITE, order.id)`.
+Übernommen werden Käufername, E-Mail, ursprüngliches Bestelldatum und die Zahl
+noch gültiger Tickets. Teilstornierungen/Erstattungen reduzieren diese Zahl; bei
+vollständiger Stornierung bleibt die Buchung als `CANCELLED` mit ihrer Gesamtmenge erhalten.
+Offene, gestartete und abgebrochene Checkouts werden übersprungen. Unbezahlte oder
+unbekannte Teilnehmerzustände innerhalb einer platzierten Bestellung sperren den Import.
+Wechselt eine bereits importierte Bestellung zurück in einen offenen Zustand,
+wird ebenfalls abgebrochen statt ein veralteter bestätigter Stand als Erfolg gemeldet.
+Explizit stornierte/gelöschte Bestellungen ohne Teilnehmerdaten stornieren bekannte
+lokale Buchungen mit unveränderter Menge; unbekannte werden mangels Menge übersprungen.
+Gastlisten ohne Bestellzuordnung werden nicht als Buchungen importiert.
+
+Erst nach vollständig gelesenen und validierten Daten erfolgt eine gemeinsame
+serialisierbare Datenbanktransaktion. Wiederholte Klicks aktualisieren bestehende
+Buchungen und erzeugen keine Duplikate. Ein fehlender Datensatz allein wird nicht
+als Stornierung interpretiert. Lokale Änderungen an externen Buchungen können beim
+nächsten Import überschrieben, lokal gelöschte Buchungen wieder angelegt werden.
+Zahlungs-, Preis-, Gutschein-, lokale Ticket- und aktive Stornierungshistorie wird
+nicht überschrieben; ein solcher Konflikt bricht den gesamten Import ab.
+
+Der Import erzeugt keine lokalen Tickets, Benutzerzuordnungen, Zahlungen,
+Kundenmails oder Company-Buchungsbenachrichtigungen. Eventbrite-Geldbeträge werden
+noch nicht in die lokale Umsatzübersicht übernommen; die Buchung weist darauf hin.
+Der vorhandene Eventbrite-Ticketcode bleibt bei Eventbrite und ist dadurch nicht
+automatisch mit unserem Scanner verwendbar.
+
+Die UI zeigt die Zahlen neu/aktualisiert/unverändert/übersprungen, den letzten
+erfolgreichen Zeitpunkt und Fehler. Bei Fehlern bleibt der letzte erfolgreiche
+Buchungsstand erhalten. Ein atomarer Claim verhindert parallele Importe; nach
+einem Prozessabbruch kann der nächste bewusste Klick die Sperre nach fünf Minuten
+übernehmen. Provideraufrufe sind auf 15 Sekunden pro Anfrage, insgesamt 60 Sekunden,
+100 Seiten und 5.000 Datensätze pro Liste begrenzt; Überschreitung führt zum Abbruch
+statt zu einem unvollständigen Import. Es gibt keinen automatischen Import oder Webhook.
+
+Importierte bestätigte Plätze gehen sofort in die lokale Kapazitätsberechnung ein,
+auch wenn das Event damit überbelegt ist. Es wird kein Bestand zurück an Eventbrite
+geschrieben. Zwischen zwei Klicks können die lokalen Zahlen deshalb veraltet sein.
+
+Abnahme: Erstimport, unveränderte Wiederholung, neue Bestellung, Käuferänderung,
+Teil-/Vollstornierung, fehlgeschlagene Folgeseite, paralleler Klick, widerrufene
+Leserechte und eine ersetzte Organisationsverbindung prüfen. API-Vertrag:
+[Orders und Teilnehmer](https://www.eventbrite.com/platform/new/api),
+[offizieller API Blueprint](https://www.eventbrite.com/platform/new/docs/eventbrite-api-v3-public.apib).
+
+## Status, Wiederholung und Duplikatschutz
+
+Die Event-Detailseite zeigt Auftrag, Fehler und die gespeicherte Eventbrite-ID.
+Sobald Eventbrite die Erstellung bestätigt, werden ID und `PlatformEvent`-Zuordnung
+atomar gespeichert, bevor Tickets/Veröffentlichung folgen. Die Zuordnung bleibt
+`DISABLED` für den allgemeinen Kapazitäts-Sync, dessen Adapter noch ein Platzhalter ist.
+
+Ein atomarer Claim verhindert parallele Worker. Bei eindeutigen Fehlern ist
+**„Übertragung erneut versuchen“** verfügbar. Dabei werden gespeicherte Event- und
+Ticket-IDs wiederverwendet. Ein bereits live geschaltetes Event wird als erfolgreich
+erkannt, ohne es erneut anzulegen. Fehler bei externen Aufrufen machen die lokale
+Veröffentlichung nicht rückgängig.
+
+Vor nicht-idempotenten Create-Aufrufen wird `UNCERTAIN` gespeichert. Bei Timeout,
+Serverfehler oder fehlgeschlagener Speicherung der Antwort-ID bleibt der Auftrag
+gesperrt, damit ein erneuter Versuch keine Duplikate erzeugt. Unterbrochene
+`PROCESSING`-Aufträge werden nach zehn Minuten ebenfalls gesperrt. Ein
+Plattformadministrator muss dann die Organisation und vorhandenen Ressourcen bei
+Eventbrite prüfen und die IDs mit `EventbritePublication` und `PlatformEvent`
+abgleichen. Einen solchen Auftrag nicht ungeprüft auf `PENDING` zurücksetzen.
+Es gibt dafür bewusst keinen automatischen Reset und keine Endnutzer-Reparaturaktion.
+
+Nach Anlage des Auftrags bleibt die Checkbox gesperrt; das lokale Event kann mit
+einem Auftrag nicht gelöscht werden. Das Trennen der Verbindung entfernt keine
+Eventbrite-Events und keine bereits gespeicherten Veröffentlichungsaufträge.
+
+Abnahme vor dem Einsatz: Entwurf mit Opt-in, Freigabe durch Trainer/Ort,
+kostenloses und bezahltes Event, Bruttopreis/Gebühren im Eventbrite-Checkout,
+fehlende Zahlungs-/Veranstaltereinstellungen, Preisabweichung/Steueraufschlag,
+Mehrfacherstellung, Wiederholung nach Fehler, Organisationswechsel und
+Verbindungsabbruch nach erfolgreichem externem Create prüfen.
+
+API-Vertrag: [offizieller API Blueprint](https://www.eventbrite.com/platform/new/docs/eventbrite-api-v3-public.apib)
+(Event Create, Ticket Class Create mit `capacity` statt des veralteten `quantity_total`,
+Structured Content und Publish; geprüft am 26.11.2026).
 
 ## Ablauf und Berechtigungen
 
@@ -94,7 +241,7 @@ anhand `expiresAt` gelöscht werden. Neustart ersetzt sie, Trennen entfernt sie.
 HTTP-/Proxy-Zugriffslogs des Callbacks müssen Querystrings ausblenden, damit
 OAuth-Codes nicht in Infrastruktur-Logs stehen.
 
-Verwendet werden OAuth Authorize und der form-urlencodierte Token-POST bei
+Für die Verbindungsverwaltung verwendet werden OAuth Authorize und der form-urlencodierte Token-POST bei
 `https://www.eventbrite.com/oauth/authorize` und `/oauth/token` sowie ausschließlich
 lesende Organisationsabfragen auf
 `https://www.eventbriteapi.com/v3/users/me/organizations/` mit Bearer-Token.

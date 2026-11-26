@@ -121,7 +121,7 @@ function RequiredMark() { return <><span aria-hidden="true" className="ml-1 text
 
 export function StatusTag({ status }: { status: EventValues["status"] }) { return <span className={`inline-flex whitespace-nowrap rounded-full px-3 py-1 text-xs font-semibold ${statusColors[status]}`}>{statuses[status]}</span>; }
 
-type Props = { defaultSeriesId?: string; seriesDetails?: React.ReactNode; seriesHistory?: React.ReactNode; seriesTaxes?: React.ReactNode; seriesNotes?: React.ReactNode; canManage: boolean; company: { name: string; slug: string }; events: EventRow[]; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[] };
+type Props = { eventbriteConnected?: boolean; defaultSeriesId?: string; seriesDetails?: React.ReactNode; seriesHistory?: React.ReactNode; seriesTaxes?: React.ReactNode; seriesNotes?: React.ReactNode; canManage: boolean; company: { name: string; slug: string }; events: EventRow[]; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[] };
 
 export function TrainerReminderControls({ slug, row, embedded = false }: { slug: string; row: EventRow; embedded?: boolean }) {
 
@@ -169,11 +169,13 @@ export function TrainerReminderControls({ slug, row, embedded = false }: { slug:
 
 }
 
-export function EventForm({ slug, row, defaultSeries, series, venues, trainers, onSaved, onCancel, inline = false, formId, onBusyChange }: { inline?: boolean; formId?: string; onBusyChange?: (busy: boolean) => void; slug: string; row?: EventRow; defaultSeries?: SeriesRow; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[]; onSaved: (message: string, id?: string) => void; onCancel: () => void }) {
+export function EventForm({ slug, row, defaultSeries, series, venues, trainers, onSaved, onCancel, inline = false, formId, onBusyChange, eventbriteConnected = false }: { eventbriteConnected?: boolean; inline?: boolean; formId?: string; onBusyChange?: (busy: boolean) => void; slug: string; row?: EventRow; defaultSeries?: SeriesRow; series: SeriesRow[]; trainers: TrainerOption[]; venues: VenueOption[]; onSaved: (message: string, id?: string) => void; onCancel: () => void }) {
 
  const [values, setValues] = useState<EventValues>(() => row ? { ...row, maxSeats: row.maxSeats?.toString() ?? "", beginsAt: localDateTime(row.beginsAt), endsAt: localDateTime(row.endsAt) } : defaultSeries ? applySeries({ ...emptyEvent }, defaultSeries) : { ...emptyEvent });
 
  const manualEnd = useRef(false);
+
+ const [postToEventbrite, setPostToEventbrite] = useState(row?.postToEventbrite ?? false);
 
  const [multiple, setMultiple] = useState(false);
 
@@ -412,6 +414,13 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
 
    {!inline && <p className="text-xs text-zinc-500"><span className="text-red-600 dark:text-red-400">*</span> Zum Veröffentlichen erforderlich. Entwürfe dürfen unvollständig sein.</p>}
 
+   <div className="space-y-2">
+    <label className="flex items-start gap-2 text-sm"><input type="checkbox" name="postToEventbrite" value="yes" checked={postToEventbrite} onChange={event => setPostToEventbrite(event.target.checked)} disabled={pending || (!eventbriteConnected && !postToEventbrite) || !!row?.eventbritePublication} aria-describedby="eventbrite-publish-help" className="mt-0.5 h-4 w-4 rounded border-zinc-300 text-primary-600" /><span>Bei Veröffentlichung auch auf Eventbrite posten</span></label>
+    {!!row?.eventbritePublication && <input type="hidden" name="postToEventbrite" value={row.postToEventbrite ? "yes" : "no"} />}
+    <p id="eventbrite-publish-help" className="text-xs text-zinc-500">{eventbriteConnected ? "Wird nach allen Freigaben mit einer Ticketklasse zum Bruttopreis veröffentlicht. Eventbrite-Gebühren trägt der Veranstalter." : "Bitte zuerst eine Eventbrite-Organisation in den Company-Einstellungen verbinden."}</p>
+    {postToEventbrite && <p className="text-xs text-zinc-500">Eventbrite-Buchungen können nach der Veröffentlichung per Knopfdruck importiert werden. Freie Plätze, spätere Änderungen und Absagen werden nicht automatisch zwischen beiden Plattformen abgeglichen. Beide Plattformen bieten die volle Teilnehmerzahl separat an; dabei können Überbuchungen entstehen.</p>}
+   </div>
+
    <fieldset disabled={pending} className={inline ? "grid items-start gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]" : "space-y-4"}>
 
     <div className={inline ? "grid min-w-0 gap-4 sm:grid-cols-2" : "min-w-0 space-y-4"}>
@@ -543,7 +552,7 @@ function DeleteEvent({ slug, row, onDeleted }: { slug: string; row: EventRow; on
 
 }
 
-export function EventsTable({ company, events, series, venues, trainers, canManage, seriesDetails, seriesHistory, seriesNotes, seriesTaxes, defaultSeriesId }: Props) {
+export function EventsTable({ company, events, series, venues, trainers, canManage, seriesDetails, seriesHistory, seriesNotes, seriesTaxes, defaultSeriesId, eventbriteConnected }: Props) {
 
 
 
@@ -665,7 +674,7 @@ export function EventsTable({ company, events, series, venues, trainers, canMana
 
   {message && <p role="status" className="text-green-700 dark:text-green-300">{message}</p>}
 
-  {canManage && editor && <EventForm key={editor.row?.id ?? "new"} slug={company.slug} row={editor.row} defaultSeries={series.find((item) => item.id === defaultSeriesId)} series={series} venues={venues} trainers={trainers} onCancel={() => setEditor(null)} onSaved={(text) => { setEditor(null); setMessage(text); }} />}
+  {canManage && editor && <EventForm eventbriteConnected={eventbriteConnected} key={editor.row?.id ?? "new"} slug={company.slug} row={editor.row} defaultSeries={series.find((item) => item.id === defaultSeriesId)} series={series} venues={venues} trainers={trainers} onCancel={() => setEditor(null)} onSaved={(text) => { setEditor(null); setMessage(text); }} />}
 
   {!seriesDetails && <div className="flex items-center justify-between gap-4 p-4"><label><span className="sr-only">Veranstaltungen durchsuchen</span><input type="search" placeholder="Veranstaltungen durchsuchen …" value={query} onChange={(e) => setQuery(e.target.value)} className={input} /></label><span className="text-sm text-zinc-500">{filtered.length} von {events.length} Veranstaltungen</span></div>}
 

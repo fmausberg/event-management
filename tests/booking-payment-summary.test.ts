@@ -3,6 +3,9 @@ import { bookingPaymentSummary } from "@/lib/bookings/payment-summary";
 
 const event = { ticketPrice: "100.00", currency: "EUR" };
 const booking = { quantity: 2, payment: { status: "PAID", amount: 18000, currency: "EUR" } };
+it("does not invent a locally paid amount for imported Eventbrite bookings", () => {
+  expect(bookingPaymentSummary({ platform: "EVENTBRITE", quantity: 2 }, event)).toBe("Über Eventbrite verwaltet (Betrag nicht importiert)");
+});
 it("shows a recorded full discount without a Stripe payment", () => {
   expect(bookingPaymentSummary({ quantity: 2, price: { originalAmountMinor: 20000, payableAmountMinor: 0, currency: "EUR" } }, event).replaceAll("\u00a0", " ")).toBe("0,00 € (-100 %)");
 });
