@@ -501,7 +501,7 @@ export function EventForm({ slug, row, defaultSeries, series, venues, trainers, 
      <button name="intent" value="publish" disabled={pending || trainerBusy} className={primary}>Veröffentlichungsprozess starten</button>
 
     </> : <>
-     <button name="intent" value="save" disabled={pending || trainerBusy} className={primary}>Speichern</button>
+     {["CANCELLED", "COMPLETED"].includes(row.status) && <button name="intent" value="save" disabled={pending || trainerBusy} className={primary}>Speichern</button>}
      {!["CANCELLED", "COMPLETED"].includes(row.status) && <button name="intent" value="publish" disabled={pending || trainerBusy} className={primary}>Veröffentlichungsprozess starten</button>}
     </>}
 
