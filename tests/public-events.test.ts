@@ -61,7 +61,7 @@ it("renders cards, prices, dates, links and the requested menu", async () => {
 it("uses the copied event cover and never restores a removed image from its series", async () => {
  const event = { id: "event-1", maxSeats: 10, name: "Yoga", shortdescription: null, beginsAt: new Date("2026-10-16T08:00:00Z"), ticketPrice: { toFixed: () => "19.50" }, currency: "EUR", company: { name: "Studio", slug: "studio" }, venue: null, eventSeries: { imageUrl: "https://images.example/series.jpg" } };
  findMany.mockResolvedValue([{ ...event, imageUrl: "https://res.cloudinary.com/test/image/upload/cover.jpg" }]);
- const html = renderToStaticMarkup(await Page()); expect(html).toContain('src="https://res.cloudinary.com/test/image/upload/cover.jpg"'); expect(html).not.toContain('src="https://images.example/series.jpg"');
+ const html = renderToStaticMarkup(await Page()); expect(html).toContain('src="https://res.cloudinary.com/test/image/upload/c_fill,g_center,w_640,h_360/q_auto:eco/f_auto/cover.jpg"'); expect(html).not.toContain('src="https://images.example/series.jpg"');
  findMany.mockResolvedValue([{ ...event, imageUrl: null }]);
  expect(renderToStaticMarkup(await Page())).not.toContain('src="https://images.example/series.jpg"');
 });

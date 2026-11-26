@@ -4,6 +4,7 @@ import { cancellationPolicyText } from "@/lib/cancellations/policy";
 import { auth } from "@/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { PublicEventImage } from "@/components/public-event-image";
 import { PublicHeader } from "@/components/public-events";
 import { PublicBookingForm } from "@/components/public-booking-form";
 import { MobileBookingLink } from "@/components/mobile-booking-link";
@@ -32,10 +33,7 @@ export default async function EventDetailsPage({ params }: { params: Promise<{ c
         <main className="mx-auto max-w-6xl px-5 pb-16 pt-4 sm:px-8"><Link href="/events" className="text-sm text-primary-700 hover:underline">← Alle Veranstaltungen</Link>
             <div className="mt-6 grid items-start gap-8 lg:grid-cols-[minmax(0,1fr)_360px]">
                 <article>
-                    {image && /^https?:\/\//i.test(image) && (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img src={image} alt="" referrerPolicy="no-referrer" className="mb-6 aspect-video w-full rounded-xl bg-primary-50 object-cover" />
-                    )}
+                    <PublicEventImage key={image} imageUrl={image} variant="detail" eager />
                     <p className="text-sm font-medium text-primary-700">{event.company.name}</p><h1 className="mt-2 text-3xl font-semibold leading-tight sm:text-4xl">{event.name}</h1>
                     {event.shortdescription && <p className="mt-4 text-lg leading-relaxed text-zinc-600">{event.shortdescription}</p>}
                     <dl className="my-6 grid gap-5 rounded-xl border border-zinc-200 p-5 sm:grid-cols-2">
