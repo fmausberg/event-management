@@ -22,6 +22,7 @@ const paidTicket = () => ({ id: "300", free: false, include_fee: true, cost: mon
 
 beforeEach(() => {
   vi.resetAllMocks();
+  vi.stubEnv("EVENTBRITE_LISTED", undefined);
   vi.stubGlobal("fetch", fetchMock);
   job = { eventId: "event-1", organizationId: "10", status: "PENDING", venueId: null, externalEventId: null, ticketClassId: null };
   event = { id: "event-1", companyId: "company", postToEventbrite: true, status: "PUBLISHED",
@@ -52,7 +53,46 @@ beforeEach(() => {
     return Response.json({});
   });
 });
-afterEach(() => vi.unstubAllGlobals());
+afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+
+it.each([
+  [undefined, true], ["true", true], ["false", false],
+] as const)("creates and publishes an event with EVENTBRITE_LISTED=%s as boolean %s", async (value, listed) => {
+  vi.stubEnv("EVENTBRITE_LISTED", value);
+  expect(await deliverEventbritePublications()).toEqual({ checked: 1, failures: 0 });
+  const created = fetchMock.mock.calls.find(([url]) => new URL(String(url)).pathname === "/v3/organizations/10/events/")!;
+  expect(JSON.parse(created[1].body).event.listed).toBe(listed);
+  expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/publish/"))).toBe(true);
+  expect(job.status).toBe("PUBLISHED");
+});
+
+it.each(["", "TRUE", "False", " false ", "1", "0", "yes"])("rejects invalid EVENTBRITE_LISTED=%j before creating remote resources", async value => {
+  vi.stubEnv("EVENTBRITE_LISTED", value);
+  expect(await deliverEventbritePublications()).toEqual({ checked: 1, failures: 1 });
+  expect(fetchMock).not.toHaveBeenCalled();
+  expect(job.status).toBe("ERROR");
+  expect(db.eventbritePublication.update).toHaveBeenLastCalledWith(expect.objectContaining({ data: expect.objectContaining({
+    lastError: expect.stringContaining("EVENTBRITE_LISTED ist ungültig"),
+  }) }));
+});
+
+it("applies the current visibility when retrying an existing remote draft without recreating it", async () => {
+  job.externalEventId = "200"; job.venueId = "100"; job.ticketClassId = "300";
+  vi.stubEnv("EVENTBRITE_LISTED", "false");
+  expect(await deliverEventbritePublications()).toEqual({ checked: 1, failures: 0 });
+  const updated = fetchMock.mock.calls.find(([url, init]) => new URL(String(url)).pathname === "/v3/events/200/" && init.method === "POST")!;
+  expect(JSON.parse(updated[1].body).event.listed).toBe(false);
+  expect(db.platformEvent.create).not.toHaveBeenCalled();
+  expect(fetchMock.mock.calls.some(([url]) => String(url).endsWith("/organizations/10/events/"))).toBe(false);
+  expect(job.status).toBe("PUBLISHED");
+});
+
+it("does not update published jobs automatically when the visibility setting changes", async () => {
+  job.status = "PUBLISHED";
+  vi.stubEnv("EVENTBRITE_LISTED", "false");
+  expect(await deliverEventbritePublications()).toEqual({ checked: 0, failures: 0 });
+  expect(fetchMock).not.toHaveBeenCalled();
+});
 
 it("does not enqueue events without an explicit opt-in", async () => {
   event.postToEventbrite = false;
@@ -115,9 +155,10 @@ it("locks the job when saving a remote venue ID fails", async () => {
   expect(fetchMock).toHaveBeenCalledTimes(1);
 });
 
-it("recovers an already published remote event without creating another ticket or event", async () => {
-  job.externalEventId = "200"; job.venueId = "100"; job.ticketClassId = "300";
-  fetchMock.mockResolvedValue(Response.json({ status: "live" }));
+it.each(["live", "started"])("recovers a %s event with missing venue ID and invalid draft configuration without remote writes", async status => {
+  job.externalEventId = "200"; job.venueId = null; job.ticketClassId = "300";
+  vi.stubEnv("EVENTBRITE_LISTED", "invalid");
+  fetchMock.mockResolvedValue(Response.json({ status }));
   await deliverEventbritePublications();
   expect(job.status).toBe("PUBLISHED");
   expect(fetchMock).toHaveBeenCalledTimes(1);

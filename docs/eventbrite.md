@@ -20,6 +20,34 @@ Weitergabe über `compose.yaml`, keine Build-Args oder NEXT_PUBLIC-Variablen):
 - `EVENTBRITE_REDIRECT_URI`: `https://DEINE-DOMAIN/api/integrations/eventbrite/callback`.
 - `EVENTBRITE_TOKEN_ENCRYPTION_KEY`: 32 zufällige Bytes als Standard-Base64.
 
+Optional: `EVENTBRITE_LISTED=true` oder `EVENTBRITE_LISTED=false` steuert das API-Feld
+`event.listed` für neu angelegte Eventbrite-Events. Ohne Variable gilt weiterhin
+`true`. Erlaubt sind ausschließlich diese beiden kleingeschriebenen Werte, ohne
+zusätzliche Leerzeichen; leere oder andere Werte brechen die Übertragung mit einer
+verständlichen Konfigurationsfehlermeldung ab, bevor entfernte Ressourcen erstellt
+werden. Die Prüfung erfolgt bei Bedarf serverseitig zur Laufzeit, ohne
+`NEXT_PUBLIC_`, Build-Argument oder Browser-Prop.
+
+In `/opt/docker/event-management/.env.docker` setzen:
+
+- **Strato-Testserver:** `EVENTBRITE_LISTED=false`
+- **IONOS-Produktivserver:** `EVENTBRITE_LISTED=true`
+
+`listed=false` bedeutet: Das Event wird auf Eventbrite angelegt und veröffentlicht,
+aber nicht öffentlich gelistet oder über die Eventbrite-Suche auffindbar. Es bleibt
+über die direkte Event-URL erreichbar, sofern die Eventbrite-Privatsphäreinstellungen
+nichts anderes festlegen. **Dies ist keine Sandbox** und verhindert weder die
+Erstellung noch die Veröffentlichung auf Eventbrite.
+
+Eine geänderte Einstellung aktualisiert vorhandene Events nicht automatisch.
+Nur neue Eventbrite-Events und Wiederholungsversuche, bei denen das entfernte Event
+noch ein Entwurf ist, verwenden den aktuellen Wert. Bereits live geschaltete oder
+gestartete Events werden bei einem Retry nur als erfolgreich erkannt, ohne
+Schreibaufrufe oder erneute Erstellung. Compose reicht die Variable explizit an
+`app` weiter und verwendet bei fehlendem Eintrag `true`; ein ausdrücklich leerer
+Wert bleibt zur Validierung erhalten. `migrate` benötigt diese Variable nicht.
+Umgebungsänderungen werden beim regulären Neuerstellen des App-Containers wirksam.
+
 Client ID, Secret und Redirect URI müssen zur gleichen Eventbrite-App gehören.
 Die Redirect URI muss in Eventbrite und Deployment identisch sein. Für das
 vorhandene Traefik-Deployment lautet sie:

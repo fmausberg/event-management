@@ -11,6 +11,13 @@ class PublicationError extends Error {
   constructor(message: string, public uncertain = false) { super(message); }
 }
 
+// Lazy, server-only runtime setting: no build-time evaluation or client exposure.
+function listedForNewEvents() {
+  const parsed = z.enum(["true", "false"]).safeParse(process.env.EVENTBRITE_LISTED ?? "true");
+  if (!parsed.success) throw new PublicationError("EVENTBRITE_LISTED ist ungültig. Erlaubt sind ausschließlich true und false. Bitte die serverseitige Umgebungsvariable korrigieren.");
+  return parsed.data === "true";
+}
+
 // Never expose provider bodies: these may contain submitted data or credentials.
 async function api(token: string, path: string, body?: unknown, ambiguousOnFailure = false): Promise<unknown> {
   let response: Response;
@@ -78,6 +85,18 @@ export async function deliverEventbritePublications(companyId?: string) {
       const token = decrypt(connection.encryptedAccessToken, event.companyId);
       const org = encodeURIComponent(job.organizationId);
       const utc = (date: Date) => date.toISOString().replace(/\.\d{3}Z$/, "Z");
+      // Recover a completed publication before reading draft-only configuration
+      // or creating/updating any remote resource, including a missing venue.
+      const existingRemote = job.externalEventId
+        ? z.object({ status: z.string() }).parse(await api(token, `events/${encodeURIComponent(job.externalEventId)}/`))
+        : null;
+      if (existingRemote?.status === "live" || existingRemote?.status === "started") {
+        await db.eventbritePublication.update({ where: { eventId: job.eventId }, data: { status: "PUBLISHED", lastError: null } });
+        continue;
+      }
+      if (existingRemote && existingRemote.status !== "draft") throw new PublicationError("Das Event wurde bei Eventbrite geändert und wird nicht erneut veröffentlicht.");
+      // Validate before the first create; invalid configuration must not create a venue.
+      const listed = listedForNewEvents();
 
       // Persist uncertainty BEFORE each non-idempotent create. The response ID and
       // local mapping commit together; a DB/network failure cannot cause a retry.
@@ -105,11 +124,11 @@ export async function deliverEventbritePublications(companyId?: string) {
       const eventData = { event: {
         name: { html: escapeHtml(event.name) }, summary: (event.shortdescription ?? event.name).slice(0, 140),
         start: { timezone: "Europe/Berlin", utc: utc(event.beginsAt) }, end: { timezone: "Europe/Berlin", utc: utc(event.endsAt) },
-        currency: event.currency, venue_id: venueId, listed: true, online_event: false, capacity: event.maxSeats, locale: "de_DE",
+        currency: event.currency, venue_id: venueId, listed, online_event: false, capacity: event.maxSeats, locale: "de_DE",
       } };
       const externalId = job.externalEventId ?? await createRemote(`organizations/${org}/events/`, eventData, "externalEventId");
       const path = `events/${encodeURIComponent(externalId)}/`;
-      const remote = z.object({ status: z.string() }).parse(await api(token, path));
+      const remote = existingRemote ?? z.object({ status: z.string() }).parse(await api(token, path));
       if (remote.status !== "live" && remote.status !== "started") {
         if (remote.status !== "draft") throw new PublicationError("Das Event wurde bei Eventbrite geändert und wird nicht erneut veröffentlicht.");
         // A failed attempt may be retried after editing the local draft data.

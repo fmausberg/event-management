@@ -5,6 +5,25 @@ Optionale Eventbrite-Organisationsverknüpfung: `EVENTBRITE_CLIENT_ID`,
 `EVENTBRITE_TOKEN_ENCRYPTION_KEY` zur Laufzeit in `.env.docker` setzen.
 Einrichtung, HTTPS-Callback und erforderliche Migration: [Eventbrite](eventbrite.md).
 
+`EVENTBRITE_LISTED` steuert die Sichtbarkeit neu erstellter Eventbrite-Events zur
+Laufzeit. In `/opt/docker/event-management/.env.docker` auf Strato
+`EVENTBRITE_LISTED=false`, auf IONOS `EVENTBRITE_LISTED=true` setzen.
+Compose reicht die Variable explizit an `app` weiter; `migrate` benötigt sie nicht.
+Ohne Eintrag gilt `true`. Nur die exakten Werte `true` und `false` sind gültig;
+auch ein leerer Wert wird als Konfigurationsfehler abgewiesen. Die Variable bleibt
+serverseitig, ohne `NEXT_PUBLIC_` und ohne Build-Argument. Beim nächsten regulären
+Deployment muss der App-Container mit der geänderten Umgebung neu erstellt werden;
+ein bloßer Container-Neustart übernimmt Änderungen an `.env.docker` nicht.
+
+`false` veröffentlicht das Event weiterhin bei Eventbrite, listet es aber nicht
+öffentlich und macht es nicht über die Eventbrite-Suche auffindbar. Die direkte
+Event-URL bleibt erreichbar, sofern Eventbrite-Privatsphäreinstellungen nichts
+anderes festlegen. **Das ist keine Sandbox:** Erstellung und Veröffentlichung bei
+Eventbrite finden weiterhin statt. Vorhandene Events werden nicht automatisch
+aktualisiert; nur ein erneuter Übertragungsversuch eines noch als Entwurf
+vorliegenden Events kann die neue Einstellung übernehmen. Live-Events bleiben
+auch bei Wiederholungsversuchen unverändert.
+
 Voraussetzungen: Linux-Server mit Docker Engine und Compose v2, Domain und
 HTTPS-Reverse-Proxy. Das Repository enthält ein Traefik-Overlay;
 alternativ kann ein eigener Proxy verwendet werden. Der App-Port wird ausschließlich an
