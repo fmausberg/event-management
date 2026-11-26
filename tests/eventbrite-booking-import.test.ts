@@ -120,6 +120,42 @@ it.each([
   expect(stored).toHaveLength(0);
 });
 
+it("reports the provider's error code and rejected argument without reflecting raw descriptions", async () => {
+  const original = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (url: string) => new URL(url).pathname.endsWith("/orders/")
+    ? Response.json({
+      error: "ARGUMENTS_ERROR",
+      error_description: "There are errors with your arguments: status - Invalid choice. private-token buyer@example.com",
+    }, { status: 400 }) : original(url));
+  await expect(importEventbriteBookings("studio", "event-1")).rejects.toThrow("HTTP 400, Eventbrite-Code: ARGUMENTS_ERROR, Parameter: status");
+  expect(mapping.lastBookingImportError).not.toContain("private-token");
+  expect(mapping.lastBookingImportError).not.toContain("buyer@example.com");
+  expect(mapping.lastBookingImportError).not.toContain("Invalid choice");
+  expect(stored).toHaveLength(0);
+});
+
+it("retains a structured error code when the description is absent and filters unrecognized argument names", async () => {
+  const original = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (url: string) => new URL(url).pathname.endsWith("/orders/")
+    ? Response.json({ error: "ARGUMENTS_ERROR", error_description: null,
+      error_detail: { continuation: "private-token", customerEmail: "buyer@example.com" },
+    }, { status: 400 }) : original(url));
+  await expect(importEventbriteBookings("studio", "event-1")).rejects.toThrow("Eventbrite-Code: ARGUMENTS_ERROR, Parameter: continuation");
+  expect(mapping.lastBookingImportError).not.toContain("private-token");
+  expect(mapping.lastBookingImportError).not.toContain("buyer@example.com");
+  expect(mapping.lastBookingImportError).not.toContain("customerEmail");
+});
+
+it.each([false, true])("keeps HTTP diagnostics for non-JSON or malformed error codes (JSON: %s)", async json => {
+  const original = fetchMock.getMockImplementation()!;
+  fetchMock.mockImplementation(async (url: string) => new URL(url).pathname.endsWith("/orders/")
+    ? json ? Response.json({ error: "private-token buyer@example.com" }, { status: 400 }) : new Response("private-token buyer@example.com", { status: 400 })
+    : original(url));
+  await expect(importEventbriteBookings("studio", "event-1")).rejects.toThrow("Anfrage: Bestellungen, HTTP 400");
+  expect(mapping.lastBookingImportError).not.toContain("private-token");
+  expect(mapping.lastBookingImportError).not.toContain("buyer@example.com");
+});
+
 it("preserves all previous bookings and success timestamp if any page fails", async () => {
   await importEventbriteBookings("studio", "event-1");
   const before = structuredClone(stored); const lastImport = mapping.lastBookingImportAt;

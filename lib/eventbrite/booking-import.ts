@@ -9,6 +9,26 @@ import { MemberAccessError } from "@/lib/companies/members";
 import { decrypt, EventbriteError } from "./connection";
 
 export class EventbriteBookingImportError extends Error {}
+// Only validated code identifiers and fixed parameter labels may enter UI/errors.
+// error_description can reflect request data and must never be exposed verbatim.
+const providerErrorCode = z.string().max(80).regex(/^[A-Z]+(?:_[A-Z0-9]+)+$/);
+const importParameters = ["status", "continuation", "event_id", "changed_since", "last_item_seen", "page", "page_size"] as const;
+
+function providerErrorDetails(raw: unknown) {
+  const result = z.object({ error: z.unknown().optional(), error_description: z.string().nullish(), error_detail: z.unknown().optional() }).safeParse(raw);
+  if (!result.success) return "";
+  const code = providerErrorCode.safeParse(result.data.error);
+  const description = (result.data.error_description ?? "").slice(0, 4000);
+  const detail = result.data.error_detail;
+  const fields = importParameters.filter(field => {
+    if (detail && typeof detail === "object" && !Array.isArray(detail) && Object.prototype.hasOwnProperty.call(detail, field)) return true;
+    // Recognize the provider's "arguments: status - Invalid choice" shape.
+    // Only the fixed field name is retained, never the following raw text/value.
+    return new RegExp(`(?:^|[\\s,:;])${field}\\s*[-:]`, "i").test(description);
+  });
+  return `${code.success ? `, Eventbrite-Code: ${code.data}` : ""}${fields.length ? `, Parameter: ${fields.join(", ")}` : ""}`;
+}
+
 const id = z.string().regex(/^\d+$/);
 const orderSchema = z.object({
   id, event_id: id, created: z.iso.datetime({ offset: true }),
@@ -96,7 +116,9 @@ async function request(token: string, path: string, deadline: number): Promise<u
     // Fixed labels only: never expose request URLs, tokens or provider response bodies.
     const resource = path.split("?")[0].endsWith("/orders/") ? "Bestellungen"
       : path.split("?")[0].endsWith("/attendees/") ? "Teilnehmer" : "Event";
-    const details = `Anfrage: ${resource}, HTTP ${response.status}`;
+    let providerDetails = "";
+    try { providerDetails = providerErrorDetails(await response.json()); } catch { /* Keep HTTP diagnostics for non-JSON errors. */ }
+    const details = `Anfrage: ${resource}, HTTP ${response.status}${providerDetails}`;
     if (response.status === 401 || response.status === 403) throw new EventbriteBookingImportError(`Der Zugriff auf die Eventbrite-Buchungen fehlt (${details}). Bitte die Verbindung und Leserechte prüfen.`);
     if (response.status === 429) throw new EventbriteBookingImportError(`Eventbrite begrenzt gerade die Anfragen (${details}). Bitte später erneut versuchen.`);
     throw new EventbriteBookingImportError(`Eventbrite konnte die Buchungen nicht liefern (${details}). Bitte bei HTTP 400 oder 404 einen Plattformadministrator kontaktieren; bei Serverfehlern später erneut versuchen.`);

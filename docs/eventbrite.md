@@ -171,7 +171,12 @@ automatisch mit unserem Scanner verwendbar.
 
 Die UI zeigt die Zahlen neu/aktualisiert/unverändert/übersprungen, den letzten
 erfolgreichen Zeitpunkt und Fehler. Bei Fehlern bleibt der letzte erfolgreiche
-Buchungsstand erhalten. Ein atomarer Claim verhindert parallele Importe; nach
+Buchungsstand erhalten. Bei HTTP-Fehlern werden Anfrageart, HTTP-Status und ein
+formal geprüfter Eventbrite-Fehlercode angezeigt; soweit erkennbar auch betroffene
+bekannte Parameternamen. Ungefilterte Providertexte und Parameterwerte werden
+nicht angezeigt oder gespeichert. HTTP 400 allein belegt weder einen leeren
+Event noch einen bestimmten ungültigen Filter.
+Ein atomarer Claim verhindert parallele Importe; nach
 einem Prozessabbruch kann der nächste bewusste Klick die Sperre nach fünf Minuten
 übernehmen. Provideraufrufe sind auf 15 Sekunden pro Anfrage, insgesamt 60 Sekunden,
 100 Seiten und 5.000 Datensätze pro Liste begrenzt; Überschreitung führt zum Abbruch
