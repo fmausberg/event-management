@@ -1,3 +1,5 @@
+import { getPrisma } from "@/lib/db/prisma";
+import { countries } from "@/lib/taxes/countries";
 import { TaxConfiguration } from "@/components/tax-configuration";
 import { notFound, redirect } from "next/navigation";
 import { refreshConnectAccount } from "@/lib/payments/connect";
@@ -18,6 +20,11 @@ export default async function CompanySettingsPage({ params, searchParams }: { pa
   }
   throw error;
  }
+ const venueCountries = await getPrisma().venue.findMany({
+  where: { companyId: company.id }, select: { countryCode: true }, distinct: ["countryCode"],
+ });
+ const availableCodes = new Set(venueCountries.map(venue => venue.countryCode));
+ const embedCountries = countries.filter(country => availableCodes.has(country.code)).sort((a, b) => a.name.localeCompare(b.name, "de"));
  const configured = Boolean(process.env.STRIPE_SECRET_KEY);
  let connected = false, ready = false, failed = false;
  let statusError: ReturnType<typeof reportConnectError> | undefined;
@@ -32,7 +39,7 @@ export default async function CompanySettingsPage({ params, searchParams }: { pa
  const connectionError = !stripe || stripe === "return" ? statusError : stripe;
  return <main className="flex-1 space-y-6 p-6 sm:p-10">
   <h1 className="text-2xl font-semibold">Einstellungen – {company.name}</h1>
-  <EmbedCode slug={company.slug} companyName={company.name} />
+  <EmbedCode slug={company.slug} companyName={company.name} countries={embedCountries} />
   <section className="max-w-2xl space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
    <h2 className="text-xl font-semibold">Ticketzahlungen</h2>
    <p>Käufer bezahlen über Stripe. Die Zahlung geht direkt auf das Stripe-Konto deiner Company. Aktuell wird keine Plattformprovision erhoben.</p>

@@ -1,4 +1,5 @@
 "use server";
+import { deliverPendingVenueConfirmations } from "@/lib/tickets/outbox";
 import { withSessionAudit } from "@/lib/audit/session";
 
 import { requireAdmin } from "@/lib/auth/require-admin";
@@ -25,6 +26,7 @@ export async function updateEvent(id: string, _previous: EventFormState, formDat
     const result = validateEvent(values, original);
     if (!result.success) return { values, errors: result.errors, message: "Bitte korrigiere die markierten Felder." };
     await saveEventChanges(id, result.data);
+    await deliverPendingVenueConfirmations();
   } catch (error) {
     return { values, message: eventMutationErrorMessage(error) };
   }
@@ -41,7 +43,7 @@ export async function updateEvent(id: string, _previous: EventFormState, formDat
 export async function deleteEvent(id: string, _previous: { message?: string }, formData: FormData): Promise<{ message?: string }> {
   return withSessionAudit("admin/events.deleteEvent", async () => {
   if (formData.get("confirmed") !== "yes") return { message: "Bitte bestätige das Löschen." };
-  try { await requireAdmin(); await removeEvent(id); }
+  try { await requireAdmin(); await removeEvent(id); await deliverPendingVenueConfirmations(); }
   catch (error) { return { message: eventMutationErrorMessage(error) }; }
   revalidatePath("/admin/events");
   revalidatePath("/admin/events/[id]/edit", "page");

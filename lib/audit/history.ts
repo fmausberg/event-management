@@ -1,4 +1,5 @@
 import "server-only";
+import { auth } from "@/auth";
 import { requireCompanyAccess } from "@/lib/companies/members";
 import { getPrisma } from "@/lib/db/prisma";
 import { requireAdmin } from "@/lib/auth/require-admin";
@@ -72,6 +73,19 @@ export async function getAdminAuditActors() {
   return [...types, ...individuals];
 }
 
+// Use the stored target identity: history still works after a note/assignment is deleted.
+function noteHistoryFor(targetModel: string, targetId: string, userId?: string): Prisma.AuditLogWhereInput {
+  const snapshot = (field: "before" | "after"): Prisma.AuditLogWhereInput => ({ AND: [
+    { [field]: { path: ["targetModel"], equals: targetModel } },
+    { [field]: { path: ["targetId"], equals: targetId } },
+    { OR: [
+      { [field]: { path: ["visibility"], equals: "COMPANY" } },
+      ...(userId ? [{ [field]: { path: ["authorId"], equals: userId } }] : []),
+    ] },
+  ] });
+  return { model: "Note", OR: [snapshot("after"), { action: "DELETE", ...snapshot("before") }] };
+}
+
 // Authorize independently; neither companyId nor series ownership comes from
 // client claims. A deleted series remains in AuditLog but has no detail page.
 export async function getEventSeriesHistory(companySlug: string, seriesId: string, page = 1) {
@@ -79,12 +93,24 @@ export async function getEventSeriesHistory(companySlug: string, seriesId: strin
   const db = getPrisma();
   const series = await db.eventSeries.findFirst({ where: { id: seriesId, companyId: company.id }, select: { id: true } });
   if (!series) return null;
-  return loadHistory({ model: "EventSeries", recordId: series.id, companyId: company.id }, page);
+  const userId = (await auth())?.user?.id;
+  return loadHistory({ companyId: company.id, OR: [
+    { model: "EventSeries", recordId: series.id },
+    noteHistoryFor("EventSeries", series.id, userId),
+  ] }, page);
 }
 
 export async function getEventHistory(companySlug: string, eventId: string, page = 1) {
   const { company } = await requireCompanyAccess(companySlug);
   const event = await getPrisma().event.findFirst({ where: { id: eventId, companyId: company.id }, select: { id: true } });
   if (!event) return null;
-  return loadHistory({ model: "Event", recordId: event.id, companyId: company.id }, page);
+  const userId = (await auth())?.user?.id;
+  return loadHistory({ companyId: company.id, OR: [
+    { model: "Event", recordId: event.id },
+    { model: { in: ["EventTrainer", "EventVenueApproval"] }, OR: [
+      { after: { path: ["eventId"], equals: event.id } },
+      { before: { path: ["eventId"], equals: event.id } },
+    ] },
+    noteHistoryFor("Event", event.id, userId),
+  ] }, page);
 }

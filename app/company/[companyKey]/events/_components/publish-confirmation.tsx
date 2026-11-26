@@ -26,10 +26,10 @@ export function PublishConfirmation({ missing, count, onDecision }: { missing: s
       <ul className="my-5 space-y-2 rounded-xl border border-primary-100 bg-primary-50/60 p-4 dark:border-zinc-700 dark:bg-zinc-800">
         {missing.map((label) => <li key={label} className="flex items-center gap-3 text-sm font-medium"><span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-accent-500" />{label}</li>)}
       </ul>
-      <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{count ? "Du kannst sie jetzt ergänzen oder alle ausgewählten Veranstaltungen gemeinsam veröffentlichen." : "Du kannst sie jetzt ergänzen oder deine Veranstaltung bereits veröffentlichen."}</p>
+      <p className="text-sm leading-relaxed text-zinc-500 dark:text-zinc-400">{count ? "Du kannst sie jetzt ergänzen oder alle ausgewählten Veranstaltungen gemeinsam in den Freigabeprozess geben." : "Du kannst sie jetzt ergänzen oder den Veröffentlichungsprozess bereits starten."}</p>
       <div className="mt-6 flex flex-col gap-3">
         <button ref={back} type="button" onClick={() => onDecision(false)} className="rounded-xl bg-primary-600 px-4 py-3 text-sm font-semibold text-white hover:bg-primary-700 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-primary-600">Angaben ergänzen</button>
-        <button type="button" onClick={() => onDecision(true)} className="rounded-xl border border-zinc-300 px-4 py-3 text-sm font-medium hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-primary-600 dark:border-zinc-600 dark:hover:bg-zinc-800">Trotzdem veröffentlichen</button>
+        <button type="button" onClick={() => onDecision(true)} className="rounded-xl border border-zinc-300 px-4 py-3 text-sm font-medium hover:bg-zinc-50 focus-visible:outline-2 focus-visible:outline-primary-600 dark:border-zinc-600 dark:hover:bg-zinc-800">Veröffentlichungsprozess starten</button>
       </div>
     </div>
   </dialog>;
