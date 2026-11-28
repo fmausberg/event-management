@@ -19,6 +19,12 @@ export async function resolveTax(tx: Prisma.TransactionClient, companyId: string
   if (venue && venue.companyId !== companyId || series && series.companyId !== companyId) throw new TaxError("Ort und Veranstaltungsreihe müssen zur Company gehören.");
   const countryCode = venue?.countryCode?.trim().toUpperCase();
   if (!countryCode || !isCountryCode(countryCode)) throw new TaxError("Für diese Veranstaltung fehlt ein gültiges Venue-Land. Bitte den Veranstalter kontaktieren.");
+  // The German exemption takes precedence over rates, including event overrides.
+  // Foreign venues continue to use their own rules; § 19 alone does not cover them.
+  if (countryCode === "DE") {
+    const company = await tx.company.findUniqueOrThrow({ where: { id: companyId }, select: { isSmallBusiness: true } });
+    if (company.isSmallBusiness) return { countryCode, rate: new Prisma.Decimal(0), source: "COMPANY_SMALL_BUSINESS" as const };
+  }
   if (override !== null) return { countryCode, rate: override, source: "EVENT_OVERRIDE" as const };
   if (series?.taxRateOverride != null) return { countryCode, rate: series.taxRateOverride, source: "SERIES_OVERRIDE" as const };
   const rule = await tx.companyTaxRule.findUnique({ where: { companyId_countryCode: { companyId, countryCode } } });

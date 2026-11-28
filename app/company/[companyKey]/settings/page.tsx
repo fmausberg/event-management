@@ -8,6 +8,8 @@ import { MemberAccessError, requireCompanyAdmin } from "@/lib/companies/members"
 import { EmbedCode } from "./embed-code";
 import { reportConnectError } from "@/lib/payments/connect-error";
 import { EventbriteSettingsSection } from "./eventbrite/settings-section";
+import { CompanyBillingForm } from "./billing-form";
+import { companyBillingSelect } from "@/lib/companies/billing";
 export const dynamic = "force-dynamic";
 export default async function CompanySettingsPage({ params, searchParams }: { params: Promise<{ companyKey: string }>; searchParams?: Promise<{ stripe?: string; error?: string; eventbrite?: string }> }) {
  const { companyKey } = await params;
@@ -20,6 +22,7 @@ export default async function CompanySettingsPage({ params, searchParams }: { pa
   }
   throw error;
  }
+ const billing = await getPrisma().company.findUniqueOrThrow({ where: { id: company.id }, select: companyBillingSelect });
  const venueCountries = await getPrisma().venue.findMany({
   where: { companyId: company.id }, select: { countryCode: true }, distinct: ["countryCode"],
  });
@@ -39,6 +42,7 @@ export default async function CompanySettingsPage({ params, searchParams }: { pa
  const connectionError = !stripe || stripe === "return" ? statusError : stripe;
  return <main className="flex-1 space-y-6 p-6 sm:p-10">
   <h1 className="text-2xl font-semibold">Einstellungen – {company.name}</h1>
+  <CompanyBillingForm companyKey={companyKey} billing={billing} />
   <EmbedCode slug={company.slug} companyName={company.name} countries={embedCountries} />
   <section className="max-w-2xl space-y-4 rounded-xl border border-zinc-200 p-6 dark:border-zinc-800">
    <h2 className="text-xl font-semibold">Ticketzahlungen</h2>

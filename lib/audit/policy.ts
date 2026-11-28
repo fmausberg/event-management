@@ -133,9 +133,14 @@ export const auditPolicies = {
 
     delegate: "company",
 
-    fields: { number: "Nummer", name: "Name", slug: "URL-Kürzel", stripeChargesEnabled: "Zahlungen aktiviert", stripePayoutsEnabled: "Auszahlungen aktiviert" },
+    fields: { number: "Nummer", name: "Name", slug: "URL-Kürzel", isSmallBusiness: "Kleinunternehmerregelung", stripeChargesEnabled: "Zahlungen aktiviert", stripePayoutsEnabled: "Auszahlungen aktiviert" },
 
-    privateFields: { stripeAccountId: "Stripe-Verknüpfung" },
+    privateFields: {
+      stripeAccountId: "Stripe-Verknüpfung",
+      legalName: "Rechtlicher Firmenname", addressLine1: "Geschäftsadresse", addressLine2: "Adresszusatz",
+      postalCode: "Postleitzahl", city: "Ort", countryCode: "Land",
+      taxNumber: "Steuernummer", vatId: "Umsatzsteuer-ID", billingEmail: "Rechnungs-E-Mail",
+    },
 
     affectedBy: [],
 

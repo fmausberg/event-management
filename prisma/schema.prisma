@@ -412,6 +412,18 @@ model Company {
 
   slug                 String  @unique
 
+  // Invoice issuer master data; optional until supplied by a Company admin.
+  legalName    String?
+  isSmallBusiness Boolean @default(false)
+  addressLine1 String?
+  addressLine2 String?
+  postalCode   String?
+  city         String?
+  countryCode  String? @db.Char(2)
+  taxNumber    String?
+  vatId        String?
+  billingEmail String?
+
   stripeAccountId      String? @unique
 
   stripeChargesEnabled Boolean @default(false)
@@ -2286,6 +2298,8 @@ model VoucherBalanceEntry {
 // Optional for existing Bookings. No backfill; SQL migration makes snapshots append-only.
 
 enum TaxRuleSource {
+
+  COMPANY_SMALL_BUSINESS
 
   EVENT_OVERRIDE
 

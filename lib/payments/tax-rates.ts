@@ -35,8 +35,10 @@ export async function prepareTaxCheckout(payment: Payment): Promise<Payment> {
  if (payment.checkoutSessionId) throw new Error("Tax checkout state requires reconciliation");
  const snapshot = await db.bookingPrice.findUniqueOrThrow({ where: { bookingId: payment.bookingId } });
  if (snapshot.taxRate == null || !snapshot.taxCountryCode || snapshot.taxCalculationVersion !== 1 || snapshot.payableAmountMinor !== payment.amount) throw new Error("Tax snapshot unavailable");
- let taxRateId: string;
- try { taxRateId = await manualTaxRate(payment.stripeAccountId, snapshot.taxCountryCode, snapshot.taxRate); }
+ const smallBusiness = snapshot.taxSource === "COMPANY_SMALL_BUSINESS";
+ if (smallBusiness && (!snapshot.taxRate.isZero() || snapshot.taxMinor !== 0)) throw new Error("Invalid small business tax snapshot");
+ let taxRateId: string | undefined;
+ try { if (!smallBusiness) taxRateId = await manualTaxRate(payment.stripeAccountId, snapshot.taxCountryCode, snapshot.taxRate); }
  catch {
   console.error("[payments:tax] Connected-account TaxRate unavailable");
   throw new Error("Checkout tax configuration unavailable");
@@ -44,7 +46,7 @@ export async function prepareTaxCheckout(payment: Payment): Promise<Payment> {
  const params = request as unknown as Stripe.Checkout.SessionCreateParams;
  if (params.line_items?.length !== 1 || params.line_items[0].quantity !== 1 || params.line_items[0].price_data?.unit_amount !== payment.amount) throw new Error("Unexpected tax checkout positions");
  const frozen = { ...params, metadata: { ...params.metadata, pilotTaxStatus: "frozen", pilotTaxMinor: String(snapshot.taxMinor) },
-  line_items: params.line_items.map(line => ({ ...line, tax_rates: [taxRateId], price_data: { ...line.price_data!, tax_behavior: "inclusive" as const } })) };
+  line_items: params.line_items.map(line => ({ ...line, tax_rates: taxRateId ? [taxRateId] : undefined, price_data: { ...line.price_data!, tax_behavior: "inclusive" as const } })) };
  await db.payment.updateMany({ where: { id: payment.id, checkoutSessionId: null, checkoutRequest: { equals: request } }, data: { checkoutRequest: frozen as unknown as Prisma.InputJsonValue } });
  const current = await db.payment.findUniqueOrThrow({ where: { id: payment.id } });
  if ((current.checkoutRequest as { metadata?: { pilotTaxStatus?: string } }).metadata?.pilotTaxStatus !== "frozen") throw new Error("Tax request changed concurrently");

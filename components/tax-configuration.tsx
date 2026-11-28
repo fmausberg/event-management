@@ -18,6 +18,8 @@ export async function TaxConfiguration({ slug, kind, id, collapsible = false }: 
 
  const db = getPrisma();
 
+ const billingTax = await db.company.findUniqueOrThrow({ where: { id: company.id }, select: { isSmallBusiness: true } });
+
  let content;
 
  if (kind === "country") {
@@ -72,7 +74,9 @@ export async function TaxConfiguration({ slug, kind, id, collapsible = false }: 
 
  }
 
- const body = <><p className="text-sm text-zinc-500">Brutto-Endkundenpreise inklusive Steuer. Ohne gültige Regel ist keine Veröffentlichung oder Buchung möglich. Entwürfe können gespeichert werden.</p>{content}</>;
+ const body = <>
+  {billingTax.isSmallBusiness && <p role="status" className="text-sm text-zinc-500">Kleinunternehmerregelung aktiv: Für Events in Deutschland wird bei neuen Buchungen keine Umsatzsteuer berechnet, auch bei abweichenden Reihen- oder Event-Steuersätzen. Für andere Länder gelten weiterhin die folgenden Regeln.</p>}
+  <p className="text-sm text-zinc-500">Brutto-Endkundenpreise inklusive anfallender Steuer. Ohne gültige Regel oder anwendbare Kleinunternehmerregelung ist keine Veröffentlichung oder Buchung möglich. Entwürfe können gespeichert werden.</p>{content}</>;
 
  if (collapsible) return <details className="rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
 

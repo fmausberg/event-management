@@ -3,10 +3,33 @@ import { Prisma } from "@prisma/client";
 import { bookingTaxSnapshot, resolveTax, parseTaxRate, taxOverrideFromForm } from "@/lib/taxes/service";
 import { isCountryCode } from "@/lib/taxes/countries";
 vi.mock("server-only", () => ({}));
-const rule = vi.fn(), event = vi.fn();
-const tx = { companyTaxRule: { findUnique: rule }, event: { findUniqueOrThrow: event } } as unknown as Prisma.TransactionClient;
+const rule = vi.fn(), event = vi.fn(), company = vi.fn();
+const tx = { companyTaxRule: { findUnique: rule }, event: { findUniqueOrThrow: event }, company: { findUniqueOrThrow: company } } as unknown as Prisma.TransactionClient;
 const venue = { companyId: "a", countryCode: "AT" };
 beforeEach(() => { rule.mockResolvedValue({ rate: new Prisma.Decimal(20) }); event.mockResolvedValue({ companyId: "a", taxRateOverride: null, venue, eventSeries: null }); });
+beforeEach(() => { company.mockResolvedValue({ isSmallBusiness: false }); });
+it("prioritizes the German small business exemption over event and series rates", async () => {
+ company.mockResolvedValue({ isSmallBusiness: true });
+ const tax = await resolveTax(tx, "a", new Prisma.Decimal(19), { ...venue, countryCode: "DE" }, { companyId: "a", taxRateOverride: new Prisma.Decimal(7) });
+ expect(tax.source).toBe("COMPANY_SMALL_BUSINESS");
+ expect(tax.rate.toString()).toBe("0");
+});
+it("keeps foreign country rules for German small businesses", async () => {
+ company.mockResolvedValue({ isSmallBusiness: true });
+ const tax = await resolveTax(tx, "a", null, venue, null);
+ expect(tax.source).toBe("COMPANY_COUNTRY_RULE");
+ expect(tax.rate.toString()).toBe("20");
+});
+it("uses normal German tax rules when the exemption is disabled", async () => {
+ const tax = await resolveTax(tx, "a", new Prisma.Decimal(19), { ...venue, countryCode: "DE" }, null);
+ expect(tax.source).toBe("EVENT_OVERRIDE");
+ expect(tax.rate.toString()).toBe("19");
+});
+it("records tax exemption without reducing the ticket price", async () => {
+ company.mockResolvedValue({ isSmallBusiness: true });
+ event.mockResolvedValue({ companyId: "a", taxRateOverride: new Prisma.Decimal(19), venue: { ...venue, countryCode: "DE" }, eventSeries: null });
+ expect(await bookingTaxSnapshot(tx, "event", 11900)).toMatchObject({ taxSource: "COMPANY_SMALL_BUSINESS", taxGrossMinor: 11900, taxMinor: 0, taxNetMinor: 11900 });
+});
 it.each(["0", "100", "19,1250", "0.0001"])("accepts explicit valid rate %s", rate => expect(parseTaxRate(rate).gte(0)).toBe(true));
 it.each(["", "-1", "100.0001", "1.23456", "NaN", "1e1", "19%"])("rejects invalid rate %s", rate => expect(() => parseTaxRate(rate)).toThrow());
 it("validates real ISO codes", () => { expect(isCountryCode("DE")).toBe(true); expect(isCountryCode("ZZ")).toBe(false); });
